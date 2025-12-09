@@ -22,7 +22,8 @@ jobs:
         shell: pwsh       
         run: |
           $countries = @("gb")
-          Write-Output "countries={""countries"":$($countries | ConvertTo-Json -Compress)}" >> $Env:GITHUB_OUTPUT
+          $matrix = @{ countries = $countries }
+          Write-Output "countries=$($matrix | ConvertTo-Json -Compress)" >> $Env:GITHUB_OUTPUT
 
       - name: ShowOutput      
         shell: pwsh       
