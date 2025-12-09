@@ -23,9 +23,12 @@ Get-BCArtifactUrl -select All -Type OnPrem -country $country | % {
     }
 }
 
-$Versions | Sort-Object -Property Country, Version | % {
-    [version]$Version = $_.Version
-    $country = $_.Country.Trim()
+# Get only the highest version
+$HighestVersion = $Versions | Sort-Object -Property Version -Descending | Select-Object -First 1
+
+if ($HighestVersion) {
+    [version]$Version = $HighestVersion.Version
+    $country = $HighestVersion.Country.Trim()
     Write-Host ($($country)-$($version.ToString()))
     
     git fetch --all
@@ -37,9 +40,9 @@ $Versions | Sort-Object -Property Country, Version | % {
         Write-Host "Processing $($country) - $($Version.ToString())"
         Write-Host "###############################################"
         
-        $LatestCommitIDOfBranchEmpty = git log -n 1 --pretty=format:"%h" "master"
+        $LatestCommitIDOfBranchEmpty = git log -n 1 --pretty=format:"%h" "main"
         if ($LatestCommitIDOfBranchEmpty -eq $null) {
-            $LatestCommitIDOfBranchEmpty = git log -n 1 --pretty=format:"%h" "origin/master"
+            $LatestCommitIDOfBranchEmpty = git log -n 1 --pretty=format:"%h" "origin/main"
         }
 
         if ($Version.Major -gt 15 -and $Version.Build -gt 5) {
