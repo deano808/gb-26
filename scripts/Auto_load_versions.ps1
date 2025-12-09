@@ -9,16 +9,16 @@ $ErrorActionPreference = "Continue"
 Get-BCArtifactUrl -select All -Type OnPrem -country $country | % {
     [System.Uri]$Url = $_
     $TempString = $Url.AbsolutePath
-    [version]$Version = $TempString.Split('/')[2]
-    $country = $TempString.Split('/')[3]
+    [version]$VersionFromUrl = $TempString.Split('/')[2]
+    $countryFromUrl = $TempString.Split('/')[3]
 
     [hashtable]$objectProperty = @{}
-    $objectProperty.Add('Version', $Version)
-    $objectProperty.Add('Country', $country)
+    $objectProperty.Add('Version', $VersionFromUrl)
+    $objectProperty.Add('Country', $countryFromUrl)
     $objectProperty.Add('URL', $Url)
     $ourObject = New-Object -TypeName psobject -Property $objectProperty
 
-    if ($Version -ge [version]::Parse('15.0.0.0')) {
+    if ($VersionFromUrl -ge [version]::Parse('15.0.0.0')) {
         $Versions.Add($ourObject)
     }
 }
