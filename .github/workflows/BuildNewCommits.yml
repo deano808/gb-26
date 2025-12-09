@@ -12,10 +12,6 @@ jobs:
       countries: ${{ steps.load_countries.outputs.countries }}
       
     steps:
-      - name: Install BC Container Helper
-        shell: pwsh   
-        run: Install-Module bccontainerhelper -force
-
       - name: Check out the repository to the runner
         uses: actions/checkout@v4.1.2
         with:
@@ -24,7 +20,9 @@ jobs:
       - name: Load Countries
         id: load_countries
         shell: pwsh       
-        run: ./scripts/GetAllCountries.ps1
+        run: |
+          $countries = @("gb", "w1")
+          Write-Output "countries={""countries"":$($countries | ConvertTo-Json -Compress)}" >> $Env:GITHUB_OUTPUT
 
       - name: ShowOutput      
         shell: pwsh       
