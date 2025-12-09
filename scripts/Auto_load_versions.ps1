@@ -2,7 +2,7 @@
     [string]$country = 'w1'
 )
 
-$ErrorActionPreference = "SilentlyContinue"
+$ErrorActionPreference = "Continue"
 
 [System.Collections.ArrayList]$Versions = @()
 # Get-BCArtifactUrl -select All -Type OnPrem -country $country -after ([DateTime]::Today.AddDays(-1)) | % {
@@ -29,11 +29,14 @@ $HighestVersion = $Versions | Sort-Object -Property Version -Descending | Select
 if ($HighestVersion) {
     [version]$Version = $HighestVersion.Version
     $country = $HighestVersion.Country.Trim()
-    Write-Host ($($country)-$($version.ToString()))
+    Write-Host "Checking for version: $($country)-$($version.ToString())"
     
     git fetch --all
 
     $LastCommit = git log --all --grep="^$($country)-$($version.ToString())$"
+    
+    Write-Host "Last commit found: $($LastCommit.Length) results"
+    Write-Host "Last commit: $LastCommit"
 
     if ($LastCommit.Length -eq 0) {
         Write-Host "###############################################"
