@@ -21,7 +21,7 @@ jobs:
         id: load_countries
         shell: pwsh       
         run: |
-          $countries = @("gb", "w1")
+          $countries = @("gb")
           Write-Output "countries={""countries"":$($countries | ConvertTo-Json -Compress)}" >> $Env:GITHUB_OUTPUT
 
       - name: ShowOutput      
