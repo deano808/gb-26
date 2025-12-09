@@ -70,12 +70,12 @@ if ($HighestVersion) {
         }
         
         if ($country -eq 'w1'){
-            $Paths = Download-Artifacts -artifactUrl $_.URL -includePlatform
+            $Paths = Download-Artifacts -artifactUrl $HighestVersion.URL -includePlatform
             $LocalizationPath = $Paths[0]
             $PlatformPath = $Paths[1]
         }
         else {
-            $Paths = Download-Artifacts -artifactUrl $_.URL
+            $Paths = Download-Artifacts -artifactUrl $HighestVersion.URL
             $LocalizationPath = $Paths
             $PlatformPath = ''
         }
