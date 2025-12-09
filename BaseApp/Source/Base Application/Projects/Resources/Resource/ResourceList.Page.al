@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Projects.Resources.Resource;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Projects.Resources.Resource;
 
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Attachment;
@@ -24,6 +28,8 @@ page 77 "Resource List"
     CardPageID = "Resource Card";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Resources';
+    AboutText = 'Manage and organize project resources, including people and machines, by defining their availability, costs, pricing, and work schedules to support accurate project planning and allocation.';
     QueryCategory = 'Resource List';
     SourceTable = Resource;
     UsageCategory = Lists;

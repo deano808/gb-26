@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.Dimension;
 
 using Microsoft.Intercompany.GLAccount;
@@ -7,6 +11,8 @@ page 536 Dimensions
     ApplicationArea = Dimensions;
     Caption = 'Dimensions';
     PageType = List;
+    AboutTitle = 'About Dimensions';
+    AboutText = 'Define and manage dimensions to categorize financial data, transactions, and documents for detailed analysis and reporting across your organization. Set up dimension codes, names, and values to enable flexible breakdowns by project, department, or other categories, supporting company-wide consistency and granular filtering.';
     SourceTable = Dimension;
     UsageCategory = Administration;
 

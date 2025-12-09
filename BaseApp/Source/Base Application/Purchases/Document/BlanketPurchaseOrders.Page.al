@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Document;
 
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Attachment;
@@ -15,6 +19,8 @@ page 9310 "Blanket Purchase Orders"
     DataCaptionFields = "Buy-from Vendor No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Blanket Purchase Orders';
+    AboutText = 'Manage long-term purchase agreements with vendors by tracking blanket orders, scheduling multiple deliveries, and converting planned shipments into purchase orders as needed for ongoing procurement and forecasting.';
     QueryCategory = 'Blanket Purchase Orders';
     RefreshOnActivate = true;
     SourceTable = "Purchase Header";

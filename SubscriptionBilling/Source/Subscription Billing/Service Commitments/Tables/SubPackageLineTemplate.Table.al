@@ -55,6 +55,7 @@ table 8054 "Sub. Package Line Template"
             Caption = 'Calculation Base %';
             MinValue = 0;
             DecimalPlaces = 0 : 5;
+            AutoFormatType = 0;
         }
         field(7; "Billing Base Period"; DateFormula)
         {
@@ -69,6 +70,7 @@ table 8054 "Sub. Package Line Template"
             Caption = 'Discount';
             trigger OnValidate()
             begin
+                ErrorIfInvoicingViaIsNotContractForDiscount();
                 ErrorIfInvoicingItemIsNotServiceCommitmentItemForDiscount();
                 ErrorIfDiscountUsedWithUsageBasedBilling();
             end;
@@ -89,9 +91,9 @@ table 8054 "Sub. Package Line Template"
                     Rec.TestField(Discount, false);
                     if Rec."Usage Based Pricing" = "Usage Based Pricing"::None then
                         Rec.Validate("Usage Based Pricing", "Usage Based Pricing"::"Usage Quantity");
-                end
-                else
+                end else
                     Validate("Usage Based Pricing", "Usage Based Pricing"::None);
+                ErrorIfDiscountUsedWithUsageBasedBilling();
             end;
         }
         field(8001; "Usage Based Pricing"; Enum "Usage Based Pricing")
@@ -117,6 +119,7 @@ table 8054 "Sub. Package Line Template"
         {
             Caption = 'Pricing Unit Cost Surcharge %';
             DataClassification = CustomerContent;
+            AutoFormatType = 0;
         }
 
     }
@@ -127,6 +130,7 @@ table 8054 "Sub. Package Line Template"
             Clustered = true;
         }
     }
+
     local procedure ErrorIfInvoicingViaIsNotContractForDiscount()
     begin
         if not Rec.Discount then
@@ -156,8 +160,8 @@ table 8054 "Sub. Package Line Template"
 
     var
         DateFormulaManagement: Codeunit "Date Formula Management";
-        DiscountCannotBeAssignedErr: Label 'Subscription Package Lines, which are discounts can only be assigned to Subscription Items.';
+        DiscountCannotBeAssignedErr: Label 'Subscription Package Lines, which are discounts, can only be assigned to Subscription Items.';
         InvoicingItemNoErr: Label 'Subscription Lines for a sales document are not invoiced. No value may be entered in the Invoicing Item No..';
-        RecurringDiscountCannotBeGrantedErr: Label 'Recurring discounts cannot be granted be granted in conjunction with Usage Based Billing.';
+        RecurringDiscountCannotBeGrantedErr: Label 'Recurring discounts cannot be granted in conjunction with Usage Based Billing';
         DiscountCanBeInvoicedViaContractErr: Label 'Recurring discounts can only be granted for Invoicing via Contract.';
 }

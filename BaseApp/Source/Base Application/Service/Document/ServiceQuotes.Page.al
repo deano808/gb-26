@@ -18,6 +18,8 @@ page 9317 "Service Quotes"
     DataCaptionFields = "Customer No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Service Quotes';
+    AboutText = 'Create and manage preliminary service quotes by entering customer details, service order types, and estimated costs, with the option to convert quotes into service orders for billing and fulfillment.';
     SourceTable = "Service Header";
     SourceTableView = where("Document Type" = const(Quote));
     UsageCategory = Lists;
@@ -68,6 +70,16 @@ page 9317 "Service Quotes"
                 {
                     ApplicationArea = Service;
                     ToolTip = 'Specifies a document number that refers to the customer''s numbering system.';
+                }
+                field(Amount; Rec.Amount)
+                {
+                    ApplicationArea = Service;
+                    Visible = false;
+                }
+                field("Amount Including VAT"; Rec."Amount Including VAT")
+                {
+                    ApplicationArea = Service;
+                    Visible = false;
                 }
                 field("Location Code"; Rec."Location Code")
                 {

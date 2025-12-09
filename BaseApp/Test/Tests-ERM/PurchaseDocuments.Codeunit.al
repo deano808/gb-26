@@ -22,18 +22,21 @@ codeunit 134099 "Purchase Documents"
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryTimeSheet: Codeunit "Library - Time Sheet";
         LibraryMarketing: Codeunit "Library - Marketing";
+        LibraryNonDeductibleVAT: Codeunit "Library - NonDeductible VAT";
         Assert: Codeunit Assert;
         PurchaseAlreadyExistsTxt: Label 'Purchase %1 %2 already exists for this vendor.', Comment = '%1 = Document Type; %2 = Document No.';
         IsInitialized: Boolean;
         WrongReportInvokedErr: Label 'Wrong report invoked.';
         ZeroQuantityInLineErr: Label 'One or more document lines with a value in the No. field do not have a quantity specified.';
         PurchLinesNotUpdatedMsg: Label 'You have changed %1 on the purchase header, but it has not been changed on the existing purchase lines.', Comment = 'You have changed Posting Date on the purchase header, but it has not been changed on the existing purchase lines.';
-        PurchLinesNotUpdatedDateMsg: Label 'You have changed the %1 on the purchase order, which might affect the prices and discounts on the purchase order lines.';
+        PurchLinesNotUpdatedDateMsg: Label 'You have changed the %1 on the purchase header, which might affect the prices and discounts on the purchase lines.';
         ReviewLinesManuallyMsg: Label 'You should review the lines and manually update prices and discounts if needed.';
         AffectExchangeRateMsg: Label 'The change may affect the exchange rate that is used for price calculation on the purchase lines.';
         SplitMessageTxt: Label '%1\%2', Comment = 'Some message text 1.\Some message text 2.', Locked = true;
         UpdateManuallyMsg: Label 'You must update the existing purchase lines manually.';
         ConfirmZeroQuantityPostingMsg: Label 'One or more document lines with a value in the No. field do not have a quantity specified. \Do you want to continue?';
+        PostedPurchaseInvoiceNotFoundLbl: Label 'Posted Purchase Invoice %1 not found', Comment = '%1 = Posted Purchase Invoice No.';
+        DocAmountFieldVisibleErr: Label 'The field %1 should be visible on the purchase invoice page.', Comment = '%1 = Field Caption';
 
     [Test]
     [HandlerFunctions('RecallNotificationHandler,SendNotificationHandler')]
@@ -1917,6 +1920,114 @@ codeunit 134099 "Purchase Documents"
         Assert.RecordCount(ErrorMessage, 1);
     end;
 
+    [Test]
+    procedure NoInconsistencyErrorDuringPurchasePostingWithCurrency()
+    var
+        GLAccount: Record "G/L Account";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: array[2] of Record "Purchase Line";
+        PurchInvHeader: Record "Purch. Inv. Header";
+        VATPostingSetup: array[2] of Record "VAT Posting Setup";
+        CurrencyCode: Code[10];
+        PostedPurchaseInvoiceNo: Code[20];
+    begin
+        // [SCENARIO 581968] No inconsistency error during the posting of a Purchase Invoice with Currencies, Normal VAT and Non deductible VAT due to rounding.
+        Initialize();
+
+        // [GIVEN] Currency with exchange rates
+        CurrencyCode := SetupCurrencyWithExchRates581968();
+
+        // [GIVEN] Create two VAT Posting Setup with Non-Deductible VAT
+        CreateNormalAndNonDeductiblePostingSetup(VATPostingSetup, 100, LibraryRandom.RandIntInRange(27, 27));
+
+        // [GIVEN] Create GL Account for direct posting
+        GLAccount.Get(LibraryERM.CreateGLAccountWithVATPostingSetup(VATPostingSetup[2], GLAccount."Gen. Posting Type"::Purchase));
+
+        // [GIVEN] Create Purchase Header and update currency code
+        LibraryPurchase.CreatePurchHeader(
+            PurchaseHeader, PurchaseHeader."Document Type"::Invoice,
+            LibraryPurchase.CreateVendorWithVATBusPostingGroup(VATPostingSetup[1]."VAT Bus. Posting Group"));
+        PurchaseHeader.Validate("Currency Code", CurrencyCode);
+        PurchaseHeader.Modify();
+
+        // [GIVEN] Create Purchase Lines with G/L Account Type and has Non-Deductible VAT
+        LibraryPurchase.CreatePurchaseLine(PurchaseLine[1], PurchaseHeader, PurchaseLine[1].Type::"G/L Account", GLAccount."No.", 1);
+        PurchaseLine[1].Validate("Direct Unit Cost", LibraryRandom.RandIntInRange(3938, 3938));
+        PurchaseLine[1].Modify();
+
+        // [GIVEN] Create Purchase Line with normal VAT
+        LibraryPurchase.CreatePurchaseLine(PurchaseLine[2], PurchaseHeader, PurchaseLine[2].Type::"G/L Account", GLAccount."No.", 1);
+        PurchaseLine[2].Validate("VAT Prod. Posting Group", VATPostingSetup[1]."VAT Prod. Posting Group");
+        PurchaseLine[2].Validate("Direct Unit Cost", LibraryRandom.RandIntInRange(56657, 56657));
+        PurchaseLine[2].Modify();
+
+        // [GIVEN] Set "Doc. Amount Incl. VAT" and "Doc. Amount VAT" in Purchase Header
+        PurchaseHeader.CalcFields("Amount Including VAT", Amount);
+        PurchaseHeader.Validate("Doc. Amount Incl. VAT", PurchaseHeader."Amount Including VAT");
+        PurchaseHeader.Validate("Doc. Amount VAT", PurchaseHeader."Amount Including VAT" - PurchaseHeader.Amount);
+        PurchaseHeader.Modify();
+
+        // [WHEN] Post Purchase Invoice and no error occurs
+        PostedPurchaseInvoiceNo := LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, true);
+
+        // [THEN] Verify Posted Purchase Invoice is created without any inconsistency error
+        Assert.IsTrue(PurchInvHeader.Get(PostedPurchaseInvoiceNo), StrSubstNo(PostedPurchaseInvoiceNotFoundLbl, PostedPurchaseInvoiceNo));
+    end;
+
+    [Test]
+    [HandlerFunctions('PurchaseInvoicePageHandler')]
+    procedure DocAmountTotalFieldVisibleOnPurchaseInvoiceWhenCreatedViaVendorListPage()
+    var
+        Vendor: Record Vendor;
+        VendorList: TestPage "Vendor List";
+    begin
+        // [SCENARIO 598788] Document Amount Total field is visible on Purchase Invoice when created via Vendor List Page.
+        Initialize();
+
+        // [GIVEN] Enable "Check Doc. Total Amounts" in Purchases & Payables Setup.
+        EnableDocumentTotalInPurchasePayablesSetup(true);
+
+        // [GIVEN] Create a Vendor.
+        LibraryPurchase.CreateVendor(Vendor);
+
+        // [GIVEN] Open the Vendor List.
+        VendorList.OpenEdit();
+        VendorList.GotoRecord(Vendor);
+
+        // [WHEN] Purchase Invoice is created from Vendor List.
+        VendorList.NewPurchaseInvoice.Invoke();
+
+        // [THEN] Verify "Doc. Amount Total" & "Doc. Amount Incl. VAT" field is visible on the Purchase Invoice page.
+        VendorList.Close();
+    end;
+
+    [Test]
+    [HandlerFunctions('PurchaseInvoicePageHandler')]
+    procedure DocAmountTotalFieldVisibleOnPurchaseInvoiceWhenCreatedViaVendorCardPage()
+    var
+        Vendor: Record Vendor;
+        VendorCard: TestPage "Vendor Card";
+    begin
+        // [SCENARIO 598788] Document Amount Total field is visible on Purchase Invoice when created via Vendor Card Page.
+        Initialize();
+
+        // [GIVEN] Enable "Check Doc. Total Amounts" in Purchases & Payables Setup.
+        EnableDocumentTotalInPurchasePayablesSetup(true);
+
+        // [GIVEN] Create a Vendor.
+        LibraryPurchase.CreateVendor(Vendor);
+
+        // [GIVEN] Open the Vendor Card.
+        VendorCard.OpenEdit();
+        VendorCard.GotoRecord(Vendor);
+
+        // [WHEN] Purchase Invoice is created from Vendor Card.
+        VendorCard.NewPurchaseInvoice.Invoke();
+
+        // [THEN] Verify "Doc. Amount Total" & "Doc. Amount Incl. VAT" field is visible on the Purchase Invoice page.
+        VendorCard.Close();
+    end;
+
     local procedure Initialize()
     var
         ReportSelections: Record "Report Selections";
@@ -2170,6 +2281,50 @@ codeunit 134099 "Purchase Documents"
         PurchaseLine.TestField(Type, PurchaseLineType);
     end;
 
+    local procedure CreateNormalAndNonDeductiblePostingSetup(var VATPostingSetup: array[2] of Record "VAT Posting Setup"; NonDeductibleVATPct: Decimal; VATRate: Decimal)
+    var
+        VATProdPostingGroup: Record "VAT Product Posting Group";
+    begin
+        LibraryNonDeductibleVAT.CreateNonDeductibleNormalVATPostingSetup(VATPostingSetup[1]);
+        VATPostingSetup[1].Validate("VAT %", 0);
+        VATPostingSetup[1].Validate("Non-Deductible VAT %", NonDeductibleVATPct);
+        VATPostingSetup[1].Modify();
+
+        LibraryERM.CreateVATProductPostingGroup(VATProdPostingGroup);
+        LibraryERM.CreateVATPostingSetup(VATPostingSetup[2], VATPostingSetup[1]."VAT Bus. Posting Group", VATProdPostingGroup.Code);
+        VATPostingSetup[2].Validate("VAT Calculation Type", VATPostingSetup[2]."VAT Calculation Type"::"Normal VAT");
+        VATPostingSetup[2].Validate("VAT %", VATRate);
+        VATPostingSetup[2].Validate("Sales VAT Account", LibraryERM.CreateGLAccountNo());
+        VATPostingSetup[2].Validate("Purchase VAT Account", LibraryERM.CreateGLAccountNo());
+        VATPostingSetup[2].Validate("Tax Category", 'S');
+        VATPostingSetup[2].Modify();
+    end;
+
+    local procedure SetupCurrencyWithExchRates581968(): Code[10]
+    var
+        Currency: Record Currency;
+        CurrExchRateAmount: Decimal;
+        AdjustmentExchrateAmount: Decimal;
+    begin
+        LibraryERM.CreateCurrency(Currency);
+        Currency.Validate("Realized Gains Acc.", LibraryERM.CreateGLAccountNo());
+        Currency.Validate("Realized Losses Acc.", LibraryERM.CreateGLAccountNo());
+        Currency.Modify(true);
+        CurrExchRateAmount := 412.39;
+        AdjustmentExchrateAmount := 12.39;
+        LibraryERM.CreateExchangeRate(Currency.Code, WorkDate(), CurrExchRateAmount, AdjustmentExchrateAmount);
+        exit(Currency.Code);
+    end;
+
+    local procedure EnableDocumentTotalInPurchasePayablesSetup(Enable: Boolean)
+    var
+        PurchasesPayablesSetup: Record "Purchases & Payables Setup";
+    begin
+        PurchasesPayablesSetup.Get();
+        PurchasesPayablesSetup.Validate("Check Doc. Total Amounts", Enable);
+        PurchasesPayablesSetup.Modify(true);
+    end;
+
     [RecallNotificationHandler]
     [Scope('OnPrem')]
     procedure RecallNotificationHandler(var Notification: Notification): Boolean
@@ -2267,5 +2422,12 @@ codeunit 134099 "Purchase Documents"
         PurchaseStatistics.SubForm.Last();
         PurchaseStatistics.SubForm."VAT Amount".SetValue(
           PurchaseStatistics.SubForm."VAT Amount".AsDecimal() + LibraryVariableStorage.DequeueDecimal()); // increase VAT amount with the given value.
+    end;
+
+    [PageHandler]
+    procedure PurchaseInvoicePageHandler(var PurchaseInvoice: TestPage "Purchase Invoice")
+    begin
+        Assert.IsTrue(PurchaseInvoice.DocAmountVAT.Visible(), StrSubstNo(DocAmountFieldVisibleErr, PurchaseInvoice.DocAmountVAT.Caption()));
+        Assert.IsTrue(PurchaseInvoice.DocAmount.Visible(), StrSubstNo(DocAmountFieldVisibleErr, PurchaseInvoice.DocAmount.Caption()));
     end;
 }

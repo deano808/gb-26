@@ -52,7 +52,7 @@ codeunit 137052 "SCM RTAM Item Tracking"
         ReservationsCancelQst: Label 'Do you want to cancel all reservations';
         ItemTrackingSerialNumberErr: Label 'Variant  cannot be fully applied';
         SerialNumberErr: Label 'You must assign a serial number';
-        ConsumptionMissingQst: Label 'Some consumption is still missing. Do you still want to finish the order?';
+        ConsumptionMissingQst: Label '\\  * Some consumption is still missing.\\ Do you still want to finish the order?';
         MessageCounter: Integer;
         SignFactor: Integer;
         NumberOfLineEqualErr: Label 'Number of Lines must be same.';
@@ -1165,7 +1165,7 @@ codeunit 137052 "SCM RTAM Item Tracking"
         // Assign Global variable for Page Handler.
         SetGlobalValue(Item."No.", true, false, false, AssignTracking::SerialNo, 0, false);  // Create New Lot No -True, Assign Tracking as Serial No and Tracking Quantity not required.
         CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LocationGreen.Code, Quantity);
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         FindWarehouseActivityHeader(
           WarehouseActivityHeader, ProductionOrder."No.", WarehouseActivityLine."Source Document"::"Prod. Consumption");
         UpdateQtyToHandleOnWarehouseActivityLine(
@@ -2985,6 +2985,48 @@ codeunit 137052 "SCM RTAM Item Tracking"
         SalesLine.OpenItemTrackingLines();
 
         LibraryVariableStorage.AssertEmpty();
+    end;
+
+    [Test]
+    procedure ExplodeRoutingOnOutputJournalItemTrackingLines()
+    var
+        Item: array[3] of Record Item;
+        ItemJournalLine: Record "Item Journal Line";
+        ProductionOrder: Record "Production Order";
+        Quantity: Decimal;
+    begin
+        // [SCENARIO 563853] Explode Routing in the Output Journal respects the Item Tracking on Lines Setting.
+        Initialize();
+
+        // [GIVEN] Create and store Quantity.
+        Quantity := LibraryRandom.RandIntInRange(10, 20);
+
+        // [GIVEN] Create Items and Production BOM with Serial No. tracking for Output Item.
+        CreateItem(Item[1], ItemTrackingCodeSerialSpecific.Code, Item[1]."Costing Method"::FIFO);
+
+        // [GIVEN] Create and certify Production BOM with multiple components.
+        CreateAndCertifyProdBOMWithMultipleComponent(Item[1], Item[2], Item[3], ItemTrackingCodeSerialSpecific.Code, true);
+
+        // [GIVEN] Assign Global variable for Serial No.
+        SetGlobalValue(Item[1]."No.", true, false, false, AssignTracking::SerialNo, 0, false);
+
+        // [GIVEN] Create a Release Production Order and refresh it.
+        CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item[1]."No.", LocationBlue.Code, Quantity);
+
+        // [GIVEN] Post Output Journal in two steps with Serial No. tracking.
+        LibraryInventory.ClearItemJournal(OutputItemJournalTemplate, OutputItemJournalBatch);
+        OutputItemJournalBatch.Validate("Item Tracking on Lines", true);
+        OutputItemJournalBatch.Modify(true);
+
+        // [GIVEN] Create an Output Journal.
+        LibraryManufacturing.CreateOutputJournal(ItemJournalLine, OutputItemJournalTemplate, OutputItemJournalBatch, '', ProductionOrder."No.");
+
+        // [WHEN] Explode Route and Post Output Journal.
+        LibraryManufacturing.OutputJnlExplodeRoute(ItemJournalLine);
+
+        // [THEN] The number of Item Journal Lines for Output Item is equal to Quantity.
+        ItemJournalLine.SetRange("Item No.", Item[1]."No.");
+        Assert.AreEqual(Quantity, ItemJournalLine.Count(), NumberOfLineEqualErr);
     end;
 
     local procedure Initialize()

@@ -83,7 +83,8 @@ table 8059 "Subscription Line"
             Caption = 'Calculation Base Amount';
             MinValue = 0;
             BlankZero = true;
-            AutoFormatType = 2;
+            AutoFormatType = 1;
+            AutoFormatExpression = Rec."Currency Code";
 
             trigger OnValidate()
             begin
@@ -104,6 +105,7 @@ table 8059 "Subscription Line"
             MinValue = 0;
             BlankZero = true;
             DecimalPlaces = 0 : 5;
+            AutoFormatType = 0;
 
             trigger OnValidate()
             begin
@@ -116,6 +118,7 @@ table 8059 "Subscription Line"
             Editable = false;
             BlankZero = true;
             AutoFormatType = 2;
+            AutoFormatExpression = Rec."Currency Code";
 
             trigger OnValidate()
             begin
@@ -135,6 +138,7 @@ table 8059 "Subscription Line"
             MaxValue = 100;
             BlankZero = true;
             DecimalPlaces = 0 : 5;
+            AutoFormatType = 0;
 
             trigger OnValidate()
             begin
@@ -149,6 +153,7 @@ table 8059 "Subscription Line"
             MinValue = 0;
             BlankZero = true;
             AutoFormatType = 1;
+            AutoFormatExpression = Rec."Currency Code";
 
             trigger OnValidate()
             begin
@@ -162,6 +167,7 @@ table 8059 "Subscription Line"
             Caption = 'Amount';
             BlankZero = true;
             AutoFormatType = 1;
+            AutoFormatExpression = Rec."Currency Code";
 
             trigger OnValidate()
             begin
@@ -176,6 +182,7 @@ table 8059 "Subscription Line"
             begin
                 DateFormulaManagement.ErrorIfDateFormulaEmpty("Billing Base Period", FieldCaption("Billing Base Period"));
                 DateFormulaManagement.ErrorIfDateFormulaNegative("Billing Base Period");
+                CheckRatioBetweenBillingBasePeriodAndRhythm();
             end;
         }
         field(16; "Invoicing via"; Enum "Invoicing Via")
@@ -187,13 +194,19 @@ table 8059 "Subscription Line"
                     "Create Contract Deferrals" := "Create Contract Deferrals"::No
                 else
                     "Create Contract Deferrals" := "Create Contract Deferrals"::"Contract-dependent";
-
+                ErrorIfInvoicingViaIsNotContractForDiscount();
             end;
         }
         field(17; "Invoicing Item No."; Code[20])
         {
             Caption = 'Invoicing Item No.';
             TableRelation = Item."No." where("Subscription Option" = filter("Invoicing Item" | "Service Commitment Item"));
+            trigger OnValidate()
+            begin
+                if "Invoicing via" = "Invoicing via"::Sales then
+                    Error(InvoicingItemNoErr);
+                ErrorIfInvoicingItemIsNotServiceCommitmentItemForDiscount();
+            end;
         }
         field(18; Partner; Enum "Service Partner")
         {
@@ -248,6 +261,7 @@ table 8059 "Subscription Line"
             begin
                 DateFormulaManagement.ErrorIfDateFormulaEmpty("Billing Rhythm", FieldCaption("Billing Rhythm"));
                 DateFormulaManagement.ErrorIfDateFormulaNegative("Billing Rhythm");
+                CheckRatioBetweenBillingBasePeriodAndRhythm();
             end;
         }
         field(24; "Cancellation Possible Until"; Date)
@@ -311,6 +325,7 @@ table 8059 "Subscription Line"
             Editable = false;
             BlankZero = true;
             AutoFormatType = 2;
+            AutoFormatExpression = '';
         }
         field(32; "Discount Amount (LCY)"; Decimal)
         {
@@ -319,6 +334,7 @@ table 8059 "Subscription Line"
             MinValue = 0;
             BlankZero = true;
             AutoFormatType = 1;
+            AutoFormatExpression = '';
         }
         field(33; "Amount (LCY)"; Decimal)
         {
@@ -326,6 +342,7 @@ table 8059 "Subscription Line"
             Editable = false;
             BlankZero = true;
             AutoFormatType = 1;
+            AutoFormatExpression = '';
         }
         field(34; "Currency Code"; Code[10])
         {
@@ -348,6 +365,7 @@ table 8059 "Subscription Line"
             DecimalPlaces = 0 : 15;
             Editable = false;
             MinValue = 0;
+            AutoFormatType = 0;
         }
         field(36; "Currency Factor Date"; Date)
         {
@@ -360,11 +378,17 @@ table 8059 "Subscription Line"
             Editable = false;
             BlankZero = true;
             AutoFormatType = 2;
+            AutoFormatExpression = '';
         }
         field(38; Discount; Boolean)
         {
             Caption = 'Discount';
-            Editable = false;
+            trigger OnValidate()
+            begin
+                ErrorIfInvoicingViaIsNotContractForDiscount();
+                ErrorIfInvoicingItemIsNotServiceCommitmentItemForDiscount();
+                ErrorIfDiscountUsedWithUsageBasedBilling();
+            end;
         }
         field(39; Quantity; Decimal)
         {
@@ -372,6 +396,7 @@ table 8059 "Subscription Line"
             Editable = false;
             FieldClass = FlowField;
             CalcFormula = lookup("Subscription Header".Quantity where("No." = field("Subscription Header No.")));
+            AutoFormatType = 0;
         }
         field(40; "Create Contract Deferrals"; Enum "Create Contract Deferrals")
         {
@@ -423,6 +448,7 @@ table 8059 "Subscription Line"
         field(101; "Unit Cost (LCY)"; Decimal)
         {
             AutoFormatType = 2;
+            AutoFormatExpression = '';
             Caption = 'Unit Cost (LCY)';
 
             trigger OnValidate()
@@ -504,6 +530,7 @@ table 8059 "Subscription Line"
             Caption = 'Pricing Unit Cost Surcharge %';
             DataClassification = CustomerContent;
             Editable = false;
+            AutoFormatType = 0;
         }
         field(8003; "Supplier Reference Entry No."; Integer)
         {
@@ -531,6 +558,7 @@ table 8059 "Subscription Line"
             FieldClass = FlowField;
             CalcFormula = lookup("Subscription Header"."Source No." where("No." = field("Subscription Header No.")));
         }
+#if not CLEANSCHEMA29
         field(8009; "Item No."; Code[20])
         {
             Caption = 'Item No.';
@@ -546,6 +574,7 @@ table 8059 "Subscription Line"
             ObsoleteTag = '29.0';
 #endif
         }
+#endif
         field(8010; "Subscription Description"; Text[100])
         {
             Caption = 'Subscription Description';
@@ -561,7 +590,14 @@ table 8059 "Subscription Line"
         {
             Clustered = true;
         }
-        key(Contract; "Subscription Contract No.", "Subscription Contract Line No.") { }
+        key(Contract; "Subscription Contract No.", "Subscription Contract Line No.")
+        {
+
+        }
+        key(Key3; "Subscription Header No.", Partner)
+        {
+
+        }
     }
 
     trigger OnInsert()
@@ -572,9 +608,6 @@ table 8059 "Subscription Line"
 
     trigger OnModify()
     begin
-        xRec.Get(xRec."Entry No.");
-        if ((xRec."Billing Base Period" <> Rec."Billing Base Period") or (xRec."Billing Rhythm" <> Rec."Billing Rhythm")) then
-            DateFormulaManagement.CheckIntegerRatioForDateFormulas("Billing Base Period", FieldCaption("Billing Base Period"), "Billing Rhythm", FieldCaption("Billing Rhythm"));
         DisplayErrorIfContractLinesExist(ClosedContractLineExistErr, true);
         SetUpdateRequiredOnBillingLines();
         UpdateCustomerContractLineServiceCommitmentDescription();
@@ -583,6 +616,7 @@ table 8059 "Subscription Line"
 
     trigger OnDelete()
     begin
+        DisplayErrorIfStartDateIsDifferentThanNextBillingDate();
         DisplayErrorIfContractLinesExist(OpenContractLinesExistErr, false);
         DeleteContractLine();
         SetUpdateRequiredOnBillingLines();
@@ -600,10 +634,10 @@ table 8059 "Subscription Line"
         NegativeDateFormula: DateFormula;
         SkipArchiving: Boolean;
         SkipTestPackageCode: Boolean;
-        DateBeforeDateErr: Label '%1 cannot be before %2.';
+        DateBeforeDateErr: Label '%1 cannot be before %2.', Comment = '%1 = Next Billing Date; %2 = Subscription Line Start Date';
         OnlyOneDayBeforeErr: Label 'The %1 is only allowed to be 1 day before the %2.', Comment = '%1 = Subscription Line End Date; %2 = Next Billing Date';
-        CannotBeGreaterThanErr: Label '%1 cannot be greater than %2.';
-        CannotBeLessThanErr: Label '%1 cannot be less than %2.';
+        CannotBeGreaterThanErr: Label '%1 cannot be greater than %2.', Comment = '%1 = Amount; %2 = Max Service Amount';
+        CannotBeLessThanErr: Label '%1 cannot be less than %2.', Comment = '%1 = Amount; %2 = 0';
         OpenContractLinesExistErr: Label 'The Subscription Line cannot be deleted because it is linked to a contract line which is not yet marked as "Closed".';
         ClosedContractLineExistErr: Label 'Subscription Lines for closed contract lines may not be edited. Remove the "Finished" indicator in the contract to be able to edit the Subscription Lines.';
         DifferentCurrenciesInSerCommitmentErr: Label 'The selected Subscription Lines must be converted into different currencies. Please select only Subscription Lines with the same currency.';
@@ -612,6 +646,38 @@ table 8059 "Subscription Line"
         BillingLineArchiveForServiceCommitmentExistErr: Label 'The contract line has already been billed. The Subscription Line start date can no longer be changed.';
         NoManualEntryOfUnitCostLCYForVendorServCommErr: Label 'Please use the fields "Calculation Base Amount" and "Calculation Base %" in order to update the unit cost.';
         DeferralsExistErr: Label 'The creation of contract deferrals cannot be changed as there are still unreleased deferrals for this contract line.';
+        SubscriptionLineStartDateDifferentThanNextBillingDateErr: Label 'The %1 must be the same as the %2 to delete the %3.', Comment = '%1 = Service Start Date; %2 = Next Billing Date; %3 = Service Commitment';
+        InvoicingItemNoErr: Label 'Subscription Lines for a sales document are not invoiced. No value may be entered in the Invoicing Item No..';
+        DiscountCanBeInvoicedViaContractErr: Label 'Recurring discounts can only be granted for Invoicing via Contract.';
+        DiscountCannotBeAssignedErr: Label 'Subscription Package Lines, which are discounts, can only be assigned to Subscription Items.';
+        RecurringDiscountCannotBeGrantedErr: Label 'Recurring discounts cannot be granted in conjunction with Usage Based Billing';
+
+    local procedure ErrorIfInvoicingViaIsNotContractForDiscount()
+    begin
+        if not Rec.Discount then
+            exit;
+        if Rec."Invoicing via" <> Enum::"Invoicing Via"::Contract then
+            Error(DiscountCanBeInvoicedViaContractErr);
+    end;
+
+    local procedure ErrorIfInvoicingItemIsNotServiceCommitmentItemForDiscount()
+    var
+        Item: Record Item;
+    begin
+        if not Rec.Discount then
+            exit;
+        if not Item.Get(Rec."Invoicing Item No.") then
+            exit;
+        if Item."Subscription Option" <> Enum::"Item Service Commitment Type"::"Service Commitment Item" then
+            Error(DiscountCannotBeAssignedErr);
+    end;
+
+    local procedure ErrorIfDiscountUsedWithUsageBasedBilling()
+    begin
+        if Rec.Discount then
+            if Rec."Usage Based Billing" then
+                Error(RecurringDiscountCannotBeGrantedErr);
+    end;
 
     internal procedure CheckServiceDates()
     begin
@@ -645,19 +711,13 @@ table 8059 "Subscription Line"
     begin
         case Partner of
             Partner::Customer:
-                begin
-                    CustomerContractLine.FilterOnServiceCommitment(Rec);
-                    if CustomerContractLine.FindFirst() then
-                        if ((CheckContractLineClosed and CustomerContractLine.Closed) or (not CustomerContractLine.Closed and not CheckContractLineClosed)) then
-                            Error(ErrorTxt);
-                end;
+                if CustomerContractLine.FindFirstSubscriptionLine(Rec) then
+                    if ((CheckContractLineClosed and CustomerContractLine.Closed) or (not CustomerContractLine.Closed and not CheckContractLineClosed)) then
+                        Error(ErrorTxt);
             Partner::Vendor:
-                begin
-                    VendorContractLine.FilterOnServiceCommitment(Rec);
-                    if VendorContractLine.FindFirst() then
-                        if ((CheckContractLineClosed and VendorContractLine.Closed) or (not VendorContractLine.Closed and not CheckContractLineClosed)) then
-                            Error(ErrorTxt);
-                end;
+                if VendorContractLine.FindFirstSubscriptionLine(Rec) then
+                    if ((CheckContractLineClosed and VendorContractLine.Closed) or (not VendorContractLine.Closed and not CheckContractLineClosed)) then
+                        Error(ErrorTxt);
         end;
     end;
 
@@ -872,12 +932,12 @@ table 8059 "Subscription Line"
 
     internal procedure RecalculateAmountsFromCurrencyData()
     var
-        Currency: Record Currency;
+        Currency2: Record Currency;
     begin
         if ((Rec."Currency Factor" = 0) and (Rec."Currency Code" = '')) then
             exit;
-        Currency.Initialize("Currency Code");
-        Rec.Validate("Calculation Base Amount", Round(CurrExchRate.ExchangeAmtLCYToFCY("Currency Factor Date", "Currency Code", "Calculation Base Amount (LCY)", "Currency Factor"), Currency."Unit-Amount Rounding Precision"));
+        Currency2.Initialize("Currency Code");
+        Rec.Validate("Calculation Base Amount", Round(CurrExchRate.ExchangeAmtLCYToFCY("Currency Factor Date", "Currency Code", "Calculation Base Amount (LCY)", "Currency Factor"), Currency2."Unit-Amount Rounding Precision"));
     end;
 
     internal procedure ResetAmountsAndCurrencyFromLCY()
@@ -975,6 +1035,8 @@ table 8059 "Subscription Line"
                         Validate("Cancellation Possible Until", "Cancellation Possible Until");
                     FieldNo("Term Until"):
                         Validate("Term Until", "Term Until");
+                    FieldNo(Discount):
+                        Validate(Discount);
                     FieldNo("Currency Code"):
                         Validate("Currency Code", "Currency Code");
                     FieldNo("Exclude from Price Update"):
@@ -1098,12 +1160,12 @@ table 8059 "Subscription Line"
             Enum::"Service Partner"::Customer:
                 if CustomerContractLine.Get(Rec."Subscription Contract No.", Rec."Subscription Contract Line No.") then
                     if CustomerContractLine.Closed then
-                        CustomerContractLine.Delete(false);
+                        CustomerContractLine.Delete(true);
 
             Enum::"Service Partner"::Vendor:
                 if VendorContractLine.Get(Rec."Subscription Contract No.", Rec."Subscription Contract Line No.") then
                     if VendorContractLine.Closed then
-                        VendorContractLine.Delete(false);
+                        VendorContractLine.Delete(true);
         end;
     end;
 
@@ -1277,8 +1339,10 @@ table 8059 "Subscription Line"
         ServiceCommitment.FilterOnContract(PartnerType, ContractNo);
         if ServiceCommitment.FindSet() then
             repeat
+#pragma warning disable AA0214
                 ServiceCommitment.ResetAmountsAndCurrencyFromLCY();
                 ServiceCommitment.Modify(true);
+#pragma warning restore AA0214
             until ServiceCommitment.Next() = 0;
     end;
 
@@ -1313,13 +1377,13 @@ table 8059 "Subscription Line"
 
     local procedure InitCurrencyData()
     var
-        Currency: Record Currency;
+        Currency2: Record Currency;
     begin
         if Rec."Currency Code" = '' then begin
             "Currency Factor" := 0;
             "Currency Factor Date" := 0D;
         end else begin
-            Currency.Get("Currency Code");
+            Currency2.Get("Currency Code");
             if "Currency Factor Date" = 0D then
                 "Currency Factor Date" := WorkDate();
             if (Rec."Currency Factor Date" <> xRec."Currency Factor Date") or (Rec."Currency Code" <> xRec."Currency Code") then
@@ -1606,6 +1670,7 @@ table 8059 "Subscription Line"
         Rec.Modify(true);
         Rec.SetSkipArchiving(false);
         Rec.CreateServiceCommitmentArchive(ServiceCommitmentArchive, xServiceCommitment, CalcDate('<-1D>', ContractPriceUpdateLine."Perform Update On"), Enum::"Type Of Price Update"::"Price Update");
+        OnAfterUpdateServiceCommitmentFromContractPriceUpdateLine(Rec, ContractPriceUpdateLine);
     end;
 
     internal procedure ServiceCommitmentArchiveExistsForPeriodExists(var ServiceCommitmentArchive: Record "Subscription Line Archive"; RecurringBillingFrom: Date; RecurringBillingTo: Date): Boolean
@@ -1771,11 +1836,12 @@ table 8059 "Subscription Line"
     var
         UnitCost: Decimal;
         UnitCostLCY: Decimal;
+        BillingReferenceDateChanged: Boolean;
     begin
-        Rec.UnitPriceAndCostForPeriod(Rec."Billing Rhythm", ChargePeriodStart, ChargePeriodEnd, UnitPrice, UnitCost, UnitCostLCY);
+        Rec.UnitPriceAndCostForPeriod(Rec."Billing Rhythm", ChargePeriodStart, ChargePeriodEnd, UnitPrice, UnitCost, UnitCostLCY, BillingReferenceDateChanged);
     end;
 
-    internal procedure UnitPriceAndCostForPeriod(BillingRhythm: DateFormula; ChargePeriodStart: Date; ChargePeriodEnd: Date; var UnitPrice: Decimal; var UnitCost: Decimal; var UnitCostLCY: Decimal)
+    internal procedure UnitPriceAndCostForPeriod(BillingRhythm: DateFormula; ChargePeriodStart: Date; ChargePeriodEnd: Date; var UnitPrice: Decimal; var UnitCost: Decimal; var UnitCostLCY: Decimal; var BillingReferenceDateChanged: Boolean)
     var
         PeriodFormula: DateFormula;
         BillingPeriodRatio: Decimal;
@@ -1802,6 +1868,7 @@ table 8059 "Subscription Line"
             DayPrice := PeriodPrice / FollowUpPeriodDays;
             DayUnitCost := PeriodUnitCost / FollowUpPeriodDays;
             DayUnitCostLCY := PeriodUnitCostLCY / FollowUpPeriodDays;
+            BillingReferenceDateChanged := true;
         end;
         UnitPrice := PeriodPrice * Periods + DayPrice * FollowUpDays;
         UnitCost := PeriodUnitCost * Periods + DayUnitCost * FollowUpDays;
@@ -1859,7 +1926,7 @@ table 8059 "Subscription Line"
                 NextToDate := CalcDate(PeriodFormula, FromDate) - 1;
             Rec."Period Calculation"::"Align to End of Month":
                 begin
-                    DistanceToEndOfMonth := CalcDate('<CM>', Rec."Subscription Line Start Date") - Rec."Subscription Line Start Date";
+                    DistanceToEndOfMonth := CalcDate('<CM>', GetBillingReferenceDate()) - GetBillingReferenceDate();
                     if DistanceToEndOfMonth > 2 then
                         NextToDate := CalcDate(PeriodFormula, FromDate) - 1
                     else begin
@@ -1868,6 +1935,27 @@ table 8059 "Subscription Line"
                         NextToDate := LastDateInLastMonth - DistanceToEndOfMonth - 1;
                     end;
                 end;
+        end;
+    end;
+
+    local procedure GetBillingReferenceDate() BillingReferenceDate: Date
+    var
+        BillingLine: Record "Billing Line";
+        BillingLineArchive: Record "Billing Line Archive";
+    begin
+        BillingReferenceDate := Rec."Subscription Line Start Date";
+
+        BillingLine.SetRange("Subscription Header No.", "Subscription Header No.");
+        BillingLine.SetRange("Subscription Line Entry No.", "Entry No.");
+        BillingLine.SetRange("Billing Reference Date Changed", true);
+        if BillingLine.FindLast() then
+            exit(BillingLine."Billing to" + 1)
+        else begin
+            BillingLineArchive.SetRange("Subscription Header No.", "Subscription Header No.");
+            BillingLineArchive.SetRange("Subscription Line Entry No.", "Entry No.");
+            BillingLineArchive.SetRange("Billing Reference Date Changed", true);
+            if BillingLineArchive.FindLast() then
+                exit(BillingLineArchive."Billing to" + 1);
         end;
     end;
 
@@ -1897,6 +1985,36 @@ table 8059 "Subscription Line"
                     VendSubContractDeferral.SetRange("Subscription Contract No.", "Subscription Contract No.");
                     exit(not VendSubContractDeferral.IsEmpty());
                 end;
+        end;
+    end;
+
+    local procedure CheckRatioBetweenBillingBasePeriodAndRhythm()
+    var
+    begin
+        if (Format("Billing Base Period") <> '') and (Format("Billing Rhythm") <> '') then
+            DateFormulaManagement.CheckIntegerRatioForDateFormulas("Billing Base Period", FieldCaption("Billing Base Period"), "Billing Rhythm", FieldCaption("Billing Rhythm"));
+    end;
+
+    local procedure DisplayErrorIfStartDateIsDifferentThanNextBillingDate()
+    begin
+        if IsContractLineClosed() then
+            exit;
+        if Rec."Subscription Line Start Date" <> Rec."Next Billing Date" then
+            Error(SubscriptionLineStartDateDifferentThanNextBillingDateErr, Rec.FieldCaption("Subscription Line Start Date"), Rec.FieldCaption("Next Billing Date"), Rec.TableCaption());
+    end;
+
+    local procedure IsContractLineClosed(): Boolean
+    var
+        CustomerContractLine: Record "Cust. Sub. Contract Line";
+        VendorContractLine: Record "Vend. Sub. Contract Line";
+    begin
+        case Partner of
+            Enum::"Service Partner"::Customer:
+                if CustomerContractLine.FindFirstSubscriptionLine(Rec) then
+                    exit(CustomerContractLine.Closed);
+            Enum::"Service Partner"::Vendor:
+                if VendorContractLine.FindFirstSubscriptionLine(Rec) then
+                    exit(VendorContractLine.Closed);
         end;
     end;
 
@@ -1947,6 +2065,11 @@ table 8059 "Subscription Line"
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCheckServiceDates(ServiceStartDate: Date; ServiceEndDate: Date; NextBillingDate: Date; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnAfterUpdateServiceCommitmentFromContractPriceUpdateLine(var SubscriptionLine: Record "Subscription Line"; SubContractPriceUpdateLine: Record "Sub. Contr. Price Update Line")
     begin
     end;
 }

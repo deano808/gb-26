@@ -1,3 +1,8 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 /// <summary>
@@ -5,7 +10,7 @@ namespace Microsoft.Integration.Shopify;
 /// </summary>
 page 30108 "Shpfy Customer Templates"
 {
-    Caption = 'Shopify Customer Templates';
+    Caption = 'Shopify Customer Setup by Country/Region';
     PageType = List;
     SourceTable = "Shpfy Customer Template";
     UsageCategory = None;

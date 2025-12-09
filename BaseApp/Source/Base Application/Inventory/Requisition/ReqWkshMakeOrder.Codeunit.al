@@ -4,21 +4,18 @@
 // ------------------------------------------------------------------------------------------------
 namespace Microsoft.Inventory.Requisition;
 
-using Microsoft.Assembly.Document;
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Company;
 using Microsoft.Foundation.ExtendedText;
 using Microsoft.Foundation.Navigate;
 using Microsoft.Foundation.Period;
 using Microsoft.Foundation.UOM;
-using Microsoft.Inventory;
 using Microsoft.Inventory.Item;
 using Microsoft.Inventory.Item.Catalog;
 using Microsoft.Inventory.Location;
 using Microsoft.Inventory.Setup;
 using Microsoft.Inventory.Tracking;
 using Microsoft.Inventory.Transfer;
-using Microsoft.Manufacturing.Document;
 using Microsoft.Projects.Project.Planning;
 using Microsoft.Purchases.Document;
 using Microsoft.Purchases.Setup;
@@ -163,6 +160,8 @@ codeunit 333 "Req. Wksh.-Make Order"
             ReqLine.SetRange("Order Date", 0D, EndOrderDate);
             ReqLine.SetFilter("Expiration Date", '%1 | %2..', 0D, WorkDate());
         end;
+
+        OnCodeOnAfterFilterReqLine(ReqLine, PlanningResiliency, SuppressCommit, PrintPurchOrders);
 
         if not ReqLine.Find('=><') then begin
             ReqLine."Line No." := 0;
@@ -578,8 +577,7 @@ codeunit 333 "Req. Wksh.-Make Order"
         PurchOrderLine.Validate("Location Code", RequisitionLine."Location Code");
         PurchOrderLine.Validate("Unit of Measure Code", RequisitionLine."Unit of Measure Code");
         PurchOrderLine."Qty. per Unit of Measure" := RequisitionLine."Qty. per Unit of Measure";
-        PurchOrderLine."Prod. Order No." := RequisitionLine."Prod. Order No.";
-        PurchOrderLine."Prod. Order Line No." := RequisitionLine."Prod. Order Line No.";
+        OnInitPurchOrderLineOnBeforeUpdateQuantity(PurchOrderLine, RequisitionLine);
         InitPurchOrderLineUpdateQuantity(RequisitionLine);
 
         CopyOrderDateFromPurchHeader(RequisitionLine, PurchOrderHeader, PurchOrderLine);
@@ -596,7 +594,6 @@ codeunit 333 "Req. Wksh.-Make Order"
         PurchOrderLine."Description 2" := RequisitionLine."Description 2";
         PurchOrderLine."Sales Order No." := RequisitionLine."Sales Order No.";
         PurchOrderLine."Sales Order Line No." := RequisitionLine."Sales Order Line No.";
-        PurchOrderLine."Prod. Order No." := RequisitionLine."Prod. Order No.";
         PurchOrderLine."Bin Code" := RequisitionLine."Bin Code";
         PurchOrderLine."Item Category Code" := RequisitionLine."Item Category Code";
         PurchOrderLine.Nonstock := RequisitionLine.Nonstock;
@@ -638,7 +635,6 @@ codeunit 333 "Req. Wksh.-Make Order"
     procedure InsertPurchOrderLine(var ReqLine2: Record "Requisition Line"; var PurchOrderHeader: Record "Purchase Header")
     var
         PurchOrderLine2: Record "Purchase Line";
-        AddOnIntegrMgt: Codeunit AddOnIntegrManagement;
         DimensionSetIDArr: array[10] of Integer;
         IsHandled: Boolean;
     begin
@@ -675,7 +671,7 @@ codeunit 333 "Req. Wksh.-Make Order"
 
         InitPurchOrderLine(PurchOrderLine, PurchOrderHeader, ReqLine2);
 
-        AddOnIntegrMgt.TransferFromReqLineToPurchLine(PurchOrderLine, ReqLine2);
+        TransferFromReqLineToPurchLine(PurchOrderLine, ReqLine2);
         OnInsertPurchOrderLineOnAfterTransferFromReqLineToPurchLine(PurchOrderLine, ReqLine2);
 
         PurchOrderLine."Drop Shipment" := ReqLine2."Sales Order Line No." <> 0;
@@ -694,7 +690,7 @@ codeunit 333 "Req. Wksh.-Make Order"
 
         UpdateJobLink(PurchOrderLine, ReqLine2);
 
-        OnInsertPurchOrderLineOnBeforeTransferReqLine(PurchOrderHeader, PurchOrderLine);
+        OnInsertPurchOrderLineOnBeforeTransferReqLine(PurchOrderHeader, PurchOrderLine, ReqLine2);
         ReqLineReserve.TransferReqLineToPurchLine(ReqLine2, PurchOrderLine, ReqLine2."Quantity (Base)", false);
 
         DimensionSetIDArr[1] := PurchOrderLine."Dimension Set ID";
@@ -733,7 +729,7 @@ codeunit 333 "Req. Wksh.-Make Order"
                 ReqLine2.TestField("Location Code", SalesOrderLine."Location Code");
                 ReqLine2.TestField("Variant Code", SalesOrderLine."Variant Code");
                 ReqLine2.TestField("Bin Code", SalesOrderLine."Bin Code");
-                ReqLine2.TestField("Prod. Order No.", '');
+                ReqLine2.TestProdOrderNo();
                 ReqLine2.TestField("Qty. per Unit of Measure", ReqLine2."Qty. per Unit of Measure");
                 OnInsertPurchOrderLineOnBeforeSalesOrderLineValidateUnitCostLCY(PurchOrderLine, SalesOrderLine);
                 SalesOrderLine.Validate("Unit Cost (LCY)");
@@ -758,6 +754,11 @@ codeunit 333 "Req. Wksh.-Make Order"
         end;
 
         OnAfterInsertPurchOrderLine(PurchOrderLine, NextLineNo, ReqLine2, PurchOrderHeader);
+    end;
+
+    local procedure TransferFromReqLineToPurchLine(var PurchOrderLine: Record "Purchase Line"; ReqLine: Record "Requisition Line")
+    begin
+        OnTransferFromReqLineToPurchLine(PurchOrderLine, ReqLine);
     end;
 
     local procedure CheckRequsitionLineQuantity(var RequisitionLine: Record "Requisition Line")
@@ -1026,15 +1027,11 @@ codeunit 333 "Req. Wksh.-Make Order"
 
     procedure ReserveBindingOrderToPurch(var PurchLine: Record "Purchase Line"; var ReqLine: Record "Requisition Line")
     var
-        ProdOrderComp: Record "Prod. Order Component";
         SalesLine: Record "Sales Line";
         JobPlanningLine: Record "Job Planning Line";
-        AsmLine: Record "Assembly Line";
         TrackingSpecification: Record "Tracking Specification";
-        ProdOrderCompReserve: Codeunit "Prod. Order Comp.-Reserve";
         SalesLineReserve: Codeunit "Sales Line-Reserve";
         JobPlanningLineReserve: Codeunit "Job Planning Line-Reserve";
-        AsmLineReserve: Codeunit "Assembly Line-Reserve";
         ReservQty: Decimal;
         ReservQtyBase: Decimal;
     begin
@@ -1048,16 +1045,6 @@ codeunit 333 "Req. Wksh.-Make Order"
         end;
 
         case ReqLine."Demand Type" of
-            Database::"Prod. Order Component":
-                begin
-                    ProdOrderComp.Get(
-                      ReqLine."Demand Subtype", ReqLine."Demand Order No.", ReqLine."Demand Line No.", ReqLine."Demand Ref. No.");
-                    TrackingSpecification.InitTrackingSpecification(
-                        Database::"Purchase Line", PurchLine."Document Type".AsInteger(), PurchLine."Document No.", '', 0, PurchLine."Line No.",
-                        PurchLine."Variant Code", PurchLine."Location Code", PurchLine."Qty. per Unit of Measure");
-                    ProdOrderCompReserve.BindToTracking(
-                        ProdOrderComp, TrackingSpecification, PurchLine.Description, PurchLine."Expected Receipt Date", ReservQty, ReservQtyBase);
-                end;
             Database::"Sales Line":
                 begin
                     SalesLine.Get(ReqLine."Demand Subtype", ReqLine."Demand Order No.", ReqLine."Demand Line No.");
@@ -1083,19 +1070,6 @@ codeunit 333 "Req. Wksh.-Make Order"
                     if JobPlanningLine.Reserve = JobPlanningLine.Reserve::Never then begin
                         JobPlanningLine.Reserve := JobPlanningLine.Reserve::Optional;
                         JobPlanningLine.Modify();
-                    end;
-                end;
-            Database::"Assembly Line":
-                begin
-                    AsmLine.Get(ReqLine."Demand Subtype", ReqLine."Demand Order No.", ReqLine."Demand Line No.");
-                    TrackingSpecification.InitTrackingSpecification(
-                        Database::"Purchase Line", PurchLine."Document Type".AsInteger(), PurchLine."Document No.", '', 0, PurchLine."Line No.",
-                        PurchLine."Variant Code", PurchLine."Location Code", PurchLine."Qty. per Unit of Measure");
-                    AsmLineReserve.BindToTracking(
-                        AsmLine, TrackingSpecification, PurchLine.Description, PurchLine."Expected Receipt Date", ReservQty, ReservQtyBase);
-                    if AsmLine.Reserve = AsmLine.Reserve::Never then begin
-                        AsmLine.Reserve := AsmLine.Reserve::Optional;
-                        AsmLine.Modify();
                     end;
                 end;
             else
@@ -1704,6 +1678,11 @@ codeunit 333 "Req. Wksh.-Make Order"
     end;
 
     [IntegrationEvent(false, false)]
+    local procedure OnInitPurchOrderLineOnBeforeUpdateQuantity(var PurchOrderLine: Record "Purchase Line"; var RequisitionLine: Record "Requisition Line")
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
     local procedure OnInitPurchOrderLineOnAfterValidateLineDiscount(var PurchOrderLine: Record "Purchase Line"; PurchOrderHeader: Record "Purchase Header"; RequisitionLine: Record "Requisition Line")
     begin
     end;
@@ -1789,7 +1768,7 @@ codeunit 333 "Req. Wksh.-Make Order"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnInsertPurchOrderLineOnBeforeTransferReqLine(var PurchOrderHeader: Record "Purchase Header"; PurchOrderLine: Record "Purchase Line")
+    local procedure OnInsertPurchOrderLineOnBeforeTransferReqLine(var PurchOrderHeader: Record "Purchase Header"; PurchOrderLine: Record "Purchase Line"; var RequisitionLine: Record "Requisition Line")
     begin
     end;
 
@@ -1850,6 +1829,16 @@ codeunit 333 "Req. Wksh.-Make Order"
 
     [IntegrationEvent(true, false)]
     local procedure OnCodeOnBeforeSetPurchOrderHeader(var RequisitionLine: Record "Requisition Line"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [InternalEvent(false)]
+    local procedure OnTransferFromReqLineToPurchLine(var PurchOrderLine: Record "Purchase Line"; RequisitionLine: Record "Requisition Line")
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnCodeOnAfterFilterReqLine(var RequisitionLine: Record "Requisition Line"; PlanningResiliency: Boolean; SuppressCommit: Boolean; PrintPurchOrders: Boolean)
     begin
     end;
 }

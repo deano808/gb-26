@@ -44,11 +44,16 @@ table 8007 "Overdue Subscription Line"
         field(9; Price; Decimal)
         {
             Caption = 'Price';
+            AutoFormatType = 2;
+            AutoFormatExpression = Rec."Currency Code";
         }
         field(10; Amount; Decimal)
         {
             Caption = 'Amount';
+            AutoFormatType = 1;
+            AutoFormatExpression = Rec."Currency Code";
         }
+#if not CLEANSCHEMA29
         field(11; "Item No."; Code[20])
         {
             Caption = 'Item No.';
@@ -62,6 +67,7 @@ table 8007 "Overdue Subscription Line"
 #endif
             TableRelation = Item;
         }
+#endif
         field(12; "Subscription Contract Type"; Code[10])
         {
             Caption = 'Subscription Contract Type';
@@ -91,10 +97,16 @@ table 8007 "Overdue Subscription Line"
         field(18; "Discount %"; Decimal)
         {
             Caption = 'Discount %';
+            AutoFormatType = 0;
         }
         field(19; Quantity; Decimal)
         {
             Caption = 'Quantity';
+            AutoFormatType = 0;
+        }
+        field(34; "Currency Code"; Code[10])
+        {
+            Caption = 'Currency Code';
         }
         field(8007; "Source Type"; Enum "Service Object Type")
         {
@@ -194,6 +206,7 @@ table 8007 "Overdue Subscription Line"
                 Rec."Subscription Header No." := ServiceCommitment."Subscription Header No.";
                 Rec."Subscription Description" := ServiceCommitment."Subscription Description";
                 Rec."Discount %" := ServiceCommitment."Discount %";
+                Rec."Currency Code" := ServiceCommitment."Currency Code";
                 Rec.Insert(false);
             until ServiceCommitment.Next() = 0;
     end;

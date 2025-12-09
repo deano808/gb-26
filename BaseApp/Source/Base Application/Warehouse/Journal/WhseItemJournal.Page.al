@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Journal;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Journal;
 
 using Microsoft.Foundation.Reporting;
 using Microsoft.Inventory.Item;
@@ -21,6 +25,8 @@ page 7324 "Whse. Item Journal"
     DataCaptionFields = "Journal Batch Name";
     DelayedInsert = true;
     PageType = Worksheet;
+    AboutTitle = 'About Warehouse Item Journal';
+    AboutText = 'Adjust warehouse bin inventory by entering item details, quantities, and bins to record increases or decreases, ensuring accurate warehouse records.';
     SaveValues = true;
     SourceTable = "Warehouse Journal Line";
     UsageCategory = Tasks;

@@ -23,6 +23,8 @@ using Microsoft.Finance.Dimension;
 using Microsoft.Finance.Currency;
 using Microsoft.Finance.GeneralLedger.Journal;
 using Microsoft.Foundation.AuditCodes;
+using Microsoft.TestLibraries.Foundation.NoSeries;
+using System.TestLibraries.Utilities;
 
 #endregion Using
 
@@ -420,8 +422,16 @@ codeunit 139685 "Contract Test Library"
 
     procedure CreateVendorContract(var VendorContract: Record "Vendor Subscription Contract"; VendorNo: Code[20])
     var
+        ServiceContractSetup: Record "Subscription Contract Setup";
         VendorContractNo: Code[20];
     begin
+        // set no. series for vendor contract
+        ServiceContractSetup.Get();
+        if ServiceContractSetup."Vend. Sub. Contract Nos." = '' then begin
+            ServiceContractSetup."Vend. Sub. Contract Nos." := CreateNoSeries();
+            ServiceContractSetup.Modify();
+        end;
+
         VendorContractNo := PrefixTok + 'VEC000000';
         repeat
             VendorContractNo := IncStr(VendorContractNo);
@@ -435,6 +445,18 @@ codeunit 139685 "Contract Test Library"
 
         OnCreateVendorSubscriptionContractOnBeforeModify(VendorContract);
         VendorContract.Modify(true);
+    end;
+
+    procedure CreateNoSeries(): Code[20]
+    var
+        LibraryNoSeries: Codeunit "Library - No. Series";
+        Any: Codeunit Any;
+        NoSeriesCode: Code[20];
+    begin
+        Any.SetDefaultSeed();
+        NoSeriesCode := CopyStr(Any.AlphabeticText(10), 1, 10);
+        LibraryNoSeries.CreateNoSeries(NoSeriesCode, true, true, false);
+        exit(NoSeriesCode)
     end;
 
     procedure CreateVendorContractAndCreateContractLinesForItems(var VendorContract: Record "Vendor Subscription Contract"; var ServiceObject: Record "Subscription Header"; VendorNo: Code[20])
@@ -469,6 +491,40 @@ codeunit 139685 "Contract Test Library"
         CreateContractType(ContractType);
         VendorContract."Contract Type" := ContractType.Code;
         VendorContract.Modify(false);
+    end;
+
+    procedure DisableDeferralsForCustomerContract(var CustomerSubscriptionContract: Record "Customer Subscription Contract"; NewCreateContractDeferrals: Boolean)
+    var
+        CustomerContractLine: Record "Cust. Sub. Contract Line";
+        SubscriptionLine: Record "Subscription Line";
+    begin
+        CustomerSubscriptionContract.Validate("Create Contract Deferrals", NewCreateContractDeferrals);
+        CustomerSubscriptionContract.Modify(false);
+        CustomerContractLine.SetRange("Subscription Contract No.", CustomerSubscriptionContract."No.");
+        if CustomerContractLine.FindSet() then
+            repeat
+                if CustomerContractLine.GetServiceCommitment(SubscriptionLine) then begin
+                    SubscriptionLine."Create Contract Deferrals" := SubscriptionLine."Create Contract Deferrals"::"Contract-dependent";
+                    SubscriptionLine.Modify(false);
+                end;
+            until CustomerContractLine.Next() = 0;
+    end;
+
+    procedure DisableDeferralsForVendorContract(var VendorSubscriptionContract: Record "Vendor Subscription Contract"; NewCreateContractDeferrals: Boolean)
+    var
+        VendorContractLine: Record "Vend. Sub. Contract Line";
+        SubscriptionLine: Record "Subscription Line";
+    begin
+        VendorSubscriptionContract.Validate("Create Contract Deferrals", NewCreateContractDeferrals);
+        VendorSubscriptionContract.Modify(false);
+        VendorContractLine.SetRange("Subscription Contract No.", VendorSubscriptionContract."No.");
+        if VendorContractLine.FindSet() then
+            repeat
+                if VendorContractLine.GetServiceCommitment(SubscriptionLine) then begin
+                    SubscriptionLine."Create Contract Deferrals" := SubscriptionLine."Create Contract Deferrals"::"Contract-dependent";
+                    SubscriptionLine.Modify(false);
+                end;
+            until VendorContractLine.Next() = 0;
     end;
 
     #endregion Contracts
@@ -1073,6 +1129,26 @@ codeunit 139685 "Contract Test Library"
         VendorContractLine.Insert(false);
     end;
 
+    procedure MockCustomerContractDeferralLine(CustomerContractNo: Code[20]; CustomerContractLineNo: Integer)
+    var
+        CustSubContractDeferral: Record "Cust. Sub. Contract Deferral";
+    begin
+        CustSubContractDeferral.Init();
+        CustSubContractDeferral."Subscription Contract No." := CustomerContractNo;
+        CustSubContractDeferral."Subscription Contract Line No." := CustomerContractLineNo;
+        CustSubContractDeferral.Insert(false);
+    end;
+
+    procedure MockVendorContractDeferralLine(VendorContractNo: Code[20]; VendorContractLineNo: Integer)
+    var
+        VendSubContractDeferral: Record "Vend. Sub. Contract Deferral";
+    begin
+        VendSubContractDeferral.Init();
+        VendSubContractDeferral."Subscription Contract No." := VendorContractNo;
+        VendSubContractDeferral."Subscription Contract Line No." := VendorContractLineNo;
+        VendSubContractDeferral.Insert(false);
+    end;
+
     procedure SetAutomaticDimensions(NewValue: Boolean)
     var
         ServiceContractSetup: Record "Subscription Contract Setup";
@@ -1123,7 +1199,6 @@ codeunit 139685 "Contract Test Library"
         Clear(ServiceCommitment."Billing Base Period");
         Clear(ServiceCommitment."Billing Rhythm");
         Evaluate(ServiceCommitment."Billing Base Period", BillingBasePeriodText);
-        ServiceCommitment.Validate("Billing Base Period");
         Evaluate(ServiceCommitment."Billing Rhythm", BillingRhythmText);
         ServiceCommitment.Validate("Billing Rhythm");
     end;

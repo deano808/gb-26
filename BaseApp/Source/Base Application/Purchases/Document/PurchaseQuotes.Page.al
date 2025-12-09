@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Document;
 
 using Microsoft.EServices.EDocument;
 using Microsoft.Finance.Dimension;
@@ -18,6 +22,8 @@ page 9306 "Purchase Quotes"
     DataCaptionFields = "Buy-from Vendor No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Purchase Quotes';
+    AboutText = 'Create, manage, and track vendor purchase quotes as preliminary drafts before converting accepted quotes into purchase orders for processing purchases.';
     QueryCategory = 'Purchase Quotes';
     RefreshOnActivate = true;
     SourceTable = "Purchase Header";
@@ -199,6 +205,16 @@ page 9306 "Purchase Quotes"
                     ToolTip = 'Specifies whether the record is open, waiting to be approved, invoiced for prepayment, or released to the next stage of processing.';
                     Visible = false;
                     StyleExpr = StatusStyleTxt;
+                }
+                field(Amount; Rec.Amount)
+                {
+                    ApplicationArea = Suite;
+                    Visible = false;
+                }
+                field("Amount Including VAT"; Rec."Amount Including VAT")
+                {
+                    ApplicationArea = Suite;
+                    Visible = false;
                 }
             }
         }

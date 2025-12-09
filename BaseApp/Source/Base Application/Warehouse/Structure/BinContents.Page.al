@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Structure;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Structure;
 
 using Microsoft.Inventory.Location;
 using Microsoft.Warehouse.Journal;
@@ -16,6 +20,8 @@ page 7374 "Bin Contents"
     DataCaptionExpression = DataCaption;
     InsertAllowed = false;
     PageType = Worksheet;
+    AboutTitle = 'About Bin Contents';
+    AboutText = 'Manage and configure the items stored in specific warehouse bins, set quantity limits and rules for each item, and define bin properties to support directed put-away, picking, and replenishment processes.';
     SaveValues = true;
     SourceTable = "Bin Content";
     UsageCategory = Tasks;

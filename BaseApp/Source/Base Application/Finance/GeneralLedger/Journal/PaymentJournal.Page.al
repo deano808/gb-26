@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.GeneralLedger.Journal;
+﻿// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.GeneralLedger.Journal;
 
 using Microsoft.Bank.BankAccount;
 using Microsoft.Bank.Check;
@@ -37,6 +41,8 @@ page 256 "Payment Journal"
     DataCaptionExpression = Rec.DataCaption();
     DelayedInsert = true;
     PageType = Worksheet;
+    AboutTitle = 'About Payment Journals';
+    AboutText = 'Record and process payments to vendors and refunds to customers, apply payments to invoices or credit memos, and manage payment methods including printing checks and exporting electronic payment files.';
     SaveValues = true;
     SourceTable = "Gen. Journal Line";
     UsageCategory = Tasks;
@@ -380,6 +386,7 @@ page 256 "Payment Journal"
                     begin
                         GenJnlManagement.GetAccounts(Rec, AccName, BalAccName);
                         Rec.ShowShortcutDimCode(ShortcutDimCode);
+                        CurrPage.SaveRecord();
                     end;
                 }
                 field("Bal. Gen. Posting Type"; Rec."Bal. Gen. Posting Type")
@@ -896,7 +903,11 @@ page 256 "Payment Journal"
                     ApplicationArea = Basic, Suite;
                     Caption = 'P&review Check';
                     Image = ViewCheck;
+#if not CLEAN27
                     RunObject = Page "Check Preview GB";
+#else
+                    RunObject = Page "Check Preview";
+#endif
                     RunPageLink = "Journal Template Name" = field("Journal Template Name"),
                                   "Journal Batch Name" = field("Journal Batch Name"),
                                   "Line No." = field("Line No.");
@@ -1421,20 +1432,6 @@ page 256 "Payment Journal"
                         end;
                     }
                 }
-#if not CLEAN24
-                customaction(CreateFlowFromTemplate)
-                {
-                    ApplicationArea = Basic, Suite;
-                    Caption = 'Create approval flow';
-                    ToolTip = 'Create a new flow in Power Automate from a list of relevant flow templates.';
-                    Visible = false;
-                    CustomActionType = FlowTemplateGallery;
-                    FlowTemplateCategoryName = 'd365bc_approval_generalJournal';
-                    ObsoleteReason = 'Replaced by field "CreateApprovalFlowFromTemplate" in the group Flow.';
-                    ObsoleteState = Pending;
-                    ObsoleteTag = '24.0';
-                }
-#endif
                 group(Flow)
                 {
                     Caption = 'Power Automate';
@@ -1799,13 +1796,13 @@ page 256 "Payment Journal"
     trigger OnInit()
     var
         PrivacyNotice: Codeunit "Privacy Notice";
-        PrivacyNoticeRegistrations: Codeunit "Privacy Notice Registrations";
+        FlowServiceManagement: Codeunit "Flow Service Management";
     begin
         TotalBalanceVisible := true;
         BalanceVisible := true;
         AmountVisible := true;
         GeneralLedgerSetup.Get();
-        IsPowerAutomatePrivacyNoticeApproved := PrivacyNotice.GetPrivacyNoticeApprovalState(PrivacyNoticeRegistrations.GetPowerAutomatePrivacyNoticeId()) = "Privacy Notice Approval State"::Agreed;
+        IsPowerAutomatePrivacyNoticeApproved := PrivacyNotice.GetPrivacyNoticeApprovalState(FlowServiceManagement.GetPowerAutomatePrivacyNoticeId()) = "Privacy Notice Approval State"::Agreed;
 
         SetJobQueueVisibility();
     end;

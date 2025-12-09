@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Warehouse.History;
 
 using Microsoft.Warehouse.Activity;
@@ -13,6 +17,8 @@ page 7333 "Posted Whse. Receipt List"
     DataCaptionFields = "No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Warehouse Receipts';
+    AboutText = 'Review posted warehouse receipts to track received items, verify receipt details by location and user, and monitor the status of warehouse put-away activities.';
     SourceTable = "Posted Whse. Receipt Header";
     SourceTableView = sorting("Posting Date")
                       order(descending);

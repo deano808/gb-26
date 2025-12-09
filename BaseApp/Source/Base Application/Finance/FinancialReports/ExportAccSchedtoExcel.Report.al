@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.FinancialReports;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.FinancialReports;
 
 using Microsoft.Finance.Analysis;
 using Microsoft.Finance.Currency;
@@ -120,32 +124,34 @@ report 29 "Export Acc. Sched. to Excel"
                         repeat
                             ColumnNo := ColumnNo + 1;
                             EnterCell(
-                              RowNo, ColumnNo, ColumnLayout."Column Header", false, false, false, false, '', TempExcelBuffer."Cell Type"::Text);
+                              RowNo, ColumnNo, AccSchedManagement.CalcColumnHeader(AccSchedLine, ColumnLayout), false, false, false, false, '', TempExcelBuffer."Cell Type"::Text);
                         until ColumnLayout.Next() = 0;
                     end;
                     repeat
                         RecNo := RecNo + 1;
                         Window.Update(1, Round(RecNo / TotalRecNo * 10000, 1));
-                        RowNo := RowNo + 1;
-                        ColumnNo := 1;
-                        EnterCell(
-                          RowNo, ColumnNo, AccSchedLine."Row No.",
-                          AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
-                          '0', TempExcelBuffer."Cell Type"::Text);
-                        ColumnNo := 2;
-                        EnterCell(
-                          RowNo, ColumnNo, AccSchedLine.Description,
-                          AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
-                          '', TempExcelBuffer."Cell Type"::Text);
-                        if ColumnLayout.Find('-') then
-                            repeat
-                                CalcColumnValue();
-                                ColumnNo := ColumnNo + 1;
-                                EnterCell(
-                                  RowNo, ColumnNo, MatrixMgt.FormatAmount(ColumnValue, ColumnLayout."Rounding Factor", UseAmtsInAddCurr),
-                                  AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
-                                  '', TempExcelBuffer."Cell Type"::Number)
-                            until ColumnLayout.Next() = 0;
+                        if ShouldIncludeRow() then begin
+                            RowNo := RowNo + 1;
+                            ColumnNo := 1;
+                            EnterCell(
+                              RowNo, ColumnNo, AccSchedLine."Row No.",
+                              AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
+                              '0', TempExcelBuffer."Cell Type"::Text);
+                            ColumnNo := 2;
+                            EnterCell(
+                              RowNo, ColumnNo, AccSchedLine.Description,
+                              AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
+                              '', TempExcelBuffer."Cell Type"::Text);
+                            if ColumnLayout.Find('-') then
+                                repeat
+                                    CalcColumnValue();
+                                    ColumnNo := ColumnNo + 1;
+                                    EnterCell(
+                                      RowNo, ColumnNo, MatrixMgt.FormatAmount(ColumnValue, ColumnLayout."Rounding Factor", UseAmtsInAddCurr),
+                                      AccSchedLine.Bold, AccSchedLine.Italic, AccSchedLine.Underline, AccSchedLine."Double Underline",
+                                      '', TempExcelBuffer."Cell Type"::Number)
+                                until ColumnLayout.Next() = 0;
+                        end;
                     until AccSchedLine.Next() = 0;
                 end;
 
@@ -260,12 +266,12 @@ report 29 "Export Acc. Sched. to Excel"
         end;
     end;
 
-    local procedure EnterCell(RowNo: Integer; ColumnNo: Integer; CellValue: Text[250]; Bold: Boolean; Italic: Boolean; UnderLine: Boolean; DoubleUnderLine: Boolean; Format: Text[30]; CellType: Option)
+    local procedure EnterCell(RowNo: Integer; ColumnNo: Integer; CellValue: Text; Bold: Boolean; Italic: Boolean; UnderLine: Boolean; DoubleUnderLine: Boolean; Format: Text[30]; CellType: Option)
     begin
         TempExcelBuffer.Init();
         TempExcelBuffer.Validate("Row No.", RowNo);
         TempExcelBuffer.Validate("Column No.", ColumnNo);
-        TempExcelBuffer."Cell Value as Text" := CellValue;
+        TempExcelBuffer."Cell Value as Text" := CopyStr(CellValue, 1, MaxStrLen(TempExcelBuffer."Cell Value as Text"));
         TempExcelBuffer.Formula := '';
         TempExcelBuffer.Bold := Bold;
         TempExcelBuffer.Italic := Italic;
@@ -395,6 +401,23 @@ report 29 "Export Acc. Sched. to Excel"
         if SheetName = '' then
             exit(false);
 
+        exit(true);
+    end;
+
+    local procedure ShouldIncludeRow(): Boolean
+    var
+        HasNonZeroColumn: Boolean;
+    begin
+        if AccSchedLine.Show = AccSchedLine.Show::"If Any Column Not Zero" then begin
+            HasNonZeroColumn := false;
+            if ColumnLayout.Find('-') then
+                repeat
+                    CalcColumnValue();
+                    if ColumnValue <> 0 then
+                        exit(true);
+                until ColumnLayout.Next() = 0;
+            exit(HasNonZeroColumn);
+        end;
         exit(true);
     end;
 

@@ -15,6 +15,8 @@ page 357 Companies
     ApplicationArea = Basic, Suite;
     Caption = 'Companies';
     PageType = List;
+    AboutTitle = 'About Companies';
+    AboutText = 'View and manage all companies in your Business Central environment, including their display names, setup status, and evaluation status for trial companies.';
     RefreshOnActivate = true;
     SourceTable = Company;
     UsageCategory = Lists;
@@ -219,11 +221,12 @@ page 357 Companies
 
     trigger OnDeleteRecord(): Boolean
     var
+        Company: Record Company;
         ConfirmManagement: Codeunit "Confirm Management";
         CompanyInformationMgt: Codeunit "Company Information Mgt.";
     begin
         OnBeforeDeleteRecord(Rec);
-        if SoftwareAsAService and (Rec.Count = 1) then begin
+        if SoftwareAsAService and (Company.Count = 1) then begin
             Message(DeleteLastCompanyMsg);
             Error('');
         end;

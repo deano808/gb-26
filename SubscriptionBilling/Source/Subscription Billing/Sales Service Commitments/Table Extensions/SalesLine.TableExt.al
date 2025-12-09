@@ -229,12 +229,11 @@ tableextension 8054 "Sales Line" extends "Sales Line"
         if SalesServiceCommitment.IsEmpty() then
             exit;
 
-        if SalesServiceCommitment.FindSet() then begin
-            SalesLine.Modify(false);
+        if SalesServiceCommitment.FindSet() then
             repeat
+                SalesServiceCommitment.SetSalesLine(Rec);
                 SalesServiceCommitment.CalculateCalculationBaseAmount();
             until SalesServiceCommitment.Next() = 0;
-        end;
         OnAfterUpdateSalesSubscriptionLineCalculationBaseAmount(SalesLine, xSalesLine);
     end;
 
@@ -296,10 +295,15 @@ tableextension 8054 "Sales Line" extends "Sales Line"
     var
         SalesLine: Record "Sales Line";
     begin
-        SalesLine.InitFromSalesHeader(SourceSalesHeader);
-        SalesLine."Attached to Line No." := AttachedToLineNo;
-        SalesLine.Description := CopyStr(NewDescription, 1, MaxStrLen(SalesLine.Description));
-        SalesLine.Insert(false);
+        SalesLine.CreateAttachedSalesLine(SourceSalesHeader, NewDescription, AttachedToLineNo);
+    end;
+
+    internal procedure CreateAttachedSalesLine(SourceSalesHeader: Record "Sales Header"; NewDescription: Text; AttachedToLineNo: Integer)
+    begin
+        Rec.InitFromSalesHeader(SourceSalesHeader);
+        Rec."Attached to Line No." := AttachedToLineNo;
+        Rec.Description := CopyStr(NewDescription, 1, MaxStrLen(Rec.Description));
+        Rec.Insert(false);
     end;
 
     internal procedure RetrieveFirstContractNo(ServicePartner: Enum "Service Partner"; Process: Enum Process): Code[20]

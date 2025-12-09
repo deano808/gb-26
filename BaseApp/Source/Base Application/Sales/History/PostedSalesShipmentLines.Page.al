@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.History;
 
 using Microsoft.Finance.Dimension;
@@ -8,6 +12,8 @@ page 525 "Posted Sales Shipment Lines"
     Caption = 'Posted Sales Shipment Lines';
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Sales Shipment Lines';
+    AboutText = 'Review detailed records of items, quantities, and related information for each line in posted sales shipments, helping you track what has been shipped to customers and the status of invoicing for those shipments.';
     SourceTable = "Sales Shipment Line";
     UsageCategory = History;
 

@@ -20,7 +20,7 @@ using Microsoft.eServices.EDocument.Processing.Import.Purchase;
 codeunit 6140 "E-Doc. Import"
 {
     Permissions =
-        tabledata "E-Document" = im,
+        tabledata "E-Document" = imd,
         tabledata "E-Doc. Imported Line" = imd;
 
     procedure ReceiveAndProcessAutomatically(EDocumentService: Record "E-Document Service"): Boolean
@@ -120,7 +120,8 @@ codeunit 6140 "E-Doc. Import"
                         exit(false);
                 end;
 
-        EDocImpSessionTelemetry.Emit(EDocument);
+        if CurrentStatus <> DesiredStatus then
+            EDocImpSessionTelemetry.Emit(EDocument);
         OnAfterProcessIncomingEDocument(EDocument, EDocImportParameters, CurrentStatus, DesiredStatus);
         exit(true);
     end;
@@ -293,7 +294,7 @@ codeunit 6140 "E-Doc. Import"
         if not SelectPurchaseOrderFromList(EDocument, Vendor, DocumentHeader) then
             exit;
 
-        // If new purchase order is selected 
+        // If new purchase order is selected
         // Release purchase header if it is pointing to this document
         if PurchaseHeader.Get(EDocument."Document Record ID") then
             if PurchaseHeader."E-Document Link" = EDocument.SystemId then begin
@@ -813,7 +814,10 @@ codeunit 6140 "E-Doc. Import"
 
     local procedure V1_CopyFromPurchaseLine(PurchaseLine: Record "Purchase Line"; var EDocumentPurchaseLine: Record "E-Document Purchase Line")
     begin
-        EDocumentPurchaseLine."Product Code" := PurchaseLine."No.";
+        if PurchaseLine."Item Reference No." <> '' then // No. takes precedence over Item Reference No., but if only Item Reference No. is set we use that 
+            EDocumentPurchaseLine."Product Code" := PurchaseLine."Item Reference No.";
+        if PurchaseLine."No." <> '' then
+            EDocumentPurchaseLine."Product Code" := PurchaseLine."No.";
         EDocumentPurchaseLine."Description" := PurchaseLine.Description;
         EDocumentPurchaseLine.Quantity := PurchaseLine.Quantity;
         EDocumentPurchaseLine."Unit Price" := PurchaseLine."Direct Unit Cost";
@@ -908,17 +912,19 @@ codeunit 6140 "E-Doc. Import"
     local procedure OnAfterPrepareReceivedDoc(var EDocument: Record "E-Document"; var TempBlob: Codeunit "Temp Blob"; SourceDocumentHeader: RecordRef; SourceDocumentLine: RecordRef; TempEDocMapping: Record "E-Doc. Mapping" temporary);
     begin
     end;
-
+#if not CLEAN27
+    [Obsolete('This event is not raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnBeforeUpdateDocument(var EDocument: Record "E-Document"; var TempDocumentHeader: RecordRef; var TempDocumentLine: RecordRef; var DocumentHeader: RecordRef)
     begin
     end;
 
+    [Obsolete('This event is not raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnAfterUpdateDocument(var EDocument: Record "E-Document"; var TempDocumentHeader: RecordRef; var TempDocumentLine: RecordRef; var DocumentHeader: RecordRef)
     begin
     end;
-
+#endif
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCreateDocument(var EDocument: Record "E-Document"; var TempDocumentHeader: RecordRef; var TempDocumentLine: RecordRef; var DocumentHeader: RecordRef)
     begin

@@ -17,6 +17,8 @@ page 99000755 "Work Center List"
     CardPageID = "Work Center Card";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Work Centers';
+    AboutText = 'Manage and analyze work centers for production by tracking capacity, efficiency, and shop floor load, enabling effective scheduling and resource planning based on available capacity and production order status.';
     SourceTable = "Work Center";
     UsageCategory = Lists;
 
@@ -312,6 +314,7 @@ page 99000755 "Work Center List"
                 ObsoleteTag = '26.0';
             }
 #endif
+#if not CLEAN27
             action("Work Center Load")
             {
                 ApplicationArea = Manufacturing;
@@ -319,6 +322,9 @@ page 99000755 "Work Center List"
                 Image = "Report";
                 RunObject = Report "Work Center Load";
                 ToolTip = 'Get an overview of availability at the work center, such as the capacity, the allocated quantity, availability after order, and the load in percent.';
+                ObsoleteState = Pending;
+                ObsoleteReason = 'This report has been replaced by the "Work/Machine Center Load" report and will be removed in a future release.';
+                ObsoleteTag = '27.0';
             }
             action("Work Center Load/Bar")
             {
@@ -329,6 +335,18 @@ page 99000755 "Work Center List"
                 //PromotedCategory = "Report";
                 RunObject = Report "Work Center Load/Bar";
                 ToolTip = 'View a list of work centers that are overloaded according to the plan. The efficiency or overloading is shown by efficiency bars.';
+                ObsoleteState = Pending;
+                ObsoleteReason = 'This report has been replaced by the "Work/Machine Center Load" report and will be removed in a future release.';
+                ObsoleteTag = '27.0';
+            }
+#endif
+            action("Work/Machine Center Load")
+            {
+                ApplicationArea = Manufacturing;
+                Caption = 'Work/Machine Center Load';
+                Image = "Report";
+                RunObject = Report "Work/Machine Center Load";
+                ToolTip = 'Get an overview of availability at the work center and machine center, such as the capacity, the allocated quantity, availability after order, and the load in percent.';
             }
         }
         area(Promoted)
@@ -361,7 +379,15 @@ page 99000755 "Work Center List"
                     ObsoleteTag = '26.0';
                 }
 #endif
+#if not CLEAN27
                 actionref("Work Center Load_Promoted"; "Work Center Load")
+                {
+                    ObsoleteState = Pending;
+                    ObsoleteReason = 'This report has been replaced by the "Work/Machine Center Load" report and will be removed in a future release.';
+                    ObsoleteTag = '27.0';
+                }
+#endif
+                actionref("Work/Machine Center Load_Promoted"; "Work/Machine Center Load")
                 {
                 }
             }

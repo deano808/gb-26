@@ -58,7 +58,7 @@ codeunit 136306 "Job Invoicing"
         DetailLevel: Option All,"Per Job","Per Job Task","Per Job Planning Line";
         LineDiscountPctErr: Label '%1 should be %2', Comment = '%1 = Field Caption, %2 = Field Value';
         WrongNoOfLinesLbl: Label 'Wrong number of lines created.';
-        SystemCreatedEntryErr: Label 'System Created Entry must not equal to %1', Comment = '%1= System Created Entry';
+        ValueFalseErr: Label 'Value must be equal to false';
 
     [Test]
     [HandlerFunctions('TransferToInvoiceHandler,MessageHandler')]
@@ -4079,7 +4079,48 @@ codeunit 136306 "Job Invoicing"
         // [THEN] Find the created Job Planning Line and "System-Created Entry" should be set false
         JobPlanningLine.SetRange("Job No.", TargetJobNo);
         JobPlanningLine.FindFirst();
-        Assert.IsFalse(JobPlanningLine."System-Created Entry", StrSubstNo(SystemCreatedEntryErr, JobPlanningLine."System-Created Entry"));
+        Assert.IsFalse(JobPlanningLine."System-Created Entry", ValueFalseErr);
+    end;
+
+    [Test]
+    procedure PostPurchaseCreditMemoWithNonInventoryItemLinkedToProject()
+    var
+        Item: Record Item;
+        Job: Record Job;
+        JobTask: Record "Job Task";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
+    begin
+        // [SCENARIO 580434] Error when posting a Purchase Credit Memo for 'Non-Inventory' item with Project No. selected
+        Initialize();
+
+        // [GIVEN] Create Non-Inventory Item
+        LibraryInventory.CreateNonInventoryTypeItem(Item);
+
+        // [GIVEN] Create Job with Customer
+        CreateJobWithCustomer(Job);
+
+        // [GIVEN] Create Job Task
+        LibraryJob.CreateJobTask(Job, JobTask);
+
+        // [GIVEN] Create Vendor
+        LibraryPurchase.CreateVendor(Vendor);
+
+        // [GIVEN] Create Purchase Credit Memo
+        LibraryPurchase.CreatePurchHeader(PurchaseHeader, PurchaseHeader."Document Type"::"Credit Memo", Vendor."No.");
+        LibraryPurchase.CreatePurchaseLine(PurchaseLine, PurchaseHeader, PurchaseLine.Type::Item, Item."No.", 1);
+
+        // [GIVEN] Set Job No., Job Task No. and Job Line Type as Billable
+        PurchaseLine.Validate("Job No.", Job."No.");
+        PurchaseLine.Validate("Job Task No.", JobTask."Job Task No.");
+        PurchaseLine.Validate("Job Line Type", PurchaseLine."Job Line Type"::Billable);
+        PurchaseLine.Modify(true);
+
+        // [WHEN] Post Purchase Credit Memo
+        LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, true);
+
+        // [THEN] No error should come, as posting for Non-Inventory Item.
     end;
 
     local procedure Initialize()

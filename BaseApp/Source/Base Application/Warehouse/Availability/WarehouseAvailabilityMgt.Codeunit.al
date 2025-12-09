@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Availability;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Availability;
 
 using Microsoft.Assembly.Document;
 using Microsoft.Inventory.Item;
@@ -217,6 +221,10 @@ codeunit 7314 "Warehouse Availability Mgt."
 
         QtyPicked := Item."Qty. Picked";
         OnAfterCalcQtyPicked(Item, QtyPicked, Location);
+
+        // If all inventory is reserved, then only the qty on non-dedicated bins is available
+        if (Item.Inventory - Abs(ReservedQtyOnInventory) = 0) and (QtyOnDedicatedBins > 0) then
+            exit(Item.Inventory - QtyReceivedNotAvail - QtyAssgndtoPick - QtyPicked + QtyShipped - QtyOnDedicatedBins);
         // The reserved qty might exceed the qty available in warehouse and thereby
         // having reserved from the qty not yet put-away
         if (Item.Inventory - QtyReceivedNotAvail - QtyAssgndtoPick - QtyPicked + QtyShipped - QtyOnDedicatedBins) <
@@ -452,6 +460,7 @@ codeunit 7314 "Warehouse Availability Mgt."
             if Location."Bin Mandatory" and WhseItemTrackingSetup.TrackingExists() then begin
                 GetOutboundBinsOnBasicWarehouseLocation(
                   TempBinContentBuffer, LocationCode, ItemNo, VariantCode, WhseItemTrackingSetup);
+                ExcludeDedicatedBinContentFromTempBinContentBuffer(TempBinContentBuffer, ExcludeDedicatedBinContent);
                 TempBinContentBuffer.CalcSums("Qty. Outstanding (Base)");
                 QtyOnOutboundBins := TempBinContentBuffer."Qty. Outstanding (Base)";
             end else begin
@@ -492,6 +501,7 @@ codeunit 7314 "Warehouse Availability Mgt."
         WarehouseEntry: Record "Warehouse Entry";
         QtyInBin: Decimal;
     begin
+        TempBinContentBuffer.Reset();
         TempBinContentBuffer.DeleteAll();
 
         Location.Get(LocationCode);
@@ -514,7 +524,7 @@ codeunit 7314 "Warehouse Availability Mgt."
         WarehouseEntry.SetRange("Reference Document", WarehouseEntry."Reference Document"::Pick);
         WarehouseEntry.SetFilter("Qty. (Base)", '>%1', 0);
         OnGetOutboundBinsOnBasicWarehouseLocationOnAfterSetWarehouseEntryFilters(WarehouseEntry);
-        WarehouseEntry.SetLoadFields("Bin Code");
+        WarehouseEntry.SetLoadFields("Bin Code", Dedicated);
         if WarehouseEntry.FindSet() then
             repeat
                 WarehouseEntry.SetRange("Bin Code", WarehouseEntry."Bin Code");
@@ -523,6 +533,7 @@ codeunit 7314 "Warehouse Availability Mgt."
                     TempBinContentBuffer.Init();
                     TempBinContentBuffer."Location Code" := LocationCode;
                     TempBinContentBuffer."Bin Code" := WarehouseEntry."Bin Code";
+                    TempBinContentBuffer.Dedicated := WarehouseEntry.Dedicated;
                     TempBinContentBuffer."Item No." := ItemNo;
                     TempBinContentBuffer."Variant Code" := VariantCode;
                     TempBinContentBuffer."Qty. Outstanding (Base)" := QtyInBin;
@@ -785,7 +796,7 @@ codeunit 7314 "Warehouse Availability Mgt."
     begin
         IsHandled := false;
         Quantity := 0;
-        OnBeforeCalcQtyRegisteredPick(SourceType, SourceSubType, SourceID, SourceProdOrderLine, SourceRefNo, Quantity, IsHandled);
+        OnBeforeCalcQtyRegisteredPick(SourceType, SourceSubType, SourceID, SourceRefNo, SourceProdOrderLine, Quantity, IsHandled);
         if IsHandled then
             exit(Quantity);
 
@@ -1039,6 +1050,14 @@ codeunit 7314 "Warehouse Availability Mgt."
             AvailabilityType::UOM:
                 ItemAvailabilityFormsMgt.ShowItemAvailabilityByUOM(Item, WhseActivLine.FieldCaption(WhseActivLine."Unit of Measure Code"), WhseActivLine."Unit of Measure Code", NewUnitOfMeasureCode);
         end;
+    end;
+
+    local procedure ExcludeDedicatedBinContentFromTempBinContentBuffer(var TempBinContentBuffer: Record "Bin Content Buffer" temporary; ExcludeDedicatedBinContent: Boolean)
+    begin
+        if not ExcludeDedicatedBinContent then
+            exit;
+
+        TempBinContentBuffer.SetRange(Dedicated, false);
     end;
 
     [IntegrationEvent(false, false)]

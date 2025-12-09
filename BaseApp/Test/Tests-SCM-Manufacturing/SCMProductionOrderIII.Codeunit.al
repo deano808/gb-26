@@ -132,9 +132,10 @@ codeunit 137079 "SCM Production Order III"
         EntryMustBeEqualErr: Label '%1 must be equal to %2 for Entry No. %3 in the %4.', Comment = '%1 = Field Caption , %2 = Expected Value, %3 = Entry No., %4 = Table Caption';
         MissingAccountTxt: Label '%1 is missing in %2.', Comment = '%1 = Field Caption, %2 = Table Caption';
         ProductionOrderHasAlreadyBeenReopenedErr: Label 'This production order has already been reopened before. This can only be done once.';
-        ItemMustBeEqualErr: Label '%1 must be equal to %2 for Item No. %3 in the %4.', Comment = '%1 = Field Caption , %2 = Expected Value, %3 = Item No., %4 = Table Caption';
         ReservationEntryMustExistErr: Label '%1 must exist.', Comment = '%1 is Table Caption';
+        ItemMustBeEqualErr: Label '%1 must be equal to %2 for Item No. %3 in the %4.', Comment = '%1 = Field Caption , %2 = Expected Value, %3 = Item No., %4 = Table Caption';
         CannotReverseLastOperationErr: Label '%1 %2 is the last operation of Production Order %3. Reversal of this operation can only be performed from the %4.', Comment = '%1 - Field Caption, %2 - Entry No., %3 - Production Order No., %4 - Item Ledger Entry table caption';
+        CannotReverseCapacityLedgerEntryErr: Label 'You cannot reverse %1 No. %2 because the entry has already been involved in a reversal.', Comment = '%1 = Table Caption, %2 = Entry No.';
 
     [Test]
     [Scope('OnPrem')]
@@ -340,7 +341,7 @@ codeunit 137079 "SCM Production Order III"
         Item: Record Item;
         RequisitionLine: Record "Requisition Line";
         PurchaseHeader: Record "Purchase Header";
-        ManufacturingSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
     begin
         // Create item with Reordering Policy. Create and post Purchase Order. Create and post Sales Order with Item Maximum Quantity.
         CreateMaximumQtyItem(Item, LibraryRandom.RandDec(100, 2) + 100);  // Large Quantity required for Item Maximum Inventory.
@@ -356,10 +357,10 @@ codeunit 137079 "SCM Production Order III"
         if AcceptAndCarryOutAction then
             VerifyPurchaseLine(Item."No.", Item."Maximum Inventory")
         else begin
-            ManufacturingSetup.Get();
+            InventorySetup.Get();
             VerifyRequisitionLine(
               Item."No.", RequisitionLine."Action Message"::New, Item."Maximum Inventory",
-              CalcDate(ManufacturingSetup."Default Safety Lead Time", WorkDate()));
+              CalcDate(InventorySetup."Default Safety Lead Time", WorkDate()));
         end;
     end;
 
@@ -899,7 +900,7 @@ codeunit 137079 "SCM Production Order III"
           ProductionOrder, Item."No.", Quantity, LocationWhite.Code, LocationWhite."To-Production Bin Code");
 
         // Exercise: Create Pick from Released Production Order.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Verify: Verify that new Unit of Measure is updated on Warehouse Pick Line.
         FindWhseActivityLine(
@@ -995,7 +996,7 @@ codeunit 137079 "SCM Production Order III"
         CreateAndRefreshProductionOrder(
           ProductionOrder, ProductionOrder.Status::Released, Item."No.", Quantity, LocationWhite.Code,
           LocationWhite."To-Production Bin Code");
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityLine."Activity Type"::Pick);  // Register the Pick created.
 
         // Exercise & Verify: Open Production Journal for the Released Production Order. Verify the Consumption Entry on Production Journal through ProductionJournalPageHandler.
@@ -1237,7 +1238,7 @@ codeunit 137079 "SCM Production Order III"
         CreateAndRefreshProductionOrder(
           ProductionOrder, ProductionOrder.Status::Released, Item."No.", Quantity, LocationWhite.Code,
           LocationWhite."To-Production Bin Code");
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Exercise: Register the Whse Pick.
         RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityLine."Activity Type"::Pick);
@@ -1271,7 +1272,7 @@ codeunit 137079 "SCM Production Order III"
         CreateAndRefreshProductionOrder(
           ProductionOrder, ProductionOrder.Status::Released, Item."No.", Quantity, LocationWhite.Code,
           LocationWhite."To-Production Bin Code");
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Register the Whse Pick. Refresh the Production Order again.
         RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityLine."Activity Type"::Pick);
@@ -1279,7 +1280,7 @@ codeunit 137079 "SCM Production Order III"
         LibraryManufacturing.RefreshProdOrder(ProductionOrder, false, true, true, true, false);
 
         // Exercise: Create Whse Pick again.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Verify: Verify the Take and Place Pick lines created after refresh Production Order twice.
         FindWhseActivityLine(
@@ -1336,7 +1337,7 @@ codeunit 137079 "SCM Production Order III"
           ProductionOrder, Item."No.", Quantity, LocationWhite.Code, LocationWhite."To-Production Bin Code");
 
         // Exercise: Create Whse Pick from Released Production Order. Register the Whse Pick created.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         if RegisterPick then
             RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityHeader.Type::Pick);
 
@@ -2036,7 +2037,7 @@ codeunit 137079 "SCM Production Order III"
         // Create and refresh 1st Released Production Order. Create and register the Whse. Pick created from Released Production Order.
         CreateAndRefreshReleasedProductionOrder(
           ProductionOrder, Item."No.", Quantity, LocationSilver.Code, '');
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityLine."Activity Type"::Pick);
 
         // Create 2nd Released Production Order.
@@ -2143,7 +2144,7 @@ codeunit 137079 "SCM Production Order III"
           LocationWhite.Code, LocationWhite."To-Production Bin Code");
 
         // Create and register Pick from Released Production Order.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(ProductionOrder."No.", WarehouseActivityLine."Activity Type"::Pick);
 
         // Exercise: Open Production Journal and post by PostProductionJournalHandler.
@@ -2283,7 +2284,7 @@ codeunit 137079 "SCM Production Order III"
 
         // [GIVEN] Create Released Production Order "PO", make Whse. Pick, register Pick and Post Consumption Journal
         CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", Quantity, Location.Code, '');
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         FindAndRegisterWhseActivity(Location.Code, ProductionOrder."No.");
         CalculateAndPostConsumptionJournal(ProductionOrder."No.");
 
@@ -3244,7 +3245,7 @@ codeunit 137079 "SCM Production Order III"
         // [GIVEN] Create inbound warehouse request and inventory put-away from the production order.
         LibraryVariableStorage.Enqueue(InboundWhseRequestCreatedMsg);
         LibraryVariableStorage.Enqueue(PutawayActivitiesCreatedMsg);
-        LibraryWarehouse.CreateInboundWhseReqFromProdO(ProductionOrder);
+        LibraryManufacturing.CreateInboundWhseReqFromProdOrder(ProductionOrder);
         LibraryWarehouse.CreateInvtPutPickMovement(
           WarehouseActivityLine."Source Document"::"Prod. Output", ProductionOrder."No.", true, false, false);
 
@@ -4001,7 +4002,7 @@ codeunit 137079 "SCM Production Order III"
 
         // [GIVEN] Create warehouse pick.
         // [GIVEN] Set "Qty. to Handle" = 75 on pick lines and register.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         WarehouseActivityLine.SetRange("Item No.", CompItem."No.");
 
         WarehouseActivityLine.FindSet();
@@ -4056,7 +4057,7 @@ codeunit 137079 "SCM Production Order III"
 
         // [GIVEN] Create warehouse pick.
         // [GIVEN] Set "Qty. to Handle" = 75 on pick lines and register.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         WarehouseActivityLine.SetRange("Item No.", CompItem."No.");
 
         WarehouseActivityLine.FindSet();
@@ -4310,7 +4311,7 @@ codeunit 137079 "SCM Production Order III"
         ProdOrderComponent.TestField("Expected Qty. (Base)", 144);
 
         // [GIVEN] Create and register pick for the production order
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(ProductionOrder."No.", "Warehouse Activity Type"::Pick);  // Register the Pick created.
 
         // [WHEN] Consumption is calculated and posted. 
@@ -5162,7 +5163,7 @@ codeunit 137079 "SCM Production Order III"
         FindProdOrderLine(ProdOrderLine, ProductionOrder.Status, ProductionOrder."No.");
         for i := 1 to ArrayLen(LotNos) do begin
             LotNos[i] := LibraryUtility.GenerateGUID();
-            LibraryItemTracking.CreateProdOrderItemTracking(ReservationEntry, ProdOrderLine, '', LotNos[i], 20.546);
+            LibraryManufacturing.CreateProdOrderItemTracking(ReservationEntry, ProdOrderLine, '', LotNos[i], 20.546);
         end;
 
         // [GIVEN] Calculate subcontracting and create purchase order for subcontractor.
@@ -7391,6 +7392,308 @@ codeunit 137079 "SCM Production Order III"
             StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption("Scrap Quantity"), -CapacityLedgerEntry1."Scrap Quantity", CapacityLedgerEntry.TableCaption()));
     end;
 
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandlerWithoutValidation')]
+    procedure VerifyReverseItemLedgerEntryShouldBeCreatedForConsumptionWithSamePostedValue()
+    var
+        ItemLedgerEntry: Record "Item Ledger Entry";
+        ProdOrderComponent: Record "Prod. Order Component";
+        ItemLedgerEntries: TestPage "Item Ledger Entries";
+    begin
+        // [SCENARIO 591598] Reversal of production consumption in alternative UoM - verify reverted quantity
+        Initialize();
+
+        // [GIVEN] Create Production Order With Component.
+        CreateProdOrderAddNewComponentAndCreateConsumptionLineWithDifferentUOM(ProdOrderComponent, 1);
+
+        // [GIVEN] Post Consumption Journal Line for this Component.
+        LibraryInventory.PostItemJournalLine(ConsumptionItemJournalTemplate.Name, ConsumptionItemJournalBatch.Name);
+
+        // [GIVEN] OpenEdit Item Ledger Entries.
+        ItemLedgerEntries.OpenEdit();
+        ItemLedgerEntries.Filter.SetFilter("Document No.", ProdOrderComponent."Prod. Order No.");
+        ItemLedgerEntries.Filter.SetFilter("Entry Type", Format(ItemLedgerEntry."Entry Type"::Consumption));
+
+        // [WHEN] Invoke "Reverse" action.
+        ItemLedgerEntries.Reverse.Invoke();
+
+        // [THEN] Verify Reverse Entry should be created of Item Ledger Entry.
+        FindLastItemLedgerEntry(ItemLedgerEntry, "Inventory Order Type"::Production, ProdOrderComponent."Prod. Order No.", ProdOrderComponent."Prod. Order Line No.", "Item Ledger Entry Type"::Consumption);
+        Assert.AreEqual(
+            -ItemLedgerEntries.Quantity.AsDecimal(),
+            ItemLedgerEntry.Quantity,
+            StrSubstNo(ValueMustBeEqualErr, ItemLedgerEntry.FieldCaption(Quantity), -ItemLedgerEntries.Quantity.AsInteger(), ItemLedgerEntry.TableCaption()));
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandlerWithoutValidation')]
+    procedure VerifyReverseCapacityLedgerEntryShouldBeCreatedWhenReverseIsExecuted()
+    var
+        Item: Record Item;
+        ProductionOrder: Record "Production Order";
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        CapacityLedgerEntry1: Record "Capacity Ledger Entry";
+        CapacityLedgerEntries: TestPage "Capacity Ledger Entries";
+    begin
+        // [SCENARIO 574825] Verify that the "Reversed", "Reversed Entry No.", and "Reversed by Entry No." fields in the Capacity Ledger Entry are correctly updated when the Reverse Production Order Transaction action is executed.
+        Initialize();
+
+        // [GIVEN] Create item with routing.
+        Item.Get(CreateItemSerialRoutingSeveralLines(LibraryRandom.RandIntInRange(3, 10)));
+
+        // [GIVEN] Create and Refresh Released Production Order.
+        CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LibraryRandom.RandInt(10), '', '');
+
+        // [GIVEN] Create and Post Output Journal.
+        CreateAndPostOutputJournalWithRunTimeAndUnitCost(ProductionOrder."No.", ProductionOrder.Quantity, 0, 0, LibraryRandom.RandDec(10, 2), 0, LibraryRandom.RandDec(10, 2));
+
+        // [GIVEN] Find Capacity Ledger Entry.
+        CapacityLedgerEntry.SetRange("Order Type", CapacityLedgerEntry."Order Type"::Production);
+        CapacityLedgerEntry.SetRange("Order No.", ProductionOrder."No.");
+        CapacityLedgerEntry.FindFirst();
+
+        // [GIVEN] OpenEdit Capacity Ledger Entries.
+        CapacityLedgerEntries.OpenEdit();
+        CapacityLedgerEntries.Filter.SetFilter("Entry No.", Format(CapacityLedgerEntry."Entry No."));
+
+        // [WHEN] Invoke "Reverse" action.
+        CapacityLedgerEntries.Reverse.Invoke();
+
+        // [THEN] Verify Reversed, "Reversed Entry No.", "Reversed by Entry No." fields in the capacity ledger entry when Reverse production order transaction action is executed.
+        CapacityLedgerEntry1.Get(CapacityLedgerEntries."Entry No.".AsInteger());
+        FindLastCapacityLedgerEntry(CapacityLedgerEntry, "Inventory Order Type"::Production, CapacityLedgerEntry1."Order No.", CapacityLedgerEntry1."Order Line No.");
+        Assert.AreEqual(
+            CapacityLedgerEntry1."Entry No.",
+            CapacityLedgerEntry."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption("Reversed Entry No."), CapacityLedgerEntry1."Entry No.", CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption("Reversed by Entry No."), 0, CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry.Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption(Reversed), true, CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry1.Description,
+            CapacityLedgerEntry.Description,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption(Description), CapacityLedgerEntry1.Description, CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry1."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption("Reversed Entry No."), 0, CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry."Entry No.",
+            CapacityLedgerEntry1."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption("Reversed by Entry No."), CapacityLedgerEntry."Entry No.", CapacityLedgerEntry.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry1.Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry.FieldCaption(Reversed), true, CapacityLedgerEntry.TableCaption()));
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandlerWithoutValidation')]
+    procedure VerifyReverseCapacityLedgerEntryCannotBeReversedMultipleTime()
+    var
+        Item: Record Item;
+        ProductionOrder: Record "Production Order";
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        CapacityLedgerEntries: TestPage "Capacity Ledger Entries";
+    begin
+        // [SCENARIO 574825] Verify that a Capacity Ledger Entry cannot be reversed more than once.
+        Initialize();
+
+        // [GIVEN] Create item with routing.
+        Item.Get(CreateItemSerialRoutingSeveralLines(LibraryRandom.RandIntInRange(3, 10)));
+
+        // [GIVEN] Create and Refresh Released Production Order.
+        CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LibraryRandom.RandInt(10), '', '');
+
+        // [GIVEN] Create and Post Output Journal.
+        CreateAndPostOutputJournalWithRunTimeAndUnitCost(ProductionOrder."No.", ProductionOrder.Quantity, 0, 0, LibraryRandom.RandDec(10, 2), 0, LibraryRandom.RandDec(10, 2));
+
+        // [GIVEN] Find Capacity Ledger Entry.
+        CapacityLedgerEntry.SetRange("Order Type", CapacityLedgerEntry."Order Type"::Production);
+        CapacityLedgerEntry.SetRange("Order No.", ProductionOrder."No.");
+        CapacityLedgerEntry.FindFirst();
+
+        // [GIVEN] OpenEdit Capacity Ledger Entries.
+        CapacityLedgerEntries.OpenEdit();
+        CapacityLedgerEntries.Filter.SetFilter("Entry No.", Format(CapacityLedgerEntry."Entry No."));
+
+        // [GIVEN] Invoke "Reverse" action.
+        CapacityLedgerEntries.Reverse.Invoke();
+
+        // [WHEN] Invoke "Reverse" action.
+        asserterror CapacityLedgerEntries.Reverse.Invoke();
+
+        // [THEN] Verify that a Capacity Ledger Entry cannot be reversed more than once.
+        Assert.ExpectedError(StrSubstNo(CannotReverseCapacityLedgerEntryErr, CapacityLedgerEntry.TableCaption(), CapacityLedgerEntry."Entry No."));
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandlerWithoutValidation')]
+    procedure VerifyReverseCapacityLedgerEntryShouldBeUpdatedWhenReverseIsExecutedFromItemLedgerEntries()
+    var
+        Item: Record Item;
+        ProductionOrder: Record "Production Order";
+        ProdOrderLine: Record "Prod. Order Line";
+        CapacityLedgerEntry: array[2] of Record "Capacity Ledger Entry";
+        ItemLedgerEntry: array[2] of Record "Item Ledger Entry";
+        CapacityLedgerEntry1: Record "Capacity Ledger Entry";
+        ItemLedgerEntries: TestPage "Item Ledger Entries";
+    begin
+        // [SCENARIO 560186] Verify a reverse entry should be created and updated for the last operation of the capacity ledger entry when the reverse action is executed from Item Ledger Entries.
+        Initialize();
+
+        // [GIVEN] Create item with routing.
+        Item.Get(CreateItemSerialRoutingSeveralLines(LibraryRandom.RandIntInRange(3, 10)));
+
+        // [GIVEN] Create and Refresh Released Production Order.
+        CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LibraryRandom.RandIntInRange(10, 20), '', '');
+
+        // [GIVEN] Find Production Order Line.
+        FindProdOrderLine(ProdOrderLine, ProductionOrder.Status, ProductionOrder."No.");
+
+        // [GIVEN] Create and Post Output Journal.
+        CreateAndPostOutputJournalWithOutputQuantityAndUnitCost(
+            ProductionOrder."No.",
+            ProductionOrder.Quantity - 1,
+            ProductionOrder.Quantity - 1,
+            LibraryRandom.RandDec(10, 2));
+
+        // [GIVEN] Find Last Capacity Ledger Entry.
+        FindLastCapacityLedgerEntry(CapacityLedgerEntry[1], "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.");
+
+        // [GIVEN] Find Last Item Ledger Entry.
+        FindLastItemLedgerEntry(ItemLedgerEntry[1], "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.", "Item Ledger Entry Type"::Output);
+
+        // [GIVEN] Create and Post Output Journal.
+        CreateAndPostOutputJournalWithOutputQuantityAndUnitCost(
+            ProductionOrder."No.",
+            ProductionOrder.Quantity + LibraryRandom.RandInt(10),
+            ProductionOrder.Quantity + LibraryRandom.RandInt(10),
+            LibraryRandom.RandDec(10, 2));
+
+        // [GIVEN] Find Last Capacity Ledger Entry.
+        FindLastCapacityLedgerEntry(CapacityLedgerEntry[2], "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.");
+
+        // [GIVEN] Find Last Item Ledger Entry.
+        FindLastItemLedgerEntry(ItemLedgerEntry[2], "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.", "Item Ledger Entry Type"::Output);
+
+        // [GIVEN] OpenEdit Capacity Ledger Entries.
+        ItemLedgerEntries.OpenEdit();
+        ItemLedgerEntries.Filter.SetFilter("Entry No.", Format(ItemLedgerEntry[1]."Entry No."));
+
+        // [WHEN] Invoke "Reverse" action.
+        ItemLedgerEntries.Reverse.Invoke();
+        ItemLedgerEntries.Close();
+
+        // [THEN] Verify Reverse production order transaction action in the capacity ledger entry.
+        FindLastCapacityLedgerEntry(CapacityLedgerEntry1, "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.");
+        CapacityLedgerEntry[1].Get(CapacityLedgerEntry[1]."Entry No.");
+        Assert.AreEqual(
+            CapacityLedgerEntry[1]."Entry No.",
+            CapacityLedgerEntry1."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption("Reversed Entry No."), CapacityLedgerEntry[1]."Entry No.", CapacityLedgerEntry[1].TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry1."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption("Reversed by Entry No."), 0, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry1.Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption(Reversed), true, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry[1].Description,
+            CapacityLedgerEntry1.Description,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption(Description), CapacityLedgerEntry[1].Description, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry[1]."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption("Reversed Entry No."), 0, CapacityLedgerEntry[1].TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry1."Entry No.",
+            CapacityLedgerEntry[1]."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption("Reversed by Entry No."), CapacityLedgerEntry1."Entry No.", CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry[1].Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption(Reversed), true, CapacityLedgerEntry[1].TableCaption()));
+
+        // [GIVEN] OpenEdit Capacity Ledger Entries.
+        ItemLedgerEntries.OpenEdit();
+        ItemLedgerEntries.Filter.SetFilter("Entry No.", Format(ItemLedgerEntry[2]."Entry No."));
+
+        // [WHEN] Invoke "Reverse" action.
+        ItemLedgerEntries.Reverse.Invoke();
+
+        // [THEN] Verify Reverse production order transaction action in the capacity ledger entry.
+        FindLastCapacityLedgerEntry(CapacityLedgerEntry1, "Inventory Order Type"::Production, ProductionOrder."No.", ProdOrderLine."Line No.");
+        CapacityLedgerEntry[2].Get(CapacityLedgerEntry[2]."Entry No.");
+        Assert.AreEqual(
+            CapacityLedgerEntry[2]."Entry No.",
+            CapacityLedgerEntry1."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption("Reversed Entry No."), CapacityLedgerEntry[2]."Entry No.", CapacityLedgerEntry[1].TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry1."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption("Reversed by Entry No."), 0, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry1.Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption(Reversed), true, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry[2].Description,
+            CapacityLedgerEntry1.Description,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption(Description), CapacityLedgerEntry[2].Description, CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            0,
+            CapacityLedgerEntry[2]."Reversed Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption("Reversed Entry No."), 0, CapacityLedgerEntry[1].TableCaption()));
+        Assert.AreEqual(
+            CapacityLedgerEntry1."Entry No.",
+            CapacityLedgerEntry[2]."Reversed by Entry No.",
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry1.FieldCaption("Reversed by Entry No."), CapacityLedgerEntry1."Entry No.", CapacityLedgerEntry1.TableCaption()));
+        Assert.AreEqual(
+            true,
+            CapacityLedgerEntry[2].Reversed,
+            StrSubstNo(ValueMustBeEqualErr, CapacityLedgerEntry[1].FieldCaption(Reversed), true, CapacityLedgerEntry[1].TableCaption()));
+    end;
+
+    [Test]
+    [Scope('OnPrem')]
+    [HandlerFunctions('ConfirmHandler')]
+    procedure RegisterPartialPutAwayAfterSortingWhseActivityLine()
+    var
+        Item: Record Item;
+        PurchaseHeader: Record "Purchase Header";
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        QtyToHandle: Decimal;
+        WareHouseActionType: Enum "Warehouse Action Type";
+    begin
+        // [SCENARIO 598381] Regiter partial Whse Put-away successfully when sorting set on Qty. to Handle
+        Initialize();
+
+        // [GIVEN] Create an Item
+        CreateItem(Item);
+
+        // [GIVEN] Create Whse. Receipt form Purchase Order
+        CreateWhseReceiptFromPurchaseOrder(PurchaseHeader, Item."No.", LocationWhite.Code, LibraryRandom.RandInt(20));
+
+        // [GIVEN] Post Warehouse Receipt
+        PostWarehouseReceipt(PurchaseHeader."No.");
+
+        // [WHEN] Update Qty. to Handle, sort the Wharehouse Activity Line on Qty. to Handle and register Warehouse Activity
+        QtyToHandle := LibraryRandom.RandInt(5);
+        UpdateQuantityToHandleAndRegisterWarehouseActivity(PurchaseHeader."No.", WarehouseActivityHeader.Type::"Put-away", QtyToHandle);
+
+        // [THEN] Verify registered Warehouse Activity Lines
+        VerifyRegisteredWhseActivityLine(PurchaseHeader."No.", WarehouseActivityHeader.Type::"Put-away", WareHouseActionType::Take, QtyToHandle);
+        VerifyRegisteredWhseActivityLine(PurchaseHeader."No.", WarehouseActivityHeader.Type::"Put-away", WareHouseActionType::Place, QtyToHandle);
+    end;
+
     local procedure Initialize()
     begin
         LibraryTestInitialize.OnTestInitialize(CODEUNIT::"SCM Production Order III");
@@ -8448,6 +8751,34 @@ codeunit 137079 "SCM Production Order III"
         CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LibraryRandom.RandInt(10), Location.Code, '');
 
         CreateProdOrderComponent(ProductionOrder, ProdOrderComponent, CompLineQtyPer);
+        CreateAndPostItemJournalLine(ProdOrderComponent."Item No.", LibraryRandom.RandIntInRange(10, 100), '', '');
+
+        LibraryInventory.CreateItemJournalLine(
+          ItemJournalLine, ConsumptionItemJournalTemplate.Name, ConsumptionItemJournalBatch.Name, ItemJournalLine."Entry Type"::Consumption,
+          ProdOrderComponent."Item No.", LibraryRandom.RandInt(10));
+        ItemJournalLine.Validate("Order No.", ProductionOrder."No.");
+        ItemJournalLine.Modify(true);
+    end;
+
+    local procedure CreateProdOrderAddNewComponentAndCreateConsumptionLineWithDifferentUOM(var ProdOrderComponent: Record "Prod. Order Component"; CompLineQtyPer: Decimal)
+    var
+        Location: Record Location;
+        ProductionOrder: Record "Production Order";
+        Item: Record Item;
+        ChildItem: Record Item;
+        ItemJournalLine: Record "Item Journal Line";
+        ItemUnitOfMeasure: Record "Item Unit of Measure";
+        QuantityPer: Decimal;
+    begin
+        QuantityPer := 0.005;
+        LibraryWarehouse.CreateLocation(Location);
+        CreateItemsSetup(Item, ChildItem, LibraryRandom.RandInt(10));
+        CreateAndRefreshReleasedProductionOrder(ProductionOrder, Item."No.", LibraryRandom.RandInt(10), Location.Code, '');
+
+        CreateProdOrderComponent(ProductionOrder, ProdOrderComponent, CompLineQtyPer);
+        LibraryInventory.CreateItemUnitOfMeasureCode(ItemUnitOfMeasure, ProdOrderComponent."Item No.", QuantityPer);
+        ProdOrderComponent.Validate("Unit of Measure Code", ItemUnitOfMeasure.Code);
+        ProdOrderComponent.Modify();
         CreateAndPostItemJournalLine(ProdOrderComponent."Item No.", LibraryRandom.RandIntInRange(10, 100), '', '');
 
         LibraryInventory.CreateItemJournalLine(
@@ -10065,6 +10396,37 @@ codeunit 137079 "SCM Production Order III"
         ProdOrderComponent.OpenItemTrackingLines();
     end;
 
+    local procedure VerifyRegisteredWhseActivityLine(SourceNo: Code[20]; ActivityType: Enum "Warehouse Activity Type"; ActionType: Enum "Warehouse Action Type"; QtyToHandle: Decimal)
+    var
+        RegisteredWhseActivityLine: Record "Registered Whse. Activity Line";
+    begin
+        FindRegisteredWhseActivityLine(RegisteredWhseActivityLine, SourceNo, ActionType, ActivityType);
+        Assert.IsTrue((QtyToHandle = RegisteredWhseActivityLine.Quantity),
+        StrSubstNo(ValueMustBeEqualErr, RegisteredWhseActivityLine.FieldCaption(Quantity), RegisteredWhseActivityLine.Quantity, RegisteredWhseActivityLine.TableCaption()));
+    end;
+
+    local procedure UpdateQuantityToHandleAndRegisterWarehouseActivity(SourceNo: Code[20]; ActivityType: Enum "Warehouse Activity Type"; QtyToHandle: Decimal)
+    var
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+        PutAwayPage: TestPage "Warehouse Put-away";
+    begin
+        WarehouseActivityLine.SetCurrentKey("Qty. to Handle");
+        WarehouseActivityLine.SetRange("Source No.", SourceNo);
+        WarehouseActivityLine.SetRange("Activity Type", ActivityType);
+        WarehouseActivityLine.FindSet();
+        repeat
+            WarehouseActivityLine.Validate("Qty. to Handle", QtyToHandle);
+            WarehouseActivityLine.Modify(true);
+        until WarehouseActivityLine.Next() = 0;
+
+        WarehouseActivityLine.SetAscending("Qty. to Handle", true);
+
+        PutAwayPage.OpenEdit();
+        PutAwayPage.FILTER.SetFilter("No.", WarehouseActivityLine."No.");
+        PutAwayPage.WhseActivityLines.GoToRecord(WarehouseActivityLine);
+        PutAwayPage."&Register Put-away".Invoke();
+    end;
+
     [MessageHandler]
     [Scope('OnPrem')]
     procedure MessageHandler(Message: Text[1024])
@@ -10376,4 +10738,3 @@ codeunit 137079 "SCM Production Order III"
         ProductionJournal.Post.Invoke();
     end;
 }
-

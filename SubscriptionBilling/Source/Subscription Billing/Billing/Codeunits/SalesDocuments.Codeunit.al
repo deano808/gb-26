@@ -330,10 +330,10 @@ codeunit 8063 "Sales Documents"
         //The function skips inserting Sales Invoice Lines in two cases:
         //When a SalesLine is a Subscription Item
         //When a SalesLine is attached to a Subscription Item (Extended Text)
-        IsHandled := SalesLineShouldSkipInvoicing(SalesLine);
+        IsHandled := IsHandled or SalesLineShouldSkipInvoicing(SalesLine);
         if (SalesLine.Type = SalesLine.Type::" ") and (SalesLine."Attached to Line No." <> 0) then
             if ParentSalesLine.Get(SalesLine."Document Type", SalesLine."Document No.", SalesLine."Attached to Line No.") then
-                IsHandled := SalesLineShouldSkipInvoicing(ParentSalesLine);
+                IsHandled := IsHandled or SalesLineShouldSkipInvoicing(ParentSalesLine);
         OnAfterSkipInsertingSalesInvoiceLineIfServiceCommitmentItemsExist(SalesHeader, SalesLine, IsHandled);
     end;
 
@@ -547,8 +547,14 @@ codeunit 8063 "Sales Documents"
                 SubscriptionLine.CalculateInitialCancellationPossibleUntilDate();
                 SubscriptionLine.SetCurrencyData(SalesHeader."Currency Factor", SalesHeader."Posting Date", SalesHeader."Currency Code");
                 SubscriptionLine.SetLCYFields(true);
-                SubscriptionLine.SetDefaultDimensions(false);
-                SubscriptionLine.GetCombinedDimensionSetID(SalesLine."Dimension Set ID", SubscriptionLine."Dimension Set ID");
+                if SalesLine."No." = SubscriptionLine."Invoicing Item No." then begin
+                    SubscriptionLine."Shortcut Dimension 1 Code" := SalesLine."Shortcut Dimension 1 Code";
+                    SubscriptionLine."Shortcut Dimension 2 Code" := SalesLine."Shortcut Dimension 2 Code";
+                    SubscriptionLine."Dimension Set ID" := SalesLine."Dimension Set ID"
+                end else begin
+                    SubscriptionLine.SetDefaultDimensions(false);
+                    SubscriptionLine.GetCombinedDimensionSetID(SalesLine."Dimension Set ID", SubscriptionLine."Dimension Set ID");
+                end;
                 SubscriptionLine."Renewal Term" := SubscriptionLine."Initial Term";
                 OnCreateSubscriptionHeaderFromSalesLineBeforeInsertSubscriptionLine(SubscriptionLine, SalesSubscriptionLine, SalesLine);
                 SubscriptionLine.CalculateServiceAmount(SubscriptionLine.FieldNo("Discount %"));
@@ -772,6 +778,19 @@ codeunit 8063 "Sales Documents"
         if SalesServiceCommMgmt.IsSalesLineWithServiceCommitmentItem(SalesLine, SkipTemporaryCheck) then
             Result := true;
         OnAfterSalesLineShouldSkipInvoicing(SalesLine, SkipTemporaryCheck, Result);
+    end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Find Record Management", OnAfterGetRecRefAndFieldsNoByType, '', false, false)]
+    local procedure FindSubscriptionOnAfterGetRecRefAndFieldsNoByType(RecRef: RecordRef; Type: Option " ","G/L Account",Item,Resource,"Fixed Asset","Charge (Item)"; var SearchFieldNo: array[4] of Integer)
+    var
+        SubscriptionHeader: Record "Subscription Header";
+    begin
+        if Type <> Enum::"Sales Line Type"::"Service Object".AsInteger() then
+            exit;
+        RecRef.Open(Database::"Subscription Header");
+        SearchFieldNo[1] := SubscriptionHeader.FieldNo("No.");
+        SearchFieldNo[2] := SubscriptionHeader.FieldNo(Description);
+        SearchFieldNo[3] := 0;
     end;
 
     [IntegrationEvent(false, false)]

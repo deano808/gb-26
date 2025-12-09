@@ -19,7 +19,8 @@ codeunit 6169 "E-Doc. Attachment Processor"
     var
         RecordRefTo: RecordRef;
     begin
-        if EDocument.Direction = Enum::"E-Document Direction"::Incoming then begin
+        if (EDocument.Direction = Enum::"E-Document Direction"::Incoming) and
+            (EDocument."Document Type" <> Enum::"E-Document Type"::"General Journal") then begin
             RecordRefTo.Get(NewDocument);
             MoveToPurchaseDocument(EDocument, RecordRefTo);
             RecordRefTo.GetTable(EDocument);
@@ -120,7 +121,7 @@ codeunit 6169 "E-Doc. Attachment Processor"
         if FromRecRef.Number() <> Database::"E-Document" then
             exit;
 
-        FromRecRef.SetTable(EDocument);
+        EDocument := FromRecRef;
         FromDocumentAttachment.SetRange("No.", Format(EDocument."Entry No"));
     end;
 

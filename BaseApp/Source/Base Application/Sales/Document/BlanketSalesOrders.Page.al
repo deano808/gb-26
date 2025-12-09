@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Sales.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Sales.Document;
 
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Attachment;
@@ -15,6 +19,8 @@ page 9303 "Blanket Sales Orders"
     DataCaptionFields = "Sell-to Customer No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Blanket Sales Orders';
+    AboutText = 'Manage long-term sales agreements with customers by tracking blanket sales orders, scheduling multiple shipments over time, and converting order lines into individual sales orders for fulfillment and invoicing.';
     QueryCategory = 'Blanket Sales Orders';
     RefreshOnActivate = true;
     SourceTable = "Sales Header";

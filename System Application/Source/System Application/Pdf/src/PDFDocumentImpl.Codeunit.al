@@ -53,7 +53,6 @@ codeunit 3109 "PDF Document Impl."
 
     procedure ConvertToImage(var ImageStream: InStream; ImageFormat: Enum "Image Format"; PageNumber: Integer): Boolean
     var
-        PdfConverterInstance: DotNet PdfConverter;
         PdfTargetDevice: DotNet PdfTargetDevice;
         MemoryStream: DotNet MemoryStream;
         ImageMemoryStream: DotNet MemoryStream;
@@ -72,12 +71,22 @@ codeunit 3109 "PDF Document Impl."
         CopyStream(MemoryStream, SharedDocumentStream);
 
         ConvertImageFormatToPdfTargetDevice(ImageFormat, PdfTargetDevice);
-        ImageMemoryStream := PdfConverterInstance.ConvertPage(PdfTargetDevice, MemoryStream, PageNumber, 0, 0, 0); // apply default height, width and resolution
+        if not TryToConvertPage(PdfTargetDevice, MemoryStream, PageNumber, ImageMemoryStream) then
+            exit(false);
+
         // Copy data to the outgoing stream and make sure it is reset to the beginning of the stream.
         ImageMemoryStream.Seek(0, 0);
         ImageMemoryStream.CopyTo(ImageStream);
         ImageStream.Position(1);
         exit(true)
+    end;
+
+    [TryFunction]
+    local procedure TryToConvertPage(var PdfTargetDevice: DotNet PdfTargetDevice; var MemoryStream: DotNet MemoryStream; PageNumber: Integer; var ImageMemoryStream: DotNet MemoryStream)
+    var
+        PdfConverterInstance: DotNet PdfConverter;
+    begin
+        ImageMemoryStream := PdfConverterInstance.ConvertPage(PdfTargetDevice, MemoryStream, PageNumber, 0, 0, 0); // apply default height, width and resolution
     end;
 
     local procedure ConvertImageFormatToPdfTargetDevice(ImageFormat: Enum "Image Format"; var PdfTargetDevice: DotNet PdfTargetDevice)
@@ -226,6 +235,17 @@ codeunit 3109 "PDF Document Impl."
         PdfDocumentInfoInstance := PdfConverterInstance.DocumentInfo();
     end;
 
+    procedure AddAttachment(AttachmentName: Text; PDFAttachmentDataType: Enum "PDF Attach. Data Relationship"; MimeType: Text; FileInStream: InStream; Description: Text; PrimaryDocument: Boolean)
+    var
+        TempFileName: Text;
+    begin
+        if FileInStream.Length = 0 then
+            exit;
+        TempFileName := this.CreateDataFileFromStream(FileInStream);
+        this.AddAttachment(AttachmentName, PDFAttachmentDataType, MimeType, TempFileName, Description, PrimaryDocument);
+    end;
+
+    [Scope('OnPrem')]
     procedure AddAttachment(AttachmentName: Text; PDFAttachmentDataType: Enum "PDF Attach. Data Relationship"; MimeType: Text; FileName: Text; Description: Text; PrimaryDocument: Boolean)
     var
         AttachmentNameErr: Label 'Attachment with name %1 already exists.', Comment = '%1 = attachment name';
@@ -263,24 +283,31 @@ codeunit 3109 "PDF Document Impl."
 
     procedure AddStreamToAppend(FileInStream: InStream)
     var
-        TempFile: File;
         TempFileName: Text;
+    begin
+        TempFileName := this.CreateDataFileFromStream(FileInStream);
+        this.AddFileToAppend(TempFileName);
+    end;
+
+    local procedure CreateDataFileFromStream(FileInStream: InStream) FileName: Text
+    var
+        TempFile: File;
         LocalInStream: InStream;
         FileOutStream: OutStream;
     begin
         if FileInStream.Length = 0 then
-            exit;
+            exit('');
         LocalInStream := FileInStream;
         LocalInStream.ResetPosition();
         TempFile.CreateTempFile();
-        TempFileName := TempFile.Name;
+        FileName := TempFile.Name;
         TempFile.Close();
-        TempFile.Create(TempFileName);
+        TempFile.Create(FileName);
         TempFile.CreateOutStream(FileOutStream);
 
         CopyStream(FileOutStream, LocalInStream);
         TempFile.Close();
-        this.AddFileToAppend(TempFileName);
+        exit(FileName);
     end;
 
     [NonDebuggable]

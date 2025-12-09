@@ -172,7 +172,12 @@ codeunit 950 "Time Sheet Management"
     procedure CheckAccPeriod(Date: Date)
     var
         AccountingPeriod: Record "Accounting Period";
+        IsHandled: Boolean;
     begin
+        OnBeforeCheckAccPeriod(Date, IsHandled);
+        if IsHandled then
+            exit;
+
         if AccountingPeriod.IsEmpty() then
             exit;
         AccountingPeriod.SetFilter("Starting Date", '..%1', Date);
@@ -720,7 +725,13 @@ codeunit 950 "Time Sheet Management"
     var
         ToTimeSheetDetail: Record "Time Sheet Detail";
         FromTimeSheetDetailArchive: Record "Time Sheet Detail Archive";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeCopyTimeSheetLineArchiveDetails(FromTimeSheetLineArchive, ToTimeSheetLine, IsHandled);
+        if IsHandled then
+            exit;
+
         FromTimeSheetDetailArchive.SetRange("Time Sheet No.", FromTimeSheetLineArchive."Time Sheet No.");
         FromTimeSheetDetailArchive.SetRange("Time Sheet Line No.", FromTimeSheetLineArchive."Line No.");
         if FromTimeSheetDetailArchive.FindSet() then
@@ -1407,6 +1418,16 @@ codeunit 950 "Time Sheet Management"
 
     [IntegrationEvent(false, false)]
     local procedure OnCopyTimeSheetLineArchiveOnBeforeToTimeSheetLineInsert(var ToTimeSheetLine: Record "Time Sheet Line"; FromTimeSheetLineArchive: Record "Time Sheet Line Archive")
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeCheckAccPeriod(Date: Date; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeCopyTimeSheetLineArchiveDetails(var FromTimeSheetLineArchive: Record "Time Sheet Line Archive"; var ToTimeSheetLine: Record "Time Sheet Line"; var IsHandled: Boolean)
     begin
     end;
 }

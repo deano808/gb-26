@@ -120,10 +120,7 @@ codeunit 905 "Assembly Line Management"
         AssemblyLine.Validate("Unit of Measure Code", BOMComponent."Unit of Measure Code");
         OnAddBOMLineOnAfterValidateUOMCode(AssemblyLine, BOMComponent, AssemblyHeader);
         if AssemblyLine.Type <> AssemblyLine.Type::" " then
-            AssemblyLine.Validate(
-                "Quantity per",
-                AssemblyLine.CalcBOMQuantity(
-                BOMComponent.Type, BOMComponent."Quantity per", 1, QtyPerUoM, AssemblyLine."Resource Usage Type"));
+            AssemblyLine."Quantity per" := BOMComponent."Quantity per" * QtyPerUoM;
         IsHandled := false;
         OnAddBOMLineOnBeforeValidateQuantity(AssemblyHeader, AssemblyLine, BOMComponent, IsHandled, QtyPerUoM);
         if not IsHandled then begin
@@ -275,13 +272,28 @@ codeunit 905 "Assembly Line Management"
     procedure UpdateWarningOnLines(AsmHeader: Record "Assembly Header")
     var
         AssemblyLine: Record "Assembly Line";
+        Window: Dialog;
+        LineNo: Integer;
+        PrevValue: Boolean;
+        PrevUpdateTime: DateTime;
+        WindowLbl: Label 'Checking availability. Line no. #1#########.', Comment = '#1 is an integer counter';
     begin
+        PrevUpdateTime := CurrentDateTime();
+        Window.Open(WindowLbl);
         SetLinkToLines(AsmHeader, AssemblyLine);
-        if AssemblyLine.FindSet() then
+        if AssemblyLine.FindSet(true) then
             repeat
+                LineNo += 1;
+                if CurrentDateTime > PrevUpdateTime + 1000 then begin
+                    Window.Update(1, LineNo);
+                    PrevUpdateTime := CurrentDateTime();
+                end;
+                PrevValue := AssemblyLine."Avail. Warning";
                 AssemblyLine.UpdateAvailWarning();
-                AssemblyLine.Modify();
+                if PrevValue <> AssemblyLine."Avail. Warning" then
+                    AssemblyLine.Modify();
             until AssemblyLine.Next() = 0;
+        Window.Close();
     end;
 
     procedure UpdateAssemblyLines(var AsmHeader: Record "Assembly Header"; OldAsmHeader: Record "Assembly Header"; FieldNum: Integer; ReplaceLinesFromBOM: Boolean; CurrFieldNo: Integer; CurrentFieldNum: Integer)
@@ -560,7 +572,14 @@ codeunit 905 "Assembly Line Management"
     end;
 
     procedure ShowDueDateBeforeWorkDateMsg(ActualLineDueDate: Date)
+    var
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeShowDueDateBeforeWorkDateMsg(ActualLineDueDate, IsHandled);
+        if IsHandled then
+            exit;
+
         if GuiAllowed then
             if GetWarningMode() then
                 Message(Text005, ActualLineDueDate, WorkDate());
@@ -796,6 +815,7 @@ codeunit 905 "Assembly Line Management"
         LineStartingDate: Date;
         EarliestStartingDate: Date;
         LineAbleToAssemble: Decimal;
+        IsHandled: Boolean;
     begin
         SetLinkToItemLines(AsmHeader, AssemblyLine);
         AssemblyLine.SetFilter("No.", '<>%1', '');
@@ -806,8 +826,11 @@ codeunit 905 "Assembly Line Management"
             repeat
                 LineAbleToAssemble := CalcAvailToAssemble(AssemblyLine, AsmHeader, LineAvailabilityDate);
 
-                if LineAbleToAssemble < OrderAbleToAssemble then
-                    OrderAbleToAssemble := LineAbleToAssemble;
+                IsHandled := false;
+                OnAvailToPromiseOnBeforeAssignOrderAbleToAssemble(AssemblyLine, IsHandled);
+                if not IsHandled then
+                    if LineAbleToAssemble < OrderAbleToAssemble then
+                        OrderAbleToAssemble := LineAbleToAssemble;
 
                 if LineAvailabilityDate > 0D then begin
                     LineStartingDate := CalcDate(AssemblyLine."Lead-Time Offset", LineAvailabilityDate);
@@ -1066,6 +1089,16 @@ codeunit 905 "Assembly Line Management"
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCreateAndSendNotification(var AssemblyHeader: Record "Assembly Header"; var AssemblyLine: Record "Assembly Line"; var IsHandled: Boolean; var Rollback: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnAvailToPromiseOnBeforeAssignOrderAbleToAssemble(var AssemblyLine: Record "Assembly Line"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeShowDueDateBeforeWorkDateMsg(ActualLineDueDate: Date; var IsHandled: Boolean)
     begin
     end;
 }

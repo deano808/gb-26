@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Projects.Project.Journal;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Projects.Project.Journal;
 
 using Microsoft.Finance.Currency;
 using Microsoft.Finance.Dimension;
@@ -2106,7 +2110,13 @@ table 210 "Job Journal Line"
     var
         JobPlanningLine: Record "Job Planning Line";
         JobJournalLine: Record "Job Journal Line";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeValidateJobPlanningLineLink(Rec, xRec, IsHandled);
+        if IsHandled then
+            exit;
+
         JobJournalLine.SetRange("Job No.", "Job No.");
         JobJournalLine.SetRange("Job Task No.", "Job Task No.");
         JobJournalLine.SetRange("Job Planning Line No.", "Job Planning Line No.");
@@ -2316,8 +2326,8 @@ table 210 "Job Journal Line"
             exit;
 
         JobJnlBatch.Get("Journal Template Name", "Journal Batch Name");
-        if JobJnlBatch."No. Series" = '' then
-            exit;
+        JobJnlBatch.TestField("No. Series");
+
         if GetFilter("Document No.") <> '' then
             Error(DocNoFilterErr);
         FirstDocNo := NoSeries.PeekNextNo(JobJnlBatch."No. Series", "Posting Date");
@@ -2814,5 +2824,9 @@ table 210 "Job Journal Line"
     local procedure OnAfterRenumberDocNoOnLines(var DocNo: Code[20]; var JobJnlLine2: Record "Job Journal Line")
     begin
     end;
-}
 
+    [IntegrationEvent(false, false)]
+    internal procedure OnBeforeValidateJobPlanningLineLink(var JobJournalLine: Record "Job Journal Line"; xJobJournalLine: Record "Job Journal Line"; var IsHandled: Boolean);
+    begin
+    end;
+}

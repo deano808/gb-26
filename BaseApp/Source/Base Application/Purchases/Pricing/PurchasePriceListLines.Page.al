@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Pricing;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Pricing;
 
 using Microsoft.Pricing.PriceList;
 using Microsoft.Pricing.Source;
@@ -285,7 +289,7 @@ page 7011 "Purchase Price List Lines"
                     EditinExcelFilters: Codeunit "Edit in Excel Filters";
                 begin
                     EditinExcelFilters.AddFieldV2('Price_List_Code', Enum::"Edit in Excel Filter Type"::Equal, Rec."Price List Code", Enum::"Edit in Excel Edm Type"::"Edm.String");
-                    EditinExcel.EditPageInExcel(CopyStr(CurrPage.Caption, 1, 240), Page::"Purchase Price List Lines", EditinExcelFilters, StrSubstNo(ExcelFileNameTxt, Rec."Price List Code"));
+                    EditinExcel.EditPageInExcel('Purchase Price List Lines', Page::"Purchase Price List Lines", EditinExcelFilters, StrSubstNo(ExcelFileNameTxt, Rec."Price List Code"));
                 end;
             }
         }

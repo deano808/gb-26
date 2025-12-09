@@ -26,53 +26,6 @@ codeunit 1258 "Rijndael Cryptography"
         CryptographyManagementImpl.InitRijndaelProvider();
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Initializes a new instance of the RijndaelManaged class providing the encryption key.
-    /// </summary>
-    /// <param name="EncryptionKey">Represents the secret key for the symmetric algorithm.</param>
-    [Obsolete('Use InitRijndaelProvider with SecretText data type for EncryptionKey.', '24.0')]
-    procedure InitRijndaelProvider(EncryptionKey: Text)
-    begin
-        CryptographyManagementImpl.InitRijndaelProvider(EncryptionKey);
-    end;
-
-    /// <summary>
-    /// Initializes a new instance of the RijndaelManaged class providing the encryption key and block size.
-    /// </summary>
-    /// <param name="EncryptionKey">Represents the secret key for the symmetric algorithm.</param>
-    /// <param name="BlockSize">Represents the block size, in bits, of the cryptographic operation.</param>
-    [Obsolete('Use InitRijndaelProvider with SecretText data type for EncryptionKey.', '24.0')]
-    procedure InitRijndaelProvider(EncryptionKey: Text; BlockSize: Integer)
-    begin
-        CryptographyManagementImpl.InitRijndaelProvider(EncryptionKey, BlockSize);
-    end;
-
-    /// <summary>
-    /// Initializes a new instance of the RijndaelManaged class providing the encryption key, block size and cipher mode.
-    /// </summary>
-    /// <param name="EncryptionKey">Represents the secret key for the symmetric algorithm.</param>
-    /// <param name="BlockSize">Represents the block size, in bits, of the cryptographic operation.</param>
-    /// <param name="CipherMode">Represents the cipher mode used in the symmetric algorithm. Valid values: ECB,CBC,CFB,CTS,OFB</param>
-    [Obsolete('Use InitRijndaelProvider with SecretText data type for EncryptionKey.', '24.0')]
-    procedure InitRijndaelProvider(EncryptionKey: Text; BlockSize: Integer; CipherMode: Text)
-    begin
-        CryptographyManagementImpl.InitRijndaelProvider(EncryptionKey, BlockSize, CipherMode);
-    end;
-
-    /// <summary>
-    /// Initializes a new instance of the RijndaelManaged class providing the encryption key, block size, cipher mode and padding mode.
-    /// </summary>
-    /// <param name="EncryptionKey">Represents the secret key for the symmetric algorithm.</param>
-    /// <param name="BlockSize">Represents the block size, in bits, of the cryptographic operation.</param>
-    /// <param name="CipherMode">Represents the cipher mode used in the symmetric algorithm. Valid values: ECB,CBC,CFB,CTS,OFB</param>
-    /// <param name="PaddingMode">Represents the padding mode used in the symmetric algorithm.. Valid values: None,ANSIX923,ISO10126,PKCS7,Zeros</param>
-    [Obsolete('Use InitRijndaelProvider with SecretText data type for EncryptionKey.', '24.0')]
-    procedure InitRijndaelProvider(EncryptionKey: Text; BlockSize: Integer; CipherMode: Text; PaddingMode: Text)
-    begin
-        CryptographyManagementImpl.InitRijndaelProvider(EncryptionKey, BlockSize, CipherMode, PaddingMode);
-    end;
-#endif
 
     /// <summary>
     /// Initializes a new instance of the RijndaelManaged class providing the encryption key.
@@ -142,18 +95,6 @@ codeunit 1258 "Rijndael Cryptography"
     begin
         CryptographyManagementImpl.SetPaddingMode(PaddingMode);
     end;
-#if not CLEAN24
-    /// <summary>
-    /// Sets the key and vector for the RijndaelManaged class.
-    /// </summary>
-    /// <param name="KeyAsBase64">Represents the secret key for the symmetric algorithm encoded as Base64 Text</param>
-    /// <param name="VectorAsBase64">Represents the initialization vector (IV) for the symmetric algorithm encoded as Base64 Text</param>
-    [Obsolete('Use SetEncryptionData with SecretText data type for KeyAsBase64.', '24.0')]
-    procedure SetEncryptionData(KeyAsBase64: Text; VectorAsBase64: Text)
-    begin
-        CryptographyManagementImpl.SetEncryptionData(KeyAsBase64, VectorAsBase64);
-    end;
-#endif
 
     /// <summary>
     /// Sets the key and vector for the RijndaelManaged class.
@@ -196,19 +137,6 @@ codeunit 1258 "Rijndael Cryptography"
     begin
         CryptographyManagementImpl.GetLegalBlockSizeValues(MinSize, MaxSize, SkipSize);
     end;
-#if not CLEAN24
-    /// <summary>
-    /// Gets the key and vector from the RijndaelManaged class
-    /// </summary>
-    /// <param name="KeyAsBase64">Represents the secret key for the symmetric algorithm encoded as Base64 Text</param>
-    /// <param name="VectorAsBase64">Represents the initialization vector (IV) for the symmetric algorithm encoded as Base64 Text</param>
-    [Obsolete('Use GetEncryptionData with SecretText data type for KeyAsBase64.', '24.0')]
-    [NonDebuggable]
-    procedure GetEncryptionData(var KeyAsBase64: Text; var VectorAsBase64: Text)
-    begin
-        CryptographyManagementImpl.GetEncryptionData(KeyAsBase64, VectorAsBase64);
-    end;
-#endif
 
     /// <summary>
     /// Gets the key and vector from the RijndaelManaged class
@@ -241,6 +169,26 @@ codeunit 1258 "Rijndael Cryptography"
     end;
 
     /// <summary>
+    /// Returns encrypted binary data as base64
+    /// </summary>
+    /// <param name="BinaryDataAsBase64">The value to encrypt.</param>
+    /// <returns>Encrypted value.</returns>
+    procedure EncryptBinaryData(BinaryDataAsBase64: Text) EncryptedBinaryDataAsBase64: Text
+    begin
+        EncryptedBinaryDataAsBase64 := CryptographyManagementImpl.EncryptBinaryDataRijndael(BinaryDataAsBase64);
+    end;
+
+    /// <summary>
+    /// Returns encrypted binary data as base64
+    /// </summary>
+    /// <param name="BinaryDataAsBase64">The value to encrypt.</param>
+    /// <returns>Encrypted value.</returns>
+    procedure EncryptBinaryData(BinaryDataAsBase64: SecretText) EncryptedBinaryDataAsBase64: SecretText
+    begin
+        EncryptedBinaryDataAsBase64 := CryptographyManagementImpl.EncryptBinaryDataRijndaelSecret(BinaryDataAsBase64);
+    end;
+
+    /// <summary>
     /// Returns encrypted text as plain text.
     /// </summary>
     /// <param name="CryptedText">The value to decrypt.</param>
@@ -258,5 +206,25 @@ codeunit 1258 "Rijndael Cryptography"
     procedure Decrypt(CryptedText: SecretText) PlainText: SecretText
     begin
         PlainText := CryptographyManagementImpl.DecryptRijndaelSecret(CryptedText);
+    end;
+
+    /// <summary>
+    /// Returns decrypted binary data as base64
+    /// </summary>
+    /// <param name="CryptedBinaryDataAsBase64">The value to decrypt.</param>
+    /// <returns>Decrypted value.</returns>
+    procedure DecryptBinaryData(CryptedBinaryDataAsBase64: Text) BinaryDataAsBase64: Text
+    begin
+        BinaryDataAsBase64 := CryptographyManagementImpl.DecryptBinaryDataRijndael(CryptedBinaryDataAsBase64);
+    end;
+
+    /// <summary>
+    /// Returns decrypted binary data as base64
+    /// </summary>
+    /// <param name="CryptedBinaryDataAsBase64">The value to decrypt.</param>
+    /// <returns>Decrypted value.</returns>
+    procedure DecryptBinaryData(CryptedBinaryDataAsBase64: SecretText) BinaryDataAsBase64: SecretText
+    begin
+        BinaryDataAsBase64 := CryptographyManagementImpl.DecryptBinaryDataRijndaelSecret(CryptedBinaryDataAsBase64);
     end;
 }

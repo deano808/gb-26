@@ -11,6 +11,7 @@ codeunit 137103 "Cost Adjustment Parallel Run"
     end;
 
     var
+        LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryInventory: Codeunit "Library - Inventory";
         LibrarySales: Codeunit "Library - Sales";
         LibraryVariableStorage: Codeunit "Library - Variable Storage";
@@ -22,16 +23,23 @@ codeunit 137103 "Cost Adjustment Parallel Run"
         Initialized: Boolean;
 
     local procedure Initialize()
+    var
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
     begin
+        SequenceNoMgt.ClearState();
+        LibraryTestInitialize.OnTestInitialize(Codeunit::"Cost Adjustment Parallel Run");
         LibrarySetupStorage.Restore();
         LibraryVariableStorage.Clear();
 
         if Initialized then
             exit;
+        LibraryTestInitialize.OnBeforeTestSuiteInitialize(Codeunit::"Cost Adjustment Parallel Run");
 
-        LibrarySetupStorage.Save(Database::"Inventory Setup");
+        LibrarySetupStorage.SaveInventorySetup();
 
         Initialized := true;
+        Commit();
+        LibraryTestInitialize.OnAfterTestSuiteInitialize(Codeunit::"Cost Adjustment Parallel Run");
     end;
 
     [Test]
@@ -40,6 +48,7 @@ codeunit 137103 "Cost Adjustment Parallel Run"
     var
         Item: Record Item;
         ItemJournalline: Record "Item Journal Line";
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
         ItemNos: List of [Code[20]];
     begin
         Initialize();
@@ -64,6 +73,8 @@ codeunit 137103 "Cost Adjustment Parallel Run"
         // [GIVEN] Create item journal lines for the second and fourth item.
         LibraryInventory.CreateItemJournalLineInItemTemplate(ItemJournalline, ItemNos.Get(2), '', '', -10);
         LibraryInventory.CreateItemJournalLineInItemTemplate(ItemJournalline, ItemNos.Get(4), '', '', -10);
+
+        SequenceNoMgt.ClearState();
 
         // [WHEN] Post the item journal order with enabled Concurrent Inventory Posting feature.
         BindSubscription(this);

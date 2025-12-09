@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Journal;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Journal;
 
 using Microsoft.Foundation.NoSeries;
 using Microsoft.Foundation.UOM;
@@ -70,6 +74,7 @@ codeunit 7304 "Whse. Jnl.-Register Batch"
         TempWhseJnlLine2: Record "Warehouse Journal Line" temporary;
         WhseJnlRegisterLine: Codeunit "Whse. Jnl.-Register Line";
         PhysInvtCountMgt: Codeunit "Phys. Invt. Count.-Management";
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
         HideDialog: Boolean;
         IsHandled: Boolean;
     begin
@@ -104,6 +109,7 @@ codeunit 7304 "Whse. Jnl.-Register Batch"
         CheckItemAvailability(WhseJnlLine);
 
         CheckLines(TempHandlingSpecification, HideDialog);
+        SequenceNoMgt.AllocateSeqNoBuffer(Database::"Warehouse Entry", NoOfRecords);
 
         PhysInvtCount := false;
         // Register lines
@@ -592,7 +598,7 @@ codeunit 7304 "Whse. Jnl.-Register Batch"
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse. Jnl.-Register Line", 'OnAfterInsertWhseEntry', '', false, false)]
     local procedure OnAfterInsertWhseEntry(var WarehouseEntry: Record "Warehouse Entry"; var WarehouseJournalLine: Record "Warehouse Journal Line")
     begin
-        if WarehouseEntry."Warehouse Register No." > WhseRegNo then
+        if WarehouseEntry."Warehouse Register No." <> 0 then
             WhseRegNo := WarehouseEntry."Warehouse Register No.";
     end;
 

@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Projects.Project.Journal;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Projects.Project.Journal;
 
 using Microsoft.Finance.Currency;
 using Microsoft.Finance.Dimension;
@@ -23,6 +27,8 @@ page 1020 "Job G/L Journal"
     DataCaptionFields = "Journal Batch Name";
     DelayedInsert = true;
     PageType = Worksheet;
+    AboutTitle = 'About Project G/L Journals';
+    AboutText = 'Record and post extraordinary or one-time project expenses directly to the relevant project and task, specifying amounts, accounts, dimensions, and VAT details to ensure accurate allocation in the general ledger.';
     SaveValues = true;
     SourceTable = "Gen. Journal Line";
     UsageCategory = Tasks;
@@ -1033,7 +1039,6 @@ page 1020 "Job G/L Journal"
         BackgroundErrorHandlingMgt: Codeunit "Background Error Handling Mgt.";
         ChangeExchangeRate: Page "Change Exchange Rate";
         GLReconcile: Page Reconciliation;
-        CurrentJnlBatchName: Code[10];
         Balance: Decimal;
         TotalBalance: Decimal;
         ShowBalance: Boolean;
@@ -1051,6 +1056,7 @@ page 1020 "Job G/L Journal"
 
     protected var
         ShortcutDimCode: array[8] of Code[20];
+        CurrentJnlBatchName: Code[10];
         AccName: Text[100];
         BalAccName: Text[100];
         DimVisible1: Boolean;

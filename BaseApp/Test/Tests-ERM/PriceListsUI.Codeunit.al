@@ -16,6 +16,7 @@ codeunit 134117 "Price Lists UI"
         LibraryJob: Codeunit "Library - Job";
         LibraryPriceCalculation: Codeunit "Library - Price Calculation";
         LibraryPurchase: Codeunit "Library - Purchase";
+        LibraryRandom: Codeunit "Library - Random";
         LibraryResource: Codeunit "Library - Resource";
         LibrarySales: Codeunit "Library - Sales";
         LibraryService: Codeunit "Library - Service";
@@ -32,6 +33,8 @@ codeunit 134117 "Price Lists UI"
         AmountTypeNotAlowedErr: Label '%1 is not allowed for %2.', Comment = '%1 - Amount type, %2 - source type';
         TestFieldErr: Label '%1 must have a value', Comment = '%1 = Field Caption';
         CodeErr: Label '%1 must be %2 in %3.', Comment = '%1 = Code, %2 = Next No. from No. Series, %3 = Sales/Purchase Price List';
+        CustDiscountGroupDeleteErr: Label 'You cannot delete the Customer Discount Group %1 because it is used in Customer.', Comment = '%1= Customer Discount Group Code.';
+        CustDiscountGroupCodeDeleteErr: Label 'The field Customer Disc. Group of table Sales Line contains a value (%1) that cannot be found in the related table (Customer Discount Group).', Comment = '%1= Customer Discount Group Code.';
 
     [Test]
     procedure T000_SalesPriceListsPageIsNotEditable()
@@ -4376,6 +4379,7 @@ codeunit 134117 "Price Lists UI"
     begin
         // [SCENARIO 566994] Bug fix to ensure the field "Amount Type" does not change after closing the page "Sales Price List" 
         Initialize(true);
+
         // [GIVEN] Sales Price List for discount
         PriceListHeaderCode := LibraryUtility.GenerateGUID();
         SalesPriceList.OpenEdit();
@@ -4389,11 +4393,144 @@ codeunit 134117 "Price Lists UI"
         CustomerDiscountGroup.Insert();
         SalesPriceList.AssignToNo.SetValue(CustomerDiscountGroup.Code);
         SalesPriceList.Status.SetValue("Price Status"::Active);
+
         // [WHEN] Close the page "Sales Price List"
         SalesPriceList.Close();
+
         // [THEN] Check the field "Amount Type" has not reverted to Price & Discount
         PriceListHeader.Get(PriceListHeaderCode);
         Assert.IsTrue((PriceListHeader."Amount Type" = PriceListHeader."Amount Type"::Discount), 'The field "Amount Type" has changed after closing the page "Sales Price List"');
+    end;
+
+    [Test]
+    procedure UnitCostFieldDoesAppearinPriceListLineReviewPageForResource()
+    var
+        Resource: Record Resource;
+        PriceListLine: Record "Price List Line";
+        LibraryRandom: Codeunit "Library - Random";
+        ResourceList: TestPage "Resource List";
+        PriceListLineReview: TestPage "Price List Line Review";
+    begin
+        // [SCENARIO] Unit Cost is Not Visible in Price List Lines because ResourceAsset variable is not initialized
+        Initialize(true);
+
+        // [GIVEN] Feature is On
+        // [GIVEN] Resource 'R' with 1 price list lines for purchase:
+        LibraryResource.CreateResource(Resource, '');
+        LibraryPriceCalculation.CreatePurchPriceLine(
+            PriceListLine, '', "Price Source Type"::"All Vendors", '', "Price Asset Type"::Resource, Resource."No.");
+        PriceListLine.Validate("Unit Cost", LibraryRandom.RandDec(1000, 2));
+        PriceListLine.Status := PriceListLine.Status::Active;
+        PriceListLine.Modify();
+
+        // [WHEN] Open "Resource List"
+        ResourceList.OpenView();
+        ResourceList.Filter.SetFilter("No.", Resource."No.");
+
+        // [THEN] NoOfResCosts is 1
+        ResourceList.Control1907012907.NoOfResCosts.AssertEquals(1);
+
+        // [WHEN] Drill down NoOfResPrices
+        PriceListLineReview.Trap();
+        ResourceList.Control1907012907.NoOfResPrices.Drilldown();
+
+        // [WHEN] Drill down NoOfResCosts
+        PriceListLineReview.Trap();
+        ResourceList.Control1907012907.NoOfResCosts.Drilldown();
+
+        // [THEN] Open list with the purchase price line for resource
+        Assert.Istrue(PriceListLineReview.First(), 'not found the first purch price line');
+        PriceListLineReview."Source Type".AssertEquals(PriceListLine."Source Type");
+        PriceListLineReview."Asset Type".AssertEquals(PriceListLine."Asset Type");
+        PriceListLineReview."Unit Cost".AssertEquals(PriceListLine."Unit Cost");
+    end;
+
+    [Test]
+    procedure ErrorOnCustomerDiscountGroupDeleteWhenAssignedToCustomer()
+    var
+        Customer: Record Customer;
+        CustomerDiscountGroup: array[2] of Record "Customer Discount Group";
+        Item: Record Item;
+        PriceListLine: Record "Price List Line";
+    begin
+        // [SCENARIO 595896] The Customer Discount Group assigned to Customer should not be abled to delete.
+        Initialize(true);
+
+        // [GIVEN] Create a Customer.
+        LibrarySales.CreateCustomer(Customer);
+
+        // [GIVEN] Create an Item.
+        Item.Get(LibraryInventory.CreateItemNo());
+
+        // [GIVEN] Assign a Customer Discount Group and assign it to the Customer.
+        LibraryERM.CreateCustomerDiscountGroup(CustomerDiscountGroup[1]);
+        Customer.Validate("Customer Disc. Group", CustomerDiscountGroup[1].Code);
+        Customer.Modify();
+
+        // [GIVEN] Create a Sales Price List line for the Customer Discount Group.
+        LibraryPriceCalculation.CreateSalesDiscountLine(
+            PriceListLine,
+            LibraryUtility.GenerateGUID(),
+            "Price Source Type"::"Customer Disc. Group",
+            CustomerDiscountGroup[1].Code,
+            "Price Asset Type"::Item,
+             Item."No.");
+
+        // [WHEN] Try to delete the Customer Discount Group.
+        asserterror CustomerDiscountGroup[1].Delete(true);
+
+        // [THEN] An error occurs that the Customer Discount Group is tried to delete in use by a Customer.
+        Assert.ExpectedError(StrSubstNo(CustDiscountGroupDeleteErr, CustomerDiscountGroup[1].Code));
+    end;
+
+    [Test]
+    procedure ErrorOnSalesLineWhenDeletedCustomerDiscountGroupIsAssigned()
+    var
+        Customer: Record Customer;
+        CustomerDiscountGroup: array[2] of Record "Customer Discount Group";
+        Item: Record Item;
+        PriceListLine: Record "Price List Line";
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+    begin
+        // [SCENARIO 595896] Deleted Customer Discount Group assigned to Customer should give error on Sales Line.
+        Initialize(true);
+
+        // [GIVEN] Create a Customer.
+        LibrarySales.CreateCustomer(Customer);
+
+        // [GIVEN] Create an Item.
+        Item.Get(LibraryInventory.CreateItemNo());
+
+        // [GIVEN] Create a Customer Discount Group and assign it to the Customer.
+        LibraryERM.CreateCustomerDiscountGroup(CustomerDiscountGroup[1]);
+        Customer.Validate("Customer Disc. Group", CustomerDiscountGroup[1].Code);
+        Customer.Modify();
+
+        // [GIVEN] Create a Sales Price List line for the Customer Discount Group.
+        LibraryPriceCalculation.CreateSalesDiscountLine(
+            PriceListLine,
+            LibraryUtility.GenerateGUID(),
+            "Price Source Type"::"Customer Disc. Group",
+            CustomerDiscountGroup[1].Code,
+            "Price Asset Type"::Item,
+             Item."No.");
+
+        // [GIVEN] Delete the Customer Discount Group.
+        CustomerDiscountGroup[1].Delete();
+
+        // [GIVEN] Create a Sales Header for the Customer.
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Order, Customer."No.");
+
+        // [WHEN] Try to create a Sales Line for the Item.
+        asserterror LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", LibraryRandom.RandInt(5));
+
+        // [THEN] An error occurs that the Customer Discount Group assigned to the Customer is not found.
+        Assert.ExpectedError(
+            StrSubstNo(
+                CustDiscountGroupCodeDeleteErr,
+                CustomerDiscountGroup[1].Code,
+                CustomerDiscountGroup[1].TableCaption()));
     end;
 
     local procedure Initialize(Enable: Boolean)

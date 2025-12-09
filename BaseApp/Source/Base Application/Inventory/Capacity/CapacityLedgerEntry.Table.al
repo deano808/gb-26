@@ -144,7 +144,7 @@ table 5832 "Capacity Ledger Entry"
         }
         field(76; "Direct Cost (ACY)"; Decimal)
         {
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             CalcFormula = sum("Value Entry"."Cost Amount (Actual) (ACY)" where("Capacity Ledger Entry No." = field("Entry No."),
                                                                                 "Entry Type" = const("Direct Cost")));
@@ -154,7 +154,7 @@ table 5832 "Capacity Ledger Entry"
         }
         field(77; "Overhead Cost (ACY)"; Decimal)
         {
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             CalcFormula = sum("Value Entry"."Cost Amount (Actual) (ACY)" where("Capacity Ledger Entry No." = field("Entry No."),
                                                                                 "Entry Type" = const("Indirect Cost")));
@@ -165,6 +165,25 @@ table 5832 "Capacity Ledger Entry"
         field(78; Subcontracting; Boolean)
         {
             Caption = 'Subcontracting';
+        }
+        field(87; Reversed; Boolean)
+        {
+            Caption = 'Reversed';
+            DataClassification = CustomerContent;
+        }
+        field(88; "Reversed by Entry No."; Integer)
+        {
+            BlankZero = true;
+            Caption = 'Reversed by Entry No.';
+            DataClassification = CustomerContent;
+            TableRelation = "Capacity Ledger Entry";
+        }
+        field(89; "Reversed Entry No."; Integer)
+        {
+            BlankZero = true;
+            Caption = 'Reversed Entry No.';
+            DataClassification = CustomerContent;
+            TableRelation = "Capacity Ledger Entry";
         }
         field(90; "Order Type"; Enum "Inventory Order Type")
         {
@@ -297,7 +316,7 @@ table 5832 "Capacity Ledger Entry"
         exit(FindRecordManagement.GetLastEntryIntFieldValue(Rec, FieldNo("Entry No.")))
     end;
 
-    local procedure GetCurrencyCode(): Code[10]
+    local procedure GetAdditionalReportingCurrencyCode(): Code[10]
     begin
         if not GLSetupRead then begin
             GLSetup.Get();
@@ -313,4 +332,3 @@ table 5832 "Capacity Ledger Entry"
         DimMgt.ShowDimensionSet("Dimension Set ID", StrSubstNo('%1 %2', TableCaption(), "Entry No."));
     end;
 }
-

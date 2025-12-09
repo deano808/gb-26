@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Worksheet;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Worksheet;
 
 using Microsoft.Foundation.UOM;
 using Microsoft.Inventory.Item;
@@ -20,6 +24,8 @@ page 7351 "Movement Worksheet"
     DataCaptionFields = Name;
     DelayedInsert = true;
     PageType = Worksheet;
+    AboutTitle = 'About Movement Worksheets';
+    AboutText = 'Plan and execute internal warehouse item movements between bins and zones for purposes such as reorganization or inspection, using worksheet lines that can be filled manually or with automated suggestions, and register the movements for advanced warehouse management.';
     RefreshOnActivate = true;
     SaveValues = true;
     SourceTable = "Whse. Worksheet Line";
@@ -328,22 +334,6 @@ page 7351 "Movement Worksheet"
             {
                 Caption = 'F&unctions';
                 Image = "Action";
-                action("Return Over-Picked Quantity")
-                {
-                    ApplicationArea = Warehouse;
-                    Caption = 'Return Over-Picked Quantity';
-                    Image = AutofillQtyToHandle;
-                    ToolTip = 'Insert the Items in the Movement worksheet which are surplus in the "To Production Bin Code"';
-
-                    trigger OnAction()
-                    var
-                        ReturnOverPickedQuantity: Page "Return Overpicked Quantity";
-                    begin
-                        ReturnOverPickedQuantity.SetContext(Rec."Worksheet Template Name", Rec.Name, Rec."Location Code");
-                        Commit();
-                        ReturnOverPickedQuantity.RunModal();
-                    end;
-                }
                 action("Autofill Qty. to Handle")
                 {
                     ApplicationArea = Warehouse;

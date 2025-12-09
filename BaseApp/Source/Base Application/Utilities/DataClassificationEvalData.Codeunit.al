@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -102,6 +102,8 @@ using Microsoft.Pricing.Calculation;
 using Microsoft.Pricing.PriceList;
 using Microsoft.Pricing.Source;
 using Microsoft.Pricing.Worksheet;
+using Microsoft.Purchases.Vendor;
+using Microsoft.Purchases.Analysis;
 using Microsoft.RoleCenters;
 using System.Agents;
 using System.AI;
@@ -270,14 +272,12 @@ codeunit 1751 "Data Classification Eval. Data"
         ClassifyInsCoverageLedgerEntry();
         ClassifyTermsAndConditionsState();
         ClassifyDetailedCVLedgEntryBuffer();
+        ClassifyAccPayablesRoleCenter();
         ClassifyPostedPaymentReconLine();
         ClassifyAppliedPaymentEntry();
         ClassifySelectedDimension();
         ClassifyConfigLine();
         ClassifyConfigPackageTable();
-#if not CLEAN24
-        ClassifyCalendarEvent();
-#endif
         ClassifyPositivePayEntryDetail();
         ClassifyICOutboxSalesHeader();
         ClassifyDirectDebitCollectionEntry();
@@ -471,12 +471,6 @@ codeunit 1751 "Data Classification Eval. Data"
         SetTableFieldsToNormal(DATABASE::"Shipping Agent");
         SetTableFieldsToNormal(DATABASE::"No. Series");
         SetTableFieldsToNormal(DATABASE::"No. Series Line");
-#if not CLEAN24
-#pragma warning disable AL0432
-        SetTableFieldsToNormal(DATABASE::"No. Series Line Sales");
-        SetTableFieldsToNormal(DATABASE::"No. Series Line Purchase");
-#pragma warning restore AL0432
-#endif
         SetTableFieldsToNormal(DATABASE::"No. Series Relationship");
         SetTableFieldsToNormal(DATABASE::"Tax Area Translation");
         SetTableFieldsToNormal(DATABASE::"Tax Area");
@@ -690,6 +684,7 @@ codeunit 1751 "Data Classification Eval. Data"
         SetTableFieldsToNormal(DATABASE::Qualification);
         SetTableFieldsToNormal(DATABASE::Relative);
         SetTableFieldsToNormal(DATABASE::"Human Resource Comment Line");
+        SetTableFieldsToNormal(Database::Nationality);
         SetTableFieldsToNormal(DATABASE::Union);
         SetTableFieldsToNormal(DATABASE::"Cause of Inactivity");
         SetTableFieldsToNormal(DATABASE::"Employment Contract");
@@ -705,9 +700,6 @@ codeunit 1751 "Data Classification Eval. Data"
         SetTableFieldsToNormal(DATABASE::"CRM Integration Record");
         SetTableFieldsToNormal(DATABASE::"Integration Table Mapping");
         SetTableFieldsToNormal(DATABASE::"Integration Field Mapping");
-#if not CLEAN24
-        SetTableFieldsToNormal(DATABASE::"Man. Integration Field Mapping");
-#endif
         SetTableFieldsToNormal(DATABASE::"Man. Integration Table Mapping");
         SetTableFieldsToNormal(DATABASE::"Temp Integration Field Mapping");
         SetTableFieldsToNormal(DATABASE::"Man. Int. Field Mapping");
@@ -923,7 +915,6 @@ codeunit 1751 "Data Classification Eval. Data"
         SetTableFieldsToNormal(DATABASE::"Workflow User Group Member");
         SetTableFieldsToNormal(DATABASE::"Payroll Setup");
         SetTableFieldsToNormal(DATABASE::"Approval Workflow Wizard");
-        SetTableFieldsToNormal(DATABASE::"Calendar Event User Config.");
     end;
 
     local procedure ClassifyTablesToNormalPart11()
@@ -2519,6 +2510,20 @@ codeunit 1751 "Data Classification Eval. Data"
         SetFieldToCompanyConfidential(TableNo, DummyDetailedCVLedgEntryBuffer.FieldNo("Non-Deductible VAT Amount ACY"));
     end;
 
+    local procedure ClassifyAccPayablesRoleCenter()
+    var
+        PurchByVendGrpChartSetup: Record "Purch. by Vend.Grp.Chart Setup";
+        TopVendorsByPurch: Record "Top Vendors By Purchase";
+    begin
+        SetTableFieldsToNormal(Database::"Acc. Payable Performance Chart");
+        SetTableFieldsToNormal(Database::"Account Payable Cue");
+        SetTableFieldsToNormal(Database::"Purch. by Vend.Grp.Chart Setup");
+        SetFieldToPersonal(Database::"Acc. Payable Performance Chart", PurchByVendGrpChartSetup.FieldNo("User ID"));
+        SetTableFieldsToNormal(Database::"Top Vendors By Purchase");
+        SetFieldToPersonal(Database::"Top Vendors By Purchase", TopVendorsByPurch.FieldNo(VendorNo));
+        SetFieldToPersonal(Database::"Top Vendors By Purchase", TopVendorsByPurch.FieldNo(VendorName));
+    end;
+
     local procedure ClassifyPostedPaymentReconLine()
     var
         DummyPostedPaymentReconLine: Record "Posted Payment Recon. Line";
@@ -2587,18 +2592,6 @@ codeunit 1751 "Data Classification Eval. Data"
         SetFieldToPersonal(TableNo, DummyConfigPackageTable.FieldNo("Imported by User ID"));
     end;
 
-#if not CLEAN24
-    local procedure ClassifyCalendarEvent()
-    var
-        DummyCalendarEvent: Record "Calendar Event";
-        TableNo: Integer;
-    begin
-        TableNo := DATABASE::"Calendar Event";
-        SetTableFieldsToNormal(TableNo);
-        SetFieldToPersonal(TableNo, DummyCalendarEvent.FieldNo(User));
-        SetFieldToCompanyConfidential(TableNo, DummyCalendarEvent.FieldNo("Record ID to Process"));
-    end;
-#endif
 
     local procedure ClassifyPositivePayEntryDetail()
     var
@@ -3857,6 +3850,19 @@ codeunit 1751 "Data Classification Eval. Data"
         SetFieldToCompanyConfidential(TableNo, DummyAgentTaskLogEntry.FieldNo("Details"));
         SetFieldToCompanyConfidential(TableNo, DummyAgentTaskLogEntry.FieldNo("Description"));
         SetFieldToCompanyConfidential(TableNo, DummyAgentTaskLogEntry.FieldNo("Page Caption"));
+
+        // Agent developer toolkit
+        SetTableFieldsToNormal(4301); // "Agent Task Template"
+        SetTableFieldsToNormal(4302); // "Agent Message Template"
+        SetTableFieldsToNormal(4315); // "Developer Agent"
+        SetFieldToCompanyConfidential(4315, 2); // Instructions
+        SetTableFieldsToNormal(4316); // "Custom Agent Instructions Log"
+        SetFieldToCompanyConfidential(4316, 3); // Instructions
+
+        // No-code agent 
+        SetTableFieldsToNormal(4387); // No-Code Agent Setup
+        SetFieldToPersonal(4387, 1); // Agent User Security Id
+        SetFieldToPersonal(4387, 2); // Agent Initials
 
         // following tables are internal but still require classification
         SetTableFieldsToNormal(2000000258); // Agent Data table

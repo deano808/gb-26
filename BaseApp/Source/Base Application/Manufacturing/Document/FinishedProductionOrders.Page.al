@@ -20,6 +20,8 @@ page 9327 "Finished Production Orders"
     CardPageID = "Finished Production Order";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Finished Production Orders';
+    AboutText = 'Manage and review production orders that have been completed, with options to reopen finished orders for corrections to inventory or cost transactions when necessary, ensuring accurate production and financial records.';
     SourceTable = "Production Order";
     SourceTableView = where(Status = const(Finished));
     UsageCategory = History;
@@ -328,7 +330,7 @@ page 9327 "Finished Production Orders"
             action("Production Order List")
             {
                 ApplicationArea = Manufacturing;
-                Caption = 'Production Order List';
+                Caption = 'Production Order - List';
                 Image = "Report";
                 RunObject = Report "Prod. Order - List";
                 ToolTip = 'View a list of the production orders contained in the system. Information such as order number, number of the item to be produced, starting/ending date and other data are shown or printed.';

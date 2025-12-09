@@ -134,7 +134,8 @@ table 5940 "Service Item"
                             "Response Time (Hours)" := ServItemGr."Default Response Time (Hours)";
                     end;
                 end;
-                Modify();
+                if not IsNullGuid(Rec.SystemId) then
+                    Modify();
             end;
         }
         field(4; Description; Text[100])
@@ -166,11 +167,9 @@ table 5940 "Service Item"
                 end;
             end;
         }
-        field(7; Priority; Option)
+        field(7; Priority; Enum "Service Priority")
         {
             Caption = 'Priority';
-            OptionCaption = 'Low,Medium,High';
-            OptionMembers = Low,Medium,High;
         }
         field(8; "Customer No."; Code[20])
         {
@@ -328,7 +327,8 @@ table 5940 "Service Item"
                 end;
 
                 ServLogMgt.ServItemItemNoChange(Rec, xRec);
-                Modify();
+                if not IsNullGuid(Rec.SystemId) then
+                    Modify();
             end;
         }
         field(11; "Unit of Measure Code"; Code[10])
@@ -980,6 +980,7 @@ table 5940 "Service Item"
         field(88; "Search Description"; Code[100])
         {
             Caption = 'Search Description';
+            OptimizeForTextSearch = true;
         }
         field(89; "Service Contracts"; Boolean)
         {
@@ -1133,9 +1134,6 @@ table 5940 "Service Item"
 
     trigger OnInsert()
     var
-#if not CLEAN24
-        NoSeriesMgt: Codeunit NoSeriesManagement;
-#endif
         IsHandled: Boolean;
     begin
         IsHandled := false;
@@ -1146,18 +1144,10 @@ table 5940 "Service Item"
         ServMgtSetup.Get();
         if "No." = '' then begin
             ServMgtSetup.TestField("Service Item Nos.");
-#if not CLEAN24
-            NoSeriesMgt.RaiseObsoleteOnBeforeInitSeries(ServMgtSetup."Service Item Nos.", xRec."No. Series", 0D, "No.", "No. Series", IsHandled);
-            if not IsHandled then begin
-#endif
-                "No. Series" := ServMgtSetup."Service Item Nos.";
-                if NoSeries.AreRelated("No. Series", xRec."No. Series") then
-                    "No. Series" := xRec."No. Series";
-                "No." := NoSeries.GetNextNo("No. Series");
-#if not CLEAN24
-                NoSeriesMgt.RaiseObsoleteOnAfterInitSeries("No. Series", ServMgtSetup."Service Item Nos.", 0D, "No.");
-            end;
-#endif
+            "No. Series" := ServMgtSetup."Service Item Nos.";
+            if NoSeries.AreRelated("No. Series", xRec."No. Series") then
+                "No. Series" := xRec."No. Series";
+            "No." := NoSeries.GetNextNo("No. Series");
         end;
         "Response Time (Hours)" := ServMgtSetup."Default Response Time (Hours)";
 
@@ -1279,6 +1269,9 @@ table 5940 "Service Item"
         IsHandled := false;
         OnBeforeServItemLinesExistErr(Rec, CopyStr(ChangedFieldName, 1, 100), IsHandled);
         if IsHandled then
+            exit;
+
+        if IsNullGuid(Rec.SystemId) then
             exit;
 
         if ServItemLinesExist() then
@@ -1480,4 +1473,3 @@ table 5940 "Service Item"
     begin
     end;
 }
-

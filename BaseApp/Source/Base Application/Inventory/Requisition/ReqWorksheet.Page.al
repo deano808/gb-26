@@ -29,6 +29,8 @@ page 291 "Req. Worksheet"
     DelayedInsert = true;
     LinksAllowed = false;
     PageType = Worksheet;
+    AboutTitle = 'About Requisition Worksheets';
+    AboutText = 'Plan and manage item replenishment by reviewing, editing, and processing purchase and transfer order suggestions, including automatic supply planning, special orders, and drop shipments to balance inventory with demand.';
     SaveValues = true;
     SourceTable = "Requisition Line";
     UsageCategory = Tasks;
@@ -242,12 +244,6 @@ page 291 "Req. Worksheet"
                 {
                     ApplicationArea = Planning;
                     ToolTip = 'Specifies a code for an alternate shipment address if you want to ship to another address than the one that has been entered automatically. This field is also used in case of drop shipment.';
-                    Visible = false;
-                }
-                field("Prod. Order No."; Rec."Prod. Order No.")
-                {
-                    ApplicationArea = Planning;
-                    ToolTip = 'Specifies the number of the related production order.';
                     Visible = false;
                 }
                 field("Requester ID"; Rec."Requester ID")

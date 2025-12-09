@@ -98,10 +98,12 @@ page 8882 "Email Outbox"
                     ApplicationArea = All;
                     ToolTip = 'Specifies the date when this email is scheduled for sending.';
                 }
+
                 field("Retry No."; Rec."Retry No.")
                 {
+                    Caption = 'Attempt No.';
                     ApplicationArea = All;
-                    ToolTip = 'Specifies the number of times this email has been retried for sending.';
+                    ToolTip = 'Specifies the total number of sending attempts for this email.';
                 }
             }
         }
@@ -185,8 +187,8 @@ page 8882 "Email Outbox"
             {
                 ApplicationArea = All;
                 Image = ShowList;
-                Caption = 'Retry Detail';
-                ToolTip = 'View the retry detail of the email.';
+                Caption = 'Attempt Detail';
+                ToolTip = 'View the attempt detail of the email.';
                 Promoted = true;
                 PromotedCategory = Process;
                 PromotedOnly = true;
@@ -200,6 +202,26 @@ page 8882 "Email Outbox"
                     PAGE.RunModal(PAGE::"Email Retry Detail", EmailRetryDetailRec);
                 end;
             }
+            action(RecoverStuckEmails)
+            {
+                ApplicationArea = All;
+                Caption = 'Recover Stuck Emails';
+                ToolTip = 'Identify emails stuck in Processing after a background job failure and mark them as Failed so you can resend them.';
+                Image = Delete;
+                Promoted = true;
+                PromotedCategory = Process;
+                PromotedOnly = true;
+
+                trigger OnAction()
+                var
+                    EmailUpdatedCount: Integer;
+                begin
+                    EmailUpdatedCount := EmailImpl.UpdateFailedEmailOutboxStatusToError();
+                    Message(StuckEmailUpdatedMsg, EmailUpdatedCount);
+                    LoadEmailOutboxForUser();
+                    CurrPage.Update(false);
+                end;
+            }
         }
 
         area(Processing)
@@ -208,7 +230,7 @@ page 8882 "Email Outbox"
             {
                 ApplicationArea = All;
                 Caption = 'Send';
-                ToolTip = 'Send the email for processing. The status will change to Pending until it''s processed. If the email is successfully sent, it will no longer display in your Outbox.';
+                ToolTip = 'Send the email for processing in background. The status will change to Pending until it''s processed. If the email is successfully sent, it will no longer display in your Outbox.';
                 Image = Email;
                 Promoted = true;
                 PromotedCategory = Process;
@@ -381,4 +403,5 @@ page 8882 "Email Outbox"
         EmailThrottledMsgIdTok: Label '025cd7b4-9a12-44de-af35-d84f5e360438', Locked = true;
         CannotCancelRetryMsg: Label 'We cannot cancel the retry of this email because the background task has completed.';
         CancelSendSuccessMsg: Label 'The sending of the email has been cancelled.';
+        StuckEmailUpdatedMsg: Label '%1 stuck email(s) have been updated.', Comment = '%1=number of emails';
 }

@@ -313,6 +313,7 @@ codeunit 134992 "ERM Financial Reports IV"
         VerifyValuesOnCalcAndPostVATSettlementReport(DocumentNo);
     end;
 
+#if not CLEAN27
     [Test]
     [HandlerFunctions('RHCalcAndPostVATSettlement')]
     [Scope('OnPrem')]
@@ -343,6 +344,7 @@ codeunit 134992 "ERM Financial Reports IV"
         // Tear down:Roll back field "Reverse Charge VAT Posting Gr." on Purchase and Payable setup
         UpdateReverseChargeVATPostingGroup(OldReverseChargeVATPostingGroup, OldReverseChargeVATPostingGroup);
     end;
+#endif
 
     [Test]
     [HandlerFunctions('PurchaseReceiptRequestPageHandler')]
@@ -777,6 +779,53 @@ codeunit 134992 "ERM Financial Reports IV"
         LibraryVariableStorage.AssertEmpty();
     end;
 
+    [Test]
+    [HandlerFunctions('RHCalcAndPostVATSettlementSetCountryFilter')]
+    procedure PostVATSettlementWhenJournalTemplateNameMandatoryIsEnabled()
+    var
+        Customer: Record Customer;
+        GenJournalLine: Record "Gen. Journal Line";
+        VATPostingSetup: Record "VAT Posting Setup";
+        VATEntry: Record "VAT Entry";
+        GLEntry: Record "G/L Entry";
+        MyNotifications: Record "My Notifications";
+        GeneralLedgerSetup: Record "General Ledger Setup";
+        InstructionMgt: Codeunit "Instruction Mgt.";
+        PostingDate: Date;
+    begin
+        // [SCENARIO 571198] No error should appears when user try to Calculate and Post VAT Settlement when Journal Template Name Mandatory is enabled
+        Initialize();
+
+        // [GIVEN] Set Journal Templ. Name Mandatory to false on General ledger Setup.
+        GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."Journal Templ. Name Mandatory" := true;
+        GeneralLedgerSetup.Modify();
+
+        MyNotifications.Disable(InstructionMgt.GetPostingAfterWorkingDateNotificationId());
+        GLEntry.SetCurrentKey("Posting Date", "G/L Account No.", "Dimension Set ID");
+        GLEntry.FindLast();
+        PostingDate := GLEntry."Posting Date" + 1;
+
+        // [GIVEN] Create customer and post a sales invoice
+        LibrarySales.CreateCustomerWithCountryCodeAndVATRegNo(Customer);
+        CreateAndPostGeneralJournalLine(
+            VATPostingSetup, PostingDate, GenJournalLine."Account Type"::Customer, Customer."No.",
+            GenJournalLine."Gen. Posting Type"::Sale, 1, true);
+
+        LibraryVariableStorage.Enqueue(Customer."Country/Region Code"); // set country/region filter for RHCalcAndPostVATSettlementSetCountryFilter
+        Clear(LibraryReportDataset);
+
+        // [WHEN] Run Calculate and Post VAT Settlement report
+        SaveCalcAndPostVATSettlementReport(VATPostingSetup, PostingDate, PostingDate, PostingDate, Format(LibraryRandom.RandInt(100)), true);
+
+        // [THEN] VAT Entry for the second invoice is closed
+        // [THEN] Closing entry created with type 'Settlement'
+        VATEntry.SetRange("Bill-to/Pay-to No.", Customer."No.");
+        VATEntry.FindFirst();
+        VATEntry.Get(VATEntry."Closed by Entry No.");
+        VATEntry.TestField(Type, VATEntry.Type::Settlement);
+    end;
+
     local procedure Initialize()
     var
         ObjectOptions: Record "Object Options";
@@ -1108,6 +1157,7 @@ codeunit 134992 "ERM Financial Reports IV"
         VATStatement.Run();
     end;
 
+#if not CLEAN27
     local procedure UpdateReverseChargeVATPostingGroup(var OldReverseChargeVATPostingGroup: Code[20]; ReverseChargeVATPostingGroup: Code[20])
     var
         PurchasesPayablesSetup: Record "Purchases & Payables Setup";
@@ -1117,6 +1167,7 @@ codeunit 134992 "ERM Financial Reports IV"
         PurchasesPayablesSetup.Validate("Reverse Charge VAT Posting Gr.", ReverseChargeVATPostingGroup);
         PurchasesPayablesSetup.Modify(true);
     end;
+#endif
 
     local procedure VATStatementForDifferentEntries(VATPostingSetup: Record "VAT Posting Setup"; EntryType: Enum "Tax Calculation Type"; Selection: Enum "VAT Statement Report Selection"; Closed: Boolean)
     var

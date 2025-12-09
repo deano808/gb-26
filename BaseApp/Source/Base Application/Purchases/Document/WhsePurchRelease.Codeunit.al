@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.Document;
 
 using Microsoft.Inventory.Location;
@@ -22,6 +26,7 @@ codeunit 5772 "Whse.-Purch. Release"
         WhseType: Enum "Warehouse Request Type";
         OldWhseType: Enum "Warehouse Request Type";
         IsHandled: Boolean;
+        DoCreateWhseRequest: Boolean;
     begin
         IsHandled := false;
         OnBeforeRelease(PurchaseHeader, IsHandled);
@@ -44,12 +49,13 @@ codeunit 5772 "Whse.-Purch. Release"
         PurchaseLine.SetRange("Drop Shipment", false);
         if PurchaseHeader."Document Type" = PurchaseHeader."Document Type"::"Return Order" then
             PurchaseLine.SetRange("Job No.", '');
-        PurchaseLine.SetRange("Work Center No.", '');
         OnAfterReleaseSetFilters(PurchaseLine, PurchaseHeader);
         if PurchaseLine.FindSet() then begin
             First := true;
             repeat
-                if PurchaseLine.IsInventoriableItem() then begin
+                DoCreateWhseRequest := PurchaseLine.IsInventoriableItem() and not PurchaseLine.IsWorkCenter();
+                OnReleaseOnBeforeCreateWhseRequest(PurchaseLine, DoCreateWhseRequest);
+                if DoCreateWhseRequest then begin
                     if ((PurchaseHeader."Document Type" = PurchaseHeader."Document Type"::Order) and (PurchaseLine.Quantity >= 0)) or
                         ((PurchaseHeader."Document Type" = PurchaseHeader."Document Type"::"Return Order") and (PurchaseLine.Quantity < 0))
                     then
@@ -225,6 +231,11 @@ codeunit 5772 "Whse.-Purch. Release"
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeProcedureCreateWhseRequest(var PurchaseHeader: Record "Purchase Header"; var PurchaseLine: Record "Purchase Line"; WhseType: Enum "Warehouse Request Type"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnReleaseOnBeforeCreateWhseRequest(var PurchaseLine: Record "Purchase Line"; var DoCreateWhseRequest: Boolean)
     begin
     end;
 }

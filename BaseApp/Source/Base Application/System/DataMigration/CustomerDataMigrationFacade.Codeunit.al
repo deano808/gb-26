@@ -49,7 +49,7 @@ codeunit 6112 "Customer Data Migration Facade"
     begin
     end;
 
-    procedure CreateCustomerIfNeeded(CustomerNoToSet: Code[20]; CustomerNameToSet: Text[50]): Boolean
+    procedure CreateCustomerIfNeeded(CustomerNoToSet: Code[20]; CustomerNameToSet: Text[100]): Boolean
     var
         Customer: Record Customer;
     begin
@@ -418,7 +418,7 @@ codeunit 6112 "Customer Data Migration Facade"
         GlobalCustomer.Validate("Print Statements", PrintStatement);
     end;
 
-    procedure CreateDefaultDimensionAndRequirementsIfNeeded(DimensionCode: Text[20]; DimensionDescription: Text[50]; DimensionValueCode: Code[20]; DimensionValueName: Text[30])
+    procedure CreateDefaultDimensionAndRequirementsIfNeeded(DimensionCode: Text[20]; DimensionDescription: Text[50]; DimensionValueCode: Code[20]; DimensionValueName: Text[50])
     var
         Dimension: Record Dimension;
         DimensionValue: Record "Dimension Value";

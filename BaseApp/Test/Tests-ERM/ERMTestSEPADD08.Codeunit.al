@@ -150,7 +150,7 @@ codeunit 134429 "ERM Test SEPA DD 08"
         SEPADirectDebitMandate: record "SEPA Direct Debit Mandate";
     begin
         // [FEATURE] [Ignore Expected Number of Debits]
-        // [SCENARIO] "Expected Number of Debits" is reset to 1 on validation of "Type of Payment"::OneOff 
+        // [SCENARIO] "Expected Number of Debits" is reset to 1 on validation of "Type of Payment"::OneOff
         SEPADirectDebitMandate.Init();
         SEPADirectDebitMandate."Expected Number of Debits" := 2;
         SEPADirectDebitMandate."Ignore Exp. Number of Debits" := true;
@@ -934,7 +934,9 @@ codeunit 134429 "ERM Test SEPA DD 08"
                       NoOfPmtsPerGroup, NoOfPmtsPerGroup * DefaultLineAmount,
                       DirectDebitCollectionEntry."Transfer Date",
                       GetCreditorNo(DirectDebitCollection."To Bank Account No."), UstrdText);
-                else
+                'InitgPty':
+                     ValidateInitgPty(XMLNode);
+               else
                     Error(XMLUnknownElementErr, XMLNode.Name);
             end;
         end;
@@ -1741,12 +1743,6 @@ codeunit 134429 "ERM Test SEPA DD 08"
         SEPADirectDebitMandate.Insert(true);
     end;
 
-    local procedure GetGLAccount(var GLAccount: Record "G/L Account")
-    begin
-        GLAccount.SetRange("Income/Balance", GLAccount."Income/Balance"::"Income Statement");
-        LibraryERM.FindDirectPostingGLAccount(GLAccount);
-    end;
-
     local procedure GetCreditorNo(BankAccNo: Code[20]): Text
     var
         BankAccount: Record "Bank Account";
@@ -1974,6 +1970,19 @@ codeunit 134429 "ERM Test SEPA DD 08"
         Assert.AreEqual(ExpectedNoOfDrctDbtTxInf, NoOfDrctDbtTxInf, 'Wrong number of DrctDbtTxInf nodes.');
     end;
 
+    local procedure ValidateInitgPty(var XMLParentNode: DotNet XmlNode)
+    var
+        XMLNodes: DotNet XmlNodeList;
+        XMLNode: DotNet XmlNode;
+        i: Integer;
+    begin
+        XMLNodes := XMLParentNode.ChildNodes;
+        for i := 0 to XMLNodes.Count - 1 do begin
+            XMLNode := XMLNodes.ItemOf(i);
+            Assert.AreNotEqual(XMLNode.Name, 'PstlAdr', '');
+        end;
+    end;
+
     local procedure ValidateDrctDbtTxInf(var XMLParentNode: DotNet XmlNode; UstrdText: Text)
     var
         XMLNodes: DotNet XmlNodeList;
@@ -2148,4 +2157,3 @@ codeunit 134429 "ERM Test SEPA DD 08"
         CustomerBankAccountList."Direct Debit Mandates".Invoke();
     end;
 }
-

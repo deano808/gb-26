@@ -1,3 +1,8 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 using Microsoft.Sales.Document;
@@ -20,6 +25,7 @@ page 30115 "Shpfy Orders"
     AboutTitle = 'About Shopify Orders';
     AboutText = 'These orders from all your connected shops are ready to become sales orders or invoices in Business Central. They''re here because you aren''t automatically creating sales documents in Business Central.';
     SourceTableView = sorting("Created At") order(descending);
+
     layout
     {
         area(content)
@@ -188,6 +194,13 @@ page 30115 "Shpfy Orders"
                 ApplicationArea = All;
                 Caption = 'Linked Documents';
                 SubPageLink = "Shopify Document Type" = const("Shpfy Shop Document Type"::"Shopify Shop Order"), "Shopify Document Id" = field("Shopify Order Id");
+            }
+            part(OrderTotals; "Shpfy Order Totals FactBox")
+            {
+                ApplicationArea = All;
+                Caption = 'Order Totals';
+                SubPageLink = "Shopify Order Id" = field("Shopify Order Id");
+                Visible = (Rec."Sales Order No." <> '') or (Rec."Sales Invoice No." <> '');
             }
             part(CustomerStatistics; "Customer Statistics FactBox")
             {
@@ -404,6 +417,30 @@ page 30115 "Shpfy Orders"
                     end;
                 }
             }
+        }
+    }
+
+    views
+    {
+        view(UnprocessedOrders)
+        {
+            Caption = 'Unprocessed Orders';
+            Filters = where(Processed = const(false));
+        }
+        view(OrderWithConflicts)
+        {
+            Caption = 'Orders with Conflicts';
+            Filters = where("Has Order State Error" = const(true));
+        }
+        view(OrderWithProcessingErrors)
+        {
+            Caption = 'Orders with Processing Errors';
+            Filters = where("Has Error" = const(true));
+        }
+        view(OpenOrders)
+        {
+            Caption = 'Open Orders';
+            Filters = where(Closed = const(false));
         }
     }
 

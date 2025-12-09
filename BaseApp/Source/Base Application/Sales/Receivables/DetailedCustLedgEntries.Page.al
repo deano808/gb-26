@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Receivables;
 
 using Microsoft.Finance.GeneralLedger.Setup;
@@ -13,6 +17,8 @@ page 573 "Detailed Cust. Ledg. Entries"
     Editable = false;
     InsertAllowed = false;
     PageType = List;
+    AboutTitle = 'About Detailed Customer Ledger Entries';
+    AboutText = 'Review and audit individual customer transactions, including payments, invoices, and adjustments, to ensure accurate accounts receivable records and identify discrepancies such as missing payments or billing errors.';
     SourceTable = "Detailed Cust. Ledg. Entry";
     UsageCategory = History;
 

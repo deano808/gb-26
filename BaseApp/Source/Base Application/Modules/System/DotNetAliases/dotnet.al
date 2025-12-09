@@ -1,3 +1,4 @@
+#pragma warning disable AA0247
 dotnet
 {
     assembly("Microsoft.Dynamics.Nav.Ncl")
@@ -22,5 +23,14 @@ dotnet
     assembly(Microsoft.AspNetCore.StaticFiles)
     {
         type(Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider; FileExtensionContentTypeProvider) { }
+    }
+    assembly("Microsoft.Dynamics.Nav.PowerPlatform.Api")
+    {
+        Culture = 'neutral';
+        PublicKeyToken = '31bf3856ad364e35';
+
+        type("Microsoft.Dynamics.Nav.PowerPlatform.Api.PowerPlatformApiWrapper"; "PowerPlatformApiWrapper")
+        {
+        }
     }
 }

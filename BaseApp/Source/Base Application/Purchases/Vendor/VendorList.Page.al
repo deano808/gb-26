@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Vendor;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Vendor;
 
 using Microsoft.Bank.Reconciliation;
 using Microsoft.CRM.Contact;
@@ -62,6 +66,18 @@ page 27 "Vendor List"
                 {
                     ApplicationArea = All;
                     ToolTip = 'Specifies an additional part of the name.';
+                    Visible = false;
+                }
+                field(Address; Rec.Address)
+                {
+                    ApplicationArea = Basic, Suite;
+                    ToolTip = 'Specifies the vendor street address.';
+                    Visible = false;
+                }
+                field(City; Rec.City)
+                {
+                    ApplicationArea = Basic, Suite;
+                    ToolTip = 'Specifies the vendor''s city.';
                     Visible = false;
                 }
                 field("Responsibility Center"; Rec."Responsibility Center")
@@ -923,7 +939,7 @@ page 27 "Vendor List"
                 Caption = 'Purchase Invoice';
                 Image = NewPurchaseInvoice;
                 RunObject = Page "Purchase Invoice";
-                RunPageLink = "Buy-from Vendor No." = field("No.");
+                RunPageLink = "Buy-from Vendor No." = field("No."), "Document Type" = const(Invoice);
                 RunPageMode = Create;
                 ToolTip = 'Create a new purchase invoice for items or services.';
             }

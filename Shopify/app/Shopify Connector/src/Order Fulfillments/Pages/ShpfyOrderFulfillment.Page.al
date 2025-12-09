@@ -1,10 +1,15 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 using Microsoft.Sales.History;
 
 page 30153 "Shpfy Order Fulfillment"
 {
-    Caption = 'Shopify Fulfillment';
+    Caption = 'Shopify Completed Fulfillment';
     DeleteAllowed = false;
     Editable = false;
     InsertAllowed = false;

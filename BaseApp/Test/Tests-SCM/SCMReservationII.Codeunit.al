@@ -58,6 +58,7 @@ codeunit 137065 "SCM Reservation II"
         PostJnlLinesMsg: Label 'Do you want to post the journal lines';
         SuggestedBackGroundRunQst: Label 'Would you like to run the low-level code calculation as a background job?';
         ActionMessageEntryExistErr: Label 'Action Message Entry exist for item %1', Comment = '%1 = Item No.';
+        QuantityErr: Label 'Quantity must be equal to %1', Comment = '%1 = Quantity';
 
     [Test]
     [HandlerFunctions('ProdOrderComponentsHandler')]
@@ -419,7 +420,7 @@ codeunit 137065 "SCM Reservation II"
           LocationWhite."To-Production Bin Code");
 
         // Exercise: Create Warehouse Pick from the Released Production Order.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Verify: Verify the values on Warehouse Activity Lines.
         VerifyWarehouseActivityLine(
@@ -1122,7 +1123,7 @@ codeunit 137065 "SCM Reservation II"
         // Create and refresh a Released Production Order and create Pick from it.
         if CreatePick then begin
             CreateAndRefreshProdOrder(ProductionOrder, ProductionOrder.Status::Released, Item2."No.", Quantity, LocationYellow.Code, '');
-            LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+            LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         end;
 
         // Verify: Verify the posted Wraehouse Receipt.
@@ -1660,7 +1661,7 @@ codeunit 137065 "SCM Reservation II"
 
         // Create and Refresh Production Order, create and register Whse. Pick
         CreateAndRefreshProdOrder(ProductionOrder, ProductionOrder.Status::Released, ItemNo[1], Quantity, LocationWhite.Code, '');
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(
           ProductionOrder."No.", WarehouseActivityLine."Source Document"::"Prod. Consumption",
           WarehouseActivityLine."Activity Type"::Pick);
@@ -1756,7 +1757,7 @@ codeunit 137065 "SCM Reservation II"
         RemoveProductionOrderComponent(ProdOrderComponent, ProductionOrder."No.", ChildItem."No.");
 
         // Create Wharehouse Pick from the Production Order.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         // Exercise and Verify: Register the Pick and verify no error pops up.
         RegisterWarehouseActivity(
@@ -2261,7 +2262,7 @@ codeunit 137065 "SCM Reservation II"
         CreateProdOrderWithAutoreservedComponent(ProductionOrder, ParentItem."No.", ProdOrderQty[1], LocationWhite.Code);
 
         // [GIVEN] Create and register warehouse pick from production order "PO1"
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         RegisterWarehouseActivity(
           ProductionOrder."No.", WhseActivityLine."Source Document"::"Prod. Consumption", WhseActivityLine."Action Type"::Take);
 
@@ -2366,7 +2367,7 @@ codeunit 137065 "SCM Reservation II"
         // [GIVEN] Create and register warehouse pick for component "COMP".
         CreateAndRefreshProdOrder(
           ProductionOrder, ProductionOrder.Status::Released, ProdItem."No.", 2 * Qty, LocationWhite.Code, '');
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         UpdateLotNoAndQtyToHandleOnWarehouseActivityLine(
           CompItem."No.", ProductionOrder."No.", WarehouseActivityLine."Action Type"::Place, Qty);
         UpdateLotNoAndQtyToHandleOnWarehouseActivityLine(
@@ -2997,6 +2998,84 @@ codeunit 137065 "SCM Reservation II"
         VerifyThereIsNoDamagedReservationEntryForSurplus(Database::"Sales Line", SalesHeader[2]."No.", ReservationEntry."Reservation Status"::Surplus);//, -SalesLine[2]."Quantity (Base)");
     end;
 
+    [Test]
+    [Scope('OnPrem')]
+    procedure WarehousePickUpdateQuantityInOrder()
+    var
+        Bin: array[8] of Record Bin;
+        CompItem, ProdItem : Record Item;
+        Location: Record Location;
+        ProductionOrder: Record "Production Order";
+        ProductionBOMHeader: Record "Production BOM Header";
+        WarehouseEmployee: Record "Warehouse Employee";
+        Quantity: Decimal;
+        UpdatedQuantity: Decimal;
+    begin
+        // [SCENARIO 581104] Manually change quantity of "Take Line" in Warehouse Pick changes the quantity of the correct "Place Lines"
+        Initialize();
+
+        // [GIVEN] Set Quantity and UpdatedQuantity.
+        Quantity := LibraryRandom.RandIntInRange(900, 1000);
+        UpdatedQuantity := LibraryRandom.RandIntInRange(400, 500);
+
+        // [GIVEN] Reset Warehouse Employee Default Location.
+        ResetWarehouseEmployeeDefaultLocation();
+
+        // [GIVEN] Create Location with WMS enabled Bin mandatory
+        LibraryWarehouse.CreateLocationWMS(Location, true, false, true, false, false);
+
+        // [GIVEN] Create Warehouse Employee for Location.
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, true);
+
+        // [GIVEN] Create Bins for Location.
+        CreateBin(Bin, Location.Code);
+
+        // [GIVEN] Set "Prod. Consump. Whse. Handling" = "Warehouse Pick (mandatory)" and assign Bins to "To-Production Bin Code" and "From-Production Bin Code".
+        Location.Validate("Prod. Consump. Whse. Handling", Location."Prod. Consump. Whse. Handling"::"Warehouse Pick (mandatory)");
+        Location.Validate("To-Production Bin Code", Bin[1].Code);
+        Location.Validate("From-Production Bin Code", Bin[2].Code);
+        Location.Validate("Open Shop Floor Bin Code", Bin[3].Code);
+        Location.Modify(true);
+
+        // [GIVEN] Create Component Item with "Replenishment System" = "Purchase" and "Flushing Method" = "Manual".
+        LibraryInventory.CreateItem(CompItem);
+        CompItem.Validate("Replenishment System", CompItem."Replenishment System"::Purchase);
+        CompItem.Validate("Flushing Method", CompItem."Flushing Method"::"Pick + Manual");
+        CompItem.Validate("Allow Whse. Overpick", true);
+        CompItem.Modify();
+
+        // [GIVEN] Create Production BOM for Component Item.
+        LibraryInventory.CreateItem(ProdItem);
+        ProdItem.Validate("Replenishment System", ProdItem."Replenishment System"::"Prod. Order");
+        ProdItem.Validate("Manufacturing Policy", ProdItem."Manufacturing Policy"::"Make-to-Stock");
+        ProdItem.Validate("Flushing Method", ProdItem."Flushing Method"::Manual);
+        ProdItem.Validate("Production BOM No.", LibraryManufacturing.CreateCertifiedProductionBOM(ProductionBOMHeader, CompItem."No.", 1));
+        ProdItem.Modify();
+
+        // [GIVEN] Create Inventory for Component Item for five different Bins.
+        CreateInventoryWithBin(CompItem, Quantity, Location.Code, Bin[4].Code, 0);
+        CreateInventoryWithBin(CompItem, Quantity, Location.Code, Bin[5].Code, 0);
+        CreateInventoryWithBin(CompItem, Quantity, Location.Code, Bin[6].Code, 0);
+        CreateInventoryWithBin(CompItem, Quantity, Location.Code, Bin[7].Code, 0);
+        CreateInventoryWithBin(CompItem, Quantity, Location.Code, Bin[8].Code, 0);
+
+        // [GIVEN] Create Production Orders for Production Item of quantity Quantity * 5.
+        LibraryManufacturing.CreateProductionOrder(
+           ProductionOrder, ProductionOrder.Status::Released, ProductionOrder."Source Type"::Item, ProdItem."No.", Quantity * 5);
+        ProductionOrder.Validate("Location Code", Location.Code);
+        ProductionOrder.Modify(true);
+        LibraryManufacturing.RefreshProdOrder(ProductionOrder, false, true, true, true, false);
+
+        // [GIVEN] Create Warehouse Pick from Production Order.
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
+
+        // [WHEN] Update quantity in Warehouse Pick Lines.
+        UpdateQuantityWarehousePickFromPage(ProductionOrder."No.", Location.Code, UpdatedQuantity);
+
+        // [THEN] Verify that the Warehouse Activity Lines are updated correctly.
+        VerifyWareHouseActivityLinesForQuantity(ProductionOrder."No.", Location, Quantity, UpdatedQuantity);
+    end;
+
     local procedure Initialize()
     var
         AllProfile: Record "All Profile";
@@ -3027,7 +3106,9 @@ codeunit 137065 "SCM Reservation II"
         IsInitialized := true;
         Commit();
 
-        LibrarySetupStorage.Save(DATABASE::"Manufacturing Setup");
+        LibrarySetupStorage.SaveInventorySetup();
+        LibrarySetupStorage.SaveManufacturingSetup();
+
         LibraryTestInitialize.OnAfterTestSuiteInitialize(CODEUNIT::"SCM Reservation II");
     end;
 
@@ -3358,7 +3439,7 @@ codeunit 137065 "SCM Reservation II"
         CreateAndRefreshProdOrder(
           ProductionOrder, ProductionOrder.Status::Released, Item2."No.", Quantity, LocationWhite.Code,
           LocationWhite."To-Production Bin Code");
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
         UpdateLotNoAndQtyToHandleOnWarehouseActivityLine(
           Item."No.", ProductionOrder."No.", WarehouseActivityLine."Action Type"::Place, Quantity);
         UpdateLotNoAndQtyToHandleOnWarehouseActivityLine(
@@ -3472,6 +3553,7 @@ codeunit 137065 "SCM Reservation II"
         WorkCenter: Record "Work Center";
     begin
         ManufacturingSetup.Get();
+
         CreateWorkCenter(WorkCenter);
         LibraryManufacturing.CreateRoutingHeader(RoutingHeader, RoutingHeader.Type::Serial);
         CreateRoutingLine(RoutingLine, RoutingHeader, WorkCenter."No.");
@@ -3635,7 +3717,7 @@ codeunit 137065 "SCM Reservation II"
         ProductionOrder.Get(ProdOrderLine.Status::Released, ProdOrderLine."Prod. Order No.");
 
         // Create Warehouse Pick from the Released Production Order.
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
     end;
 
     local procedure CreateAndReleaseSalesOrderWithReservation(var SalesHeader: Record "Sales Header"; ItemNo: Code[20]; Quantity: Decimal; LocationCode: Code[10])
@@ -4519,7 +4601,7 @@ codeunit 137065 "SCM Reservation II"
     var
         WarehouseActivityLine: Record "Warehouse Activity Line";
     begin
-        LibraryWarehouse.CreateWhsePickFromProduction(ProductionOrder);
+        LibraryManufacturing.CreateWhsePickFromProduction(ProductionOrder);
 
         UpdateLotNoAndQtyToHandleOnWarehouseActivityLine(
           CompItem[1]."No.", ProductionOrder."No.", WarehouseActivityLine."Action Type"::Place, Quantity);
@@ -4688,6 +4770,72 @@ codeunit 137065 "SCM Reservation II"
         ReservationEntry.SetRange("Source ID", SourceID);
         ReservationEntry.SetRange("Reservation Status", ReservationStatus);
         asserterror ReservationEntry.FindFirst();
+    end;
+
+    local procedure ResetWarehouseEmployeeDefaultLocation()
+    var
+        WarehouseEmployee: Record "Warehouse Employee";
+    begin
+        WarehouseEmployee.SetRange("User ID", UserId());
+        WarehouseEmployee.SetRange(Default, true);
+        WarehouseEmployee.ModifyAll(Default, false);
+    end;
+
+    local procedure VerifyWareHouseActivityLinesForQuantity(ProductionOrderNo: Code[20]; Location: Record Location; Quantity: Decimal; UpdatedQuantity: Decimal)
+    var
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+    begin
+        FindWarehouseActivityLine(WarehouseActivityLine, ProductionOrderNo, WarehouseActivityLine."Source Document"::"Prod. Consumption", WarehouseActivityLine."Action Type"::Place);
+        WarehouseActivityLine.SetRange("Bin Code", Location."To-Production Bin Code");
+        WarehouseActivityLine.FindFirst();
+        Assert.IsTrue(WarehouseActivityLine."Qty. (Base)" = Quantity, StrSubstNo(QuantityErr, Quantity));
+
+        WarehouseActivityLine.Reset();
+        FindWarehouseActivityLine(WarehouseActivityLine, ProductionOrderNo, WarehouseActivityLine."Source Document"::"Prod. Consumption", WarehouseActivityLine."Action Type"::Place);
+        WarehouseActivityLine.SetRange("Bin Code", Location."To-Production Bin Code");
+        WarehouseActivityLine.FindLast();
+        Assert.IsTrue(WarehouseActivityLine."Qty. (Base)" = UpdatedQuantity, StrSubstNo(QuantityErr, UpdatedQuantity));
+    end;
+
+    local procedure UpdateQuantityWarehousePickFromPage(ProductionOrderNo: Code[20]; LocationCode: Code[10]; Quantity: Decimal)
+    var
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehousePickPage: TestPage "Warehouse Pick";
+    begin
+        WarehouseActivityLine.SetRange("Source Document", WarehouseActivityHeader."Source Document"::"Prod. Consumption");
+        WarehouseActivityLine.SetRange("Source No.", ProductionOrderNo);
+        WarehouseActivityLine.SetRange("Location Code", LocationCode);
+        WarehouseActivityLine.FindFirst();
+        WarehouseActivityHeader.Get(WarehouseActivityHeader.Type::Pick, WarehouseActivityLine."No.");
+        WarehousePickPage.OpenEdit();
+        WarehousePickPage.GoToRecord(WarehouseActivityHeader);
+        WarehousePickPage.WhseActivityLines.Last();
+        WarehousePickPage.WhseActivityLines.Previous();
+        WarehousePickPage.WhseActivityLines.Quantity.SetValue(Quantity);
+    end;
+
+    local procedure CreateInventoryWithBin(Item: Record Item; Quantity: Decimal; LocationCode: Code[10]; BinCode: Code[20]; UnitAmount: Decimal)
+    var
+        ItemJournalBatch: Record "Item Journal Batch";
+        ItemJournalLine: Record "Item Journal Line";
+    begin
+        LibraryInventory.CreateItemJournalBatchByType(ItemJournalBatch, ItemJournalBatch."Template Type"::Item);
+
+        LibraryInventory.CreateItemJournalLine(ItemJournalLine, ItemJournalBatch, Item, LocationCode, '', WorkDate(),
+          ItemJournalLine."Entry Type"::"Positive Adjmt.", Quantity, UnitAmount);
+        ItemJournalLine.Validate("Bin Code", BinCode);
+        ItemJournalLine.Modify();
+
+        LibraryInventory.PostItemJournalBatch(ItemJournalBatch);
+    end;
+
+    local procedure CreateBin(var Bin: array[8] of Record Bin; LocationCode: Code[10])
+    var
+        i: Integer;
+    begin
+        for i := 1 to arraylen(Bin) do
+            LibraryWarehouse.CreateBin(Bin[i], LocationCode, Bin[i].Code, '', '');
     end;
 
     [PageHandler]

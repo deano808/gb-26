@@ -43,8 +43,12 @@ codeunit 99000836 "Transfer Line-Reserve"
     var
         ShipmentDate: Date;
         IsHandled: Boolean;
+        SkipCheck: Boolean;
     begin
-        if FromTrackingSpecification."Source Type" = 0 then
+        SkipCheck := false;
+        OnCreateReservationOnBeforeCheckSourceType(TransferLine, FromTrackingSpecification, SkipCheck);
+        
+        if (FromTrackingSpecification."Source Type" = 0) and (not SkipCheck) then
             Error(Text000Err);
 
         TransferLine.TestField("Item No.");
@@ -89,9 +93,13 @@ codeunit 99000836 "Transfer Line-Reserve"
                 Quantity, QuantityBase, ForReservationEntry);
             CreateReservEntry.CreateReservEntryFrom(FromTrackingSpecification);
         end;
-        CreateReservEntry.CreateReservEntry(
-          TransferLine."Item No.", TransferLine."Variant Code", FromTrackingSpecification."Location Code",
-          Description, ExpectedReceiptDate, ShipmentDate, 0);
+
+        IsHandled := false;
+        OnCreateReservationOnAfterCreateReservEntryFrom(TransferLine, FromTrackingSpecification, ExpectedReceiptDate, Description, ShipmentDate, IsHandled);
+        if not IsHandled then
+            CreateReservEntry.CreateReservEntry(
+                TransferLine."Item No.", TransferLine."Variant Code", FromTrackingSpecification."Location Code",
+                Description, ExpectedReceiptDate, ShipmentDate, 0);
 
         FromTrackingSpecification."Source Type" := 0;
 
@@ -1066,11 +1074,13 @@ codeunit 99000836 "Transfer Line-Reserve"
     begin
     end;
 
+#if not CLEAN27
+    [Obsolete('This event is never raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnSetSourceForReservationOnBeforeUpdateReservation(var ReservEntry: Record "Reservation Entry"; TransferLine: Record "Transfer Line")
     begin
     end;
-
+#endif
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Reservation Management", 'OnIssueActionMessageOnSetSourceTypeFromSKU', '', false, false)]
     local procedure OnIssueActionMessageOnSetSourceTypeFromSKU(var ActionMessageEntry: Record "Action Message Entry"; SKU: Record "Stockkeeping Unit")
     begin
@@ -1181,5 +1191,14 @@ codeunit 99000836 "Transfer Line-Reserve"
             ShipmentDate := TransferLine."Shipment Date";
         end;
     end;
-}
 
+    [IntegrationEvent(false, false)]
+    local procedure OnCreateReservationOnBeforeCheckSourceType(var TransferLine: Record "Transfer Line"; FromTrackingSpecification: Record "Tracking Specification"; var SkipCheck: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnCreateReservationOnAfterCreateReservEntryFrom(var TransferLine: Record "Transfer Line"; var FromTrackingSpecification: Record "Tracking Specification"; ExpectedReceiptDate: Date; Description: Text[100]; ShipmentDate: Date; var IsHandled: Boolean)
+    begin
+    end;
+}

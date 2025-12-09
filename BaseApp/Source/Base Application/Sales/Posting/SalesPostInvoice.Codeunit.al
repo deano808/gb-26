@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Sales.Posting;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Sales.Posting;
 
 using Microsoft.Finance.Currency;
 using Microsoft.Finance.Deferral;
@@ -436,6 +440,8 @@ codeunit 815 "Sales Post Invoice" implements "Invoice Posting"
                 then begin
                     SetJobLineFilters(JobSalesLine, TempInvoicePostingBuffer);
                     JobPostLine.PostJobSalesLines(JobSalesLine.GetView(), GLEntryNo);
+                    SalesPostInvoiceEvents.RunOnPostLinesOnAfterPostJobSalesLines(
+                      SalesHeader, TempInvoicePostingBuffer, TotalSalesLine, TotalSalesLineLCY, GLEntryNo, InvoicePostingParameters);
                 end;
             until TempInvoicePostingBuffer.Next(-1) = 0;
 

@@ -12,7 +12,6 @@ codeunit 137045 "SCM Bugfixes"
     var
         GeneralLedgerSetup: Record "General Ledger Setup";
         SalesReceivablesSetup: Record "Sales & Receivables Setup";
-        LibraryERM: Codeunit "Library - ERM";
         LibraryRandom: Codeunit "Library - Random";
         LibraryInventory: Codeunit "Library - Inventory";
         LibraryItemTracking: Codeunit "Library - Item Tracking";
@@ -21,6 +20,7 @@ codeunit 137045 "SCM Bugfixes"
         LibraryUtility: Codeunit "Library - Utility";
         LibraryMarketing: Codeunit "Library - Marketing";
         LibraryReportDataset: Codeunit "Library - Report Dataset";
+        LibraryERM: Codeunit "Library - ERM";
         Assert: Codeunit Assert;
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryPurchase: Codeunit "Library - Purchase";
@@ -28,6 +28,7 @@ codeunit 137045 "SCM Bugfixes"
         LibraryVariableStorage: Codeunit "Library - Variable Storage";
         LibraryManufacturing: Codeunit "Library - Manufacturing";
         LibraryAssembly: Codeunit "Library - Assembly";
+        ItemTrackingHandlerAction: Option AssignRandomSN,AssignSpecificLot;
         isInitialized: Boolean;
         LocationCodesArr: array[3] of Code[10];
         ConfirmMessageQst: Label 'Do you want to change ';
@@ -39,6 +40,11 @@ codeunit 137045 "SCM Bugfixes"
         UseInTransitLocationErr: Label 'You can use In-Transit location %1 for transfer orders only.', Comment = '%1: Location code';
         PurchaseOrderErr: Label 'Unexpected new purchase order created';
         AssemblyCommentLineErr: Label 'Comment/Description not Transfered to Assembly Order while Running Carry Out Action Message';
+        QtyPermismatchErr: Label 'Mismatch in Quantity per for Item No. %1 in Production Order %2', Comment = '%1: Item No., %2: Production Order No.';
+        ExpectedQuantitymismatchErr: Label 'Mismatch in Expected Quantity for Item No. %1 in Production Order %2', Comment = '%1: Item No., %2: Production Order No.';
+        TrackingMsg: Label 'The change will not affect existing entries';
+        NotificationNonCertifiedProductionBOMAndRoutingQst: Label 'The Production BOM or routing has not been certified. Are you sure you want to exit?';
+        BinCodeErr: Label 'Planning Component Bin Code for non-inventory item is not empty';
 
     [Test]
     [Scope('OnPrem')]
@@ -923,8 +929,8 @@ codeunit 137045 "SCM Bugfixes"
         // [GIVEN] Find Production Order Component Line and Update "Quantity per".
         UpdateProductionOrderComponentLine(ProdOrderLine);
 
-        // [GIVEN] Update Component at Location in Manufacturing Setup.
-        UpdateComponentAtLocation(LocationCode);
+        // [GIVEN] Update Component at Location
+        LibraryManufacturing.SetComponentsAtLocation(LocationCode);
 
         // [WHEN]  Create Sales Order.
         CreateSalesOrder(SalesHeader, Item[2]."No.", LocationCode, LibraryRandom.RandIntInRange(80, 80), SalesHeader."Document Type"::Order);
@@ -1138,6 +1144,272 @@ codeunit 137045 "SCM Bugfixes"
         Assert.AreEqual(2.63, TotalVATAmount, 'Mismatch in Total VAT Amount Value');
     end;
 
+    [Test]
+    [Scope('OnPrem')]
+    procedure ProductionOrderComponentRounding()
+    var
+        CompItem: array[2] of Record Item;
+        ProdItem: Record Item;
+        ProductionBOMHeader: Record "Production BOM Header";
+        ProductionOrder: Record "Production Order";
+        CompItemQtyPer: array[2] of Decimal;
+        ProdOrderQty: Integer;
+    begin
+        // [SCENARIO 580948] Production Order Component Rounding for Decimal Quantity Per 
+        Initialize();
+
+        // [GIVEN] Create two QtyPer with decimal quantity per, one is less than 0.5 and another is more than 0.5
+        CompItemQtyPer[1] := LibraryRandom.RandDecInDecimalRange(0.1, 0.5, 2);
+        CompItemQtyPer[2] := LibraryRandom.RandDecInDecimalRange(0.5, 0.9, 2);
+        ProdOrderQty := LibraryRandom.RandInt(100);
+
+        // [GIVEN] Create two Component Items with Replenishment System Purchase and rounding precision 1
+        CreateItemWithRoundingPrecision(CompItem[1], CompItem[1]."Replenishment System"::Purchase, '', '', 1);
+        CreateItemWithRoundingPrecision(CompItem[2], CompItem[2]."Replenishment System"::Purchase, '', '', 1);
+
+        // [GIVEN] Create Production BOM Header with two components
+        CreateProductionBOM(ProductionBOMHeader, CompItem, CompItemQtyPer);
+
+        // [GIVEN] Create Parent Item with Replenishment System Prod. Order and assign Production BOM
+        CreateItem(ProdItem, ProdItem."Replenishment System"::"Prod. Order", '', ProductionBOMHeader."No.");
+
+        // [GIVEN] Create Production Order with Parent Item and Qty
+        LibraryManufacturing.CreateProductionOrder(ProductionOrder, ProductionOrder.Status::Released, ProductionOrder."Source Type"::Item, ProdItem."No.", ProdOrderQty);
+
+        // [WHEN] Refresh Production Order
+        LibraryManufacturing.RefreshProdOrder(ProductionOrder, false, true, false, true, false);
+
+        // [THEN] Verify every Production Order Components with Qty Per and expected qty.
+        VerifyProdOrderComponent(ProductionOrder.Status, ProductionOrder."No.", CompItem[1]."No.", CompItemQtyPer[1], ProdOrderQty);
+        VerifyProdOrderComponent(ProductionOrder.Status, ProductionOrder."No.", CompItem[2]."No.", CompItemQtyPer[2], ProdOrderQty);
+    end;
+
+    [Test]
+    [HandlerFunctions('MessageHandlerOrderTracking,ItemTrackingLinesPageHandler')]
+    procedure CheckDefaultUntrackedSurplusReservationEntriesUpdatedWhenSerialNoAllocated()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+        Qty: Decimal;
+    begin
+        // [SCENARIO 575956] Check Default Untracked Surplus Reservation Entries Updated When Serial No Allocated from Item Tracking Lines and 
+        // not Created duplicate lines.
+        Initialize();
+
+        // [GIVEN] Created Lot Tracked Item.
+        CreateTrackedItemWithOrderTrackingPolicy(Item);
+
+        // [GIVEN] Created Sales Order with 1 Item and 3 quantity.
+        Qty := 3;
+        LibraryWarehouse.CreateLocation(Location);
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Order, '');
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", Qty);
+        SalesLine.Validate("Location Code", Location.Code);
+        SalesLine.Modify(true);
+
+        // [GIVEN] From Item tracking lines (Sales Order), add a SN to the item.
+        // [WHEN] Assign random serial numbers.
+        LibraryVariableStorage.Enqueue(ItemTrackingHandlerAction::AssignRandomSN);
+        LibraryVariableStorage.Enqueue(SalesLine.Quantity);
+        SalesLine.OpenItemTrackingLines(); // ItemTrackingLinesPageHandler required.
+
+        // [THEN] After recalculation, a new reservation entry should NOT be created for the SO.
+        AssertReservationEntryCountForSales(SalesHeader, 3);
+    end;
+
+    [Test]
+    [HandlerFunctions('MessageHandlerOrderTracking,ItemTrackingLinesPageHandler')]
+    procedure CheckTrackingReservationEntriesUpdatedWheLotNoAllocated()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+        UnitofMeasure: Record "Unit of Measure";
+        InventoryPostingSetup: Record "Inventory Posting Setup";
+        ItemUnitOfMeasure: Record "Item Unit of Measure";
+        ItemJournalLine: Record "Item Journal Line";
+        ReservationEntry, ReservationEntry1 : Record "Reservation Entry";
+        LotNo, LotNo1, LotNo2 : Code[50];
+    begin
+        // [SCENARIO 580079] Wrong Decimal Rounding with Quantity in Reservation Entries, using Order Tracking Policy where tracking lines are split into 3, each ending in x.xxxx7, which results with all 3 adding up to x.00001
+        Initialize();
+
+        // [GIVEN] Created Lot Tracked Item.
+        CreateTrackedItemWithOrderTrackingPolicy(Item);
+
+        // [GIVEN] Create new UOM for CASE (CA), Qty 24 Per Base UOM of PCS
+        LibraryInventory.CreateUnitOfMeasureCode(UnitofMeasure);
+        LibraryInventory.CreateItemUnitOfMeasure(ItemUnitOfMeasure, Item."No.", UnitofMeasure.Code, 24);
+
+        // [GIVEN] Create Location
+        LibraryWarehouse.CreateLocation(Location);
+
+        // [GIVEN] Create Inventory Posting Setup with Inventory Account
+        LibraryInventory.CreateInventoryPostingSetup(InventoryPostingSetup, Location.Code, Item."Inventory Posting Group");
+        InventoryPostingSetup.Validate("Inventory Account", LibraryERM.CreateGLAccountNo());
+        InventoryPostingSetup.Modify();
+
+        // [GIVEN] Create Positive Adjustment for 288 Quantity with 1 Lot No
+        LotNo := LibraryUtility.GenerateGUID();
+        CreateItemJournalLineItemTrackingEnabled(ItemJournalLine, Item."No.", Location.Code, 288);
+        LibraryItemTracking.CreateItemJournalLineItemTracking(ReservationEntry, ItemJournalLine, '', LotNo, 288);
+        LibraryInventory.PostItemJnlLineWithCheck(ItemJournalLine);
+
+        // [GIVEN] Create Positive Adjustment for 440 Quantity with 2 different Lot
+        LotNo1 := LibraryUtility.GenerateGUID();
+        LotNo2 := LibraryUtility.GenerateGUID();
+        CreateItemJournalLineItemTrackingEnabled(ItemJournalLine, Item."No.", Location.Code, 440);
+        LibraryItemTracking.CreateItemJournalLineItemTracking(ReservationEntry, ItemJournalLine, '', LotNo1, 220);
+        LibraryItemTracking.CreateItemJournalLineItemTracking(ReservationEntry1, ItemJournalLine, '', LotNo2, 220);
+        LibraryInventory.PostItemJnlLineWithCheck(ItemJournalLine);
+
+        // [GIVEN] Created Sales Order with 1 Item and 3 quantity.
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Order, '');
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", 12);
+        SalesLine.Validate("Location Code", Location.Code);
+        SalesLine.Validate("Unit of Measure Code", UnitofMeasure.Code);
+        SalesLine.Modify(true);
+
+        // [GIVEN] From Item tracking lines (Sales Order), add a Lot No to the item.
+        LibraryVariableStorage.Enqueue(ItemTrackingHandlerAction::AssignSpecificLot);
+        LibraryVariableStorage.Enqueue(LotNo);
+        LibraryVariableStorage.Enqueue(288);
+        SalesLine.OpenItemTrackingLines(); // ItemTrackingLinesPageHandler required.
+
+        // [WHEN] Change the quantity from Item tracking lines (Sales Order), of a Lot No to 13.
+        LibraryVariableStorage.Enqueue(ItemTrackingHandlerAction::AssignSpecificLot);
+        LibraryVariableStorage.Enqueue(LotNo);
+        LibraryVariableStorage.Enqueue(13);
+        SalesLine.OpenItemTrackingLines(); // ItemTrackingLinesPageHandler required.
+
+        // [THEN] Reservation entry Quantity field should come with -12
+        VerifyReservationEntryQuantity(Item."No.", SalesHeader."No.", -12);
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandlerNotification')]
+    procedure CheckNotificationWarnAboutNonCertifiedProductionBOMsandRoutings()
+    var
+        CompItem1: Record Item;
+        ProdItem1: Record Item;
+        ProductionBOMHeader: Record "Production BOM Header";
+        ProductionBOMLine: Record "Production BOM Line";
+        RoutingHeader: Record "Routing Header";
+        RoutingLine: Record "Routing Line";
+        WorkCenter: Record "Work Center";
+        ProductionBOMPage: TestPage "Production BOM";
+        RoutingPage: TestPage "Routing";
+    begin
+        // [SCENARIO 563276] Check Notification Warn About Non-Certified Production BOMs and Routings.
+        Initialize();
+
+        // [GIVEN] Create production item with Replenishment System: Prod. Order.
+        LibraryInventory.CreateItem(ProdItem1);
+        ProdItem1.Validate("Replenishment System", ProdItem1."Replenishment System"::"Prod. Order");
+        ProdItem1.Modify(true);
+
+        // [GIVEN] Create component production item.
+        LibraryInventory.CreateItem(CompItem1);
+
+        // [GIVEN] Create production BOM for first production item with first component
+        LibraryManufacturing.CreateProductionBOMHeader(ProductionBOMHeader, ProdItem1."Base Unit of Measure");
+        LibraryManufacturing.CreateProductionBOMLine(ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, CompItem1."No.", 1);
+        ProductionBOMHeader.Status := ProductionBOMHeader.Status::New;  // Not certified
+        ProductionBOMHeader.Modify(true);
+
+        // [GIVEN] Create routing, fill in "Setup Time", "Run Time", "Wait Time", and "Move Time".
+        LibraryManufacturing.CreateWorkCenter(WorkCenter);
+        LibraryManufacturing.CreateRoutingHeader(RoutingHeader, RoutingHeader.Type::Serial);
+        LibraryManufacturing.CreateRoutingLine(RoutingHeader, RoutingLine, '', Format(1), RoutingLine.Type::"Work Center", WorkCenter."No.");
+        RoutingLine.Validate("Setup Time", LibraryRandom.RandInt(100));
+        RoutingLine.Validate("Run Time", LibraryRandom.RandInt(100));
+        RoutingLine.Validate("Wait Time", LibraryRandom.RandInt(100));
+        RoutingLine.Validate("Move Time", LibraryRandom.RandInt(100));
+        RoutingLine.Modify(true);
+
+        // [WHEN] Open Production BOM and Routing pages.
+        ProductionBOMPage.OpenEdit();
+        ProductionBOMPage.GotoRecord(ProductionBOMHeader);
+        ProductionBOMPage.Close();
+        RoutingPage.OpenEdit();
+        RoutingPage.GotoRecord(RoutingHeader);
+        RoutingPage.Close();
+        // [THEN] Verify that a notification is shown about non-certified Production BOMs and Routings.
+    end;
+
+    [Test]
+    procedure CheckBincodeForNonInventoryItemForPlanningWorksheet()
+    var
+        Bin1: Record Bin;
+        Bin2: Record Bin;
+        ComponentItem1: Record Item;
+        ComponentItem2: Record Item;
+        ItemJournalBatch: Record "Item Journal Batch";
+        ItemJournalLine: Record "Item Journal Line";
+        Location: Record Location;
+        ParentItem: Record Item;
+        ProductionBOMHeader: Record "Production BOM Header";
+        ProductionBOMLine: Record "Production BOM Line";
+        SalesHeader: Record "Sales Header";
+    begin
+        // [SCENARIO 599311] Checking Bin code for Non-Inventory Item for Planning Worksheet.
+        Initialize();
+
+        // [GIVEN] Created Two Component Items, One Non-Inventory and Another Inventory.
+        LibraryInventory.CreateItem(ComponentItem1);
+        ComponentItem1.Validate(Type, ComponentItem1.Type::"Non-Inventory");
+        ComponentItem1.Modify(true);
+        LibraryInventory.CreateItem(ComponentItem2);
+
+        // [GIVEN] Created Location with Bin Mandatory and Inventory Posting Setup, To-Production Bin and From-Production Bin.
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(Location);
+        Location.Validate("Bin Mandatory", true);
+        Location.Modify(true);
+        LibraryWarehouse.CreateBin(Bin1, Location.Code, '', '', '');
+        LibraryWarehouse.CreateBin(Bin2, Location.Code, '', '', '');
+        Location.Validate("To-Production Bin Code", Bin1.Code);
+        Location.Validate("From-Production Bin Code", Bin2.Code);
+        Location.Modify(true);
+
+        // [GIVEN] Created Parent Item with Replenishment System:Prod. Order,Manufacturing Policy:Make-to-Order and Reordering Policy:Lot-for-Lot.
+        LibraryInventory.CreateItem(ParentItem);
+        ParentItem.Validate("Replenishment System", ParentItem."Replenishment System"::"Prod. Order");
+        ParentItem.Validate("Manufacturing Policy", ParentItem."Manufacturing Policy"::"Make-to-Order");
+        ParentItem.Validate("Reordering Policy", ParentItem."Reordering Policy"::"Lot-for-Lot");
+        ParentItem.Modify(true);
+
+        // [GIVEN] Created Production BOM for Parent Item with ComponentItem1 and ComponentItem2.
+        LibraryManufacturing.CreateProductionBOMHeader(ProductionBOMHeader, ParentItem."Base Unit of Measure");
+        LibraryManufacturing.CreateProductionBOMLine(ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, ComponentItem1."No.", 1);
+        LibraryManufacturing.CreateProductionBOMLine(ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, ComponentItem2."No.", 1);
+        ProductionBOMHeader.Validate("Status", ProductionBOMHeader.Status::Certified);
+        ProductionBOMHeader.Modify(true);
+        ParentItem.Validate("Production BOM No.", ProductionBOMHeader."No.");
+        ParentItem.Modify(true);
+
+        // [GIVEN] Created Positive Adjustment for ComponentItem2 with 100 Qty at Location and Bin1.
+        SelectAndClearItemJournalBatch(ItemJournalBatch, ItemJournalBatch."Template Type"::Item);
+        LibraryInventory.CreateItemJournalLine(ItemJournalLine, ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name,
+            ItemJournalLine."Entry Type"::"Positive Adjmt.", ComponentItem2."No.", 100);
+        ItemJournalLine.Validate("Location Code", Location.Code);
+        ItemJournalLine.Validate("Bin Code", Bin1.Code);
+        ItemJournalLine.Modify(true);
+        LibraryInventory.PostItemJournalLine(ItemJournalLine."Journal Template Name", ItemJournalLine."Journal Batch Name");
+
+
+        // [GIVEN] Created New Sales Order with Parent Item with 1 Qty and Future Shipment Date.
+        CreateSalesOrder(SalesHeader, ParentItem."No.", Location.Code, 1, SalesHeader."Document Type"::Order);
+
+        // [WHEN] Calculate regenerative plan in planning worksheet update Planning Worksheet.
+        CalculateRegenerativePlanningWorksheet(ParentItem, WorkDate(), CalcDate('<1Y>', WorkDate()), false, false);
+
+        // [THEN] Verify Planning Component for ComponentItem1 should have Bin Code empty.
+        VerifyPlanningComponentBinEmpty(ComponentItem1."No.", Location.Code);
+    end;
+
     local procedure Initialize()
     var
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
@@ -1229,6 +1501,23 @@ codeunit 137045 "SCM Bugfixes"
             ItemJournalLine.Modify(true);
         end;
         LibraryInventory.PostItemJournalLine(ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name);
+    end;
+
+    local procedure CreateItemJournalLineItemTrackingEnabled(var ItemJournalLine: Record "Item Journal Line"; ItemNo: Code[20]; LocationCode: Code[10]; Quantity: Decimal)
+    var
+        ItemJournalTemplate: Record "Item Journal Template";
+        ItemJournalBatch: Record "Item Journal Batch";
+    begin
+        LibraryInventory.SelectItemJournalTemplateName(ItemJournalTemplate, "Item Journal Template Type"::Item);
+        LibraryInventory.SelectItemJournalBatchName(ItemJournalBatch, "Item Journal Template Type"::Item, ItemJournalTemplate.Name);
+        LibraryInventory.ClearItemJournal(ItemJournalTemplate, ItemJournalBatch);
+        ItemJournalBatch."Item Tracking on Lines" := true;
+        ItemJournalBatch.Modify();
+        LibraryInventory.CreateItemJournalLine(
+          ItemJournalLine, ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name,
+          ItemJournalLine."Entry Type"::"Positive Adjmt.", ItemNo, Quantity);
+        ItemJournalLine.Validate("Location Code", LocationCode);
+        ItemJournalLine.Modify(true);
     end;
 
     local procedure CreateCertifiedProductionBOMWithComponentStartingDate(var ProductionBOMHeader: Record "Production BOM Header"; UOMCode: Code[10]; ItemNo: Code[20]; QtyPer: Decimal; StartingDate: Date)
@@ -1738,15 +2027,6 @@ codeunit 137045 "SCM Bugfixes"
         ProdOrderComponent.Modify(true);
     end;
 
-    local procedure UpdateComponentAtLocation(LocationCode: Code[10])
-    var
-        ManufacturingSetup: Record "Manufacturing Setup";
-    begin
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Components at Location", LocationCode);
-        ManufacturingSetup.Modify(true);
-    end;
-
     local procedure OpenOrderPromisingPage(SalesHeaderNo: Code[20])
     var
         SalesOrder: TestPage "Sales Order";
@@ -1858,6 +2138,92 @@ codeunit 137045 "SCM Bugfixes"
         Assert.RecordCount(ReservationEntry, ExpectedCount);
     end;
 
+    local procedure CreateItemWithRoundingPrecision(var Item: Record Item; ReplenishmentSystem: Enum "Replenishment System"; RoutingNo: Code[20]; ProdBOMNo: Code[20]; RoundingPrecision: Decimal)
+    begin
+        LibraryInventory.CreateItem(Item);
+        Item.Validate(Critical, true);
+        Item.Validate("Replenishment System", ReplenishmentSystem);
+        Item.Validate("Routing No.", RoutingNo);
+        Item.Validate("Production BOM No.", ProdBOMNo);
+        Item.Validate("Rounding Precision", RoundingPrecision);
+        Item.Modify(true);
+    end;
+
+    local procedure VerifyProdOrderComponent(Status: Enum "Production Order Status"; ProdOrderNo: Code[20]; ItemNo: Code[20]; CompQtyPer: Decimal; ProdOrderQty: Integer)
+    var
+        ProdOrderComponent: Record "Prod. Order Component";
+    begin
+        ProdOrderComponent.SetRange(Status, Status);
+        ProdOrderComponent.SetRange("Prod. Order No.", ProdOrderNo);
+        ProdOrderComponent.SetRange("Item No.", ItemNo);
+        ProdOrderComponent.FindFirst();
+
+        Assert.AreEqual(CompQtyPer, ProdOrderComponent."Quantity per", StrSubstNo(QtyPermismatchErr, ItemNo, ProdOrderNo));
+        Assert.AreEqual(Round(CompQtyPer * ProdOrderQty, 1, '>'), ProdOrderComponent."Expected Quantity", StrSubstNo(ExpectedQuantitymismatchErr, ItemNo, ProdOrderNo));
+    end;
+
+    local procedure CreateProductionBOM(var ProductionBOMHeader: Record "Production BOM Header"; CompItem: array[2] of Record Item; CompItemQtyPer: array[2] of Decimal)
+    var
+        ProductionBOMLine: Record "Production BOM Line";
+    begin
+        LibraryManufacturing.CreateProductionBOMHeader(ProductionBOMHeader, CompItem[1]."Base Unit of Measure");
+        LibraryManufacturing.CreateProductionBOMLine(
+          ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, CompItem[1]."No.", CompItemQtyPer[1]);
+        LibraryManufacturing.CreateProductionBOMLine(
+          ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, CompItem[2]."No.", CompItemQtyPer[2]);
+        LibraryManufacturing.UpdateProductionBOMStatus(ProductionBOMHeader, ProductionBOMHeader.Status::Certified);
+    end;
+
+    local procedure CreateTrackedItemWithOrderTrackingPolicy(var Item: Record Item)
+    var
+        ItemTrackingCode: Record "Item Tracking Code";
+    begin
+        CreateItemTrackingCodeWithLotSpecTracking(ItemTrackingCode);
+        LibraryInventory.CreateTrackedItem(Item, LibraryUtility.GetGlobalNoSeriesCode(), '', ItemTrackingCode.Code);
+        LibraryVariableStorage.Enqueue(TrackingMsg);  // Enqueue value for message handler.
+        Item.Validate("Replenishment System", Item."Replenishment System"::Purchase);
+        Item.Validate("Order Tracking Policy", Item."Order Tracking Policy"::"Tracking & Action Msg.");
+        Item.Modify(true);
+    end;
+
+    local procedure AssertReservationEntryCountForSales(SalesHeader: Record "Sales Header"; ExpectedCount: Integer)
+    var
+        ReservationEntry: Record "Reservation Entry";
+    begin
+        ReservationEntry.SetRange("Source Type", Database::"Sales Line");
+        ReservationEntry.SetRange("Source ID", SalesHeader."No.");
+        Assert.RecordCount(ReservationEntry, ExpectedCount);
+    end;
+
+    local procedure VerifyReservationEntryQuantity(ItemNo: Code[20]; SourceID: Code[20]; ExpectedQuantity: Decimal)
+    var
+        ReservEntry: Record "Reservation Entry";
+    begin
+        ReservEntry.SetRange("Item No.", ItemNo);
+        ReservEntry.SetRange("Source ID", SourceID);
+        ReservEntry.CalcSums(Quantity);
+        ReservEntry.TestField(Quantity, ExpectedQuantity);
+    end;
+
+    local procedure VerifyPlanningComponentBinEmpty(ItemNo: Code[20]; LocationCode: Code[10])
+    var
+        PlanningComponent: Record "Planning Component";
+    begin
+        PlanningComponent.SetRange("Location Code", LocationCode);
+        PlanningComponent.SetRange("Item No.", ItemNo);
+        if PlanningComponent.FindFirst() then;
+        Assert.AreEqual('', PlanningComponent."Bin Code", BinCodeErr);
+    end;
+
+    local procedure SelectAndClearItemJournalBatch(var ItemJournalBatch: Record "Item Journal Batch"; ItemJnlTemplateType: Enum "Item Journal Template Type")
+    var
+        ItemJournalTemplate: Record "Item Journal Template";
+    begin
+        LibraryInventory.SelectItemJournalTemplateName(ItemJournalTemplate, ItemJnlTemplateType);
+        LibraryInventory.SelectItemJournalBatchName(ItemJournalBatch, ItemJnlTemplateType, ItemJournalTemplate.Name);
+        LibraryInventory.ClearItemJournal(ItemJournalTemplate, ItemJournalBatch);
+    end;
+
     [ModalPageHandler]
     [Scope('OnPrem')]
     procedure ContactListModalPageHandler(var ContactLookup: Page "Contact List"; var Response: Action)
@@ -1875,6 +2241,14 @@ codeunit 137045 "SCM Bugfixes"
     begin
         // Check confirmation message.
         Assert.AreNotEqual(StrPos(Question, ConfirmMessageQst), 0, Question);
+        Reply := true;
+    end;
+
+    [ConfirmHandler]
+    procedure ConfirmHandlerNotification(Question: Text[1024]; var Reply: Boolean)
+    begin
+        // Check confirmation message.
+        Assert.AreNotEqual(StrPos(Question, NotificationNonCertifiedProductionBOMAndRoutingQst), 0, Question);
         Reply := true;
     end;
 
@@ -1918,10 +2292,52 @@ codeunit 137045 "SCM Bugfixes"
         OrderPromisingLines.CapableToPromise.Invoke()
     end;
 
+    [ModalPageHandler]
+    procedure ItemTrackingLinesPageHandler(var ItemTrackingLines: TestPage "Item Tracking Lines")
+    var
+        ActionOption: Integer;
+        LotNo: Text;
+        HowMany: Integer;
+        Counter: Integer;
+    begin
+        ActionOption := LibraryVariableStorage.DequeueInteger();
+        case ActionOption of
+            ItemTrackingHandlerAction::AssignRandomSN:
+                begin
+                    HowMany := LibraryVariableStorage.DequeueInteger();
+                    if HowMany > 0 then begin
+                        ItemTrackingLines.First();
+                        for Counter := 1 to HowMany do begin
+                            ItemTrackingLines."Serial No.".SetValue(LibraryRandom.RandText(5));
+                            ItemTrackingLines."Quantity (Base)".SetValue(1);
+                            ItemTrackingLines.Next();
+                        end;
+                    end;
+                end;
+            ItemTrackingHandlerAction::AssignSpecificLot:
+                begin
+                    LotNo := LibraryVariableStorage.DequeueText();
+                    ItemTrackingLines.First();
+                    ItemTrackingLines."Lot No.".SetValue(LotNo);
+                    ItemTrackingLines."Quantity (Base)".SetValue(LibraryVariableStorage.DequeueDecimal());
+                end;
+        end;
+        ItemTrackingLines.OK().Invoke();
+    end;
+
     [MessageHandler]
     [Scope('OnPrem')]
     procedure MessageHandler(Message: Text[1024])
     begin
+    end;
+
+    [MessageHandler]
+    procedure MessageHandlerOrderTracking(Message: Text[1024])
+    var
+        QueuedMessage: Variant;
+    begin
+        LibraryVariableStorage.Dequeue(QueuedMessage);  // Dequeue variable.
+        Assert.IsTrue(StrPos(Message, QueuedMessage) > 0, Message);
     end;
 }
 

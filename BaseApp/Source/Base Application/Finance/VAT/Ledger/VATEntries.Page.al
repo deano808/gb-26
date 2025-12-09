@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.VAT.Ledger;
 
 using Microsoft.EServices.EDocument;
@@ -13,6 +17,8 @@ page 315 "VAT Entries"
     DeleteAllowed = false;
     InsertAllowed = false;
     PageType = List;
+    AboutTitle = 'About VAT Entries';
+    AboutText = 'Review and manage all VAT-related entries posted in the system, including amounts, dates, and document details, with the ability to correct VAT dates for open periods and ensure consistency across related transactions.';
     Permissions = TableData "VAT Entry" = m;
     SourceTable = "VAT Entry";
     UsageCategory = History;

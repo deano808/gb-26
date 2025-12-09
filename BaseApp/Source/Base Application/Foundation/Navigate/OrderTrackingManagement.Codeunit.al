@@ -681,6 +681,8 @@ codeunit 99000778 OrderTrackingManagement
             DateWarning := true;
         end;
 
+        OnInsertOrderTrackingEntryOnBeforeOrderTrackingEntryExists(TempOrderTrackingEntry, ReservEntry, ReservEntry2);
+
         if OrderTrackingEntryExists() then begin
             TempOrderTrackingEntry.Quantity += ReservEntry."Quantity (Base)";
             TempOrderTrackingEntry.Modify();
@@ -952,11 +954,13 @@ codeunit 99000778 OrderTrackingManagement
     begin
     end;
 
+#if not CLEAN27
+    [Obsolete('This event is never raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnSetSourceLine(SourceRecRef: RecordRef; var ReservEntry: Record "Reservation Entry"; var ItemLedgerEntry: Record "Item Ledger Entry")
     begin
     end;
-
+#endif
     [IntegrationEvent(false, false)]
     local procedure OnDerivePlanningFilterOnSetToReservationFilter(var ToReservEntry: Record "Reservation Entry"; FilterPlanningComponent: Record "Planning Component")
     begin
@@ -981,5 +985,9 @@ codeunit 99000778 OrderTrackingManagement
     local procedure OnAfterDrillOrdersUp(var TempOrderTrackingEntry: Record "Order Tracking Entry" temporary; var ReservationEntry: Record "Reservation Entry"; Level: Integer; var EntryNo: Integer; var SearchUp: Boolean; var SearchUpIsSet: Boolean)
     begin
     end;
-}
 
+    [IntegrationEvent(false, false)]
+    local procedure OnInsertOrderTrackingEntryOnBeforeOrderTrackingEntryExists(var TempOrderTrackingEntry: Record "Order Tracking Entry" temporary; ReservationEntry: Record "Reservation Entry"; ReservationEntry2: Record "Reservation Entry")
+    begin
+    end;
+}

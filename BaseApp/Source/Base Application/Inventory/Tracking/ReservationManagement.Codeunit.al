@@ -343,6 +343,7 @@ codeunit 99000845 "Reservation Management"
         GetItemSetup(CalcReservEntry);
         Positive := EntryIsPositive;
         CalcReservEntry2.SetPointerFilter();
+        OnUpdateReservationOnAfterSetPointerFilter(CalcReservEntry2);
         CallCalcReservedQtyOnPick();
     end;
 
@@ -672,6 +673,8 @@ codeunit 99000845 "Reservation Management"
                         QtyThisLineBase := 0;
                         QtyThisLine := 0;
                     end;
+
+                    OnAutoReserveItemLedgEntryOnAfterCalcReservQty(CalcItemLedgEntry, QtyThisLine, QtyThisLineBase);
 
                     if (Location."Bin Mandatory" or Location."Require Pick") and
                        (TotalAvailQty + QtyOnOutBound < QtyThisLineBase)
@@ -2026,8 +2029,7 @@ codeunit 99000845 "Reservation Management"
         if ReservEntry."Source Type" = Database::"Sales Line" then begin
             SynchronizingSalesLine.Get(ReservEntry."Source Subtype", ReservEntry."Source ID", ReservEntry."Source Ref. No.");
             if (Item."Order Tracking Policy" <> Item."Order Tracking Policy"::None) and
-               (Item."Assembly Policy" = Item."Assembly Policy"::"Assemble-to-Order") and
-               (Item."Replenishment System" = Item."Replenishment System"::Assembly) and
+               (Item."Assembly Policy" = Item."Assembly Policy"::"Assemble-to-Order") and Item.IsAssemblyItem() and
                (SynchronizingSalesLine."Quantity (Base)" = 0)
             then
                 exit(ReservEntry."Quantity (Base)" * CreateReservEntry.SignFactor(ReservEntry));
@@ -2995,6 +2997,16 @@ codeunit 99000845 "Reservation Management"
 
     [IntegrationEvent(false, false)]
     local procedure OnGetDefaultDampenerPeriod(var DampenerPeriod: DateFormula)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnAutoReserveItemLedgEntryOnAfterCalcReservQty(CalcItemLedgerEntry: Record "Item Ledger Entry"; QtyThisLine: Decimal; QtyThisLineBase: Decimal)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnUpdateReservationOnAfterSetPointerFilter(var CalcReservationEntry: Record "Reservation Entry")
     begin
     end;
 }

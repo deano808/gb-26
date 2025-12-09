@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Projects.Project.Posting;
 
 using Microsoft.Finance.Dimension;
@@ -92,8 +96,12 @@ codeunit 1011 "Job Jnl.-Check Line"
         if (JobJournalLine."Quantity (Base)" < 0) and (JobJournalLine."Entry Type" = JobJournalLine."Entry Type"::Usage) then
             CheckItemQuantityJobJnl(JobJournalLine);
         GetLocation(JobJournalLine."Location Code");
-        if Location."Bin Mandatory" and JobJournalLine.IsInventoriableItem() then
-            JobJournalLine.TestField("Bin Code", ErrorInfo.Create());
+
+        IsHandled := false;
+        OnCheckItemQuantityAndBinCodeOnBeforeCheckBinCode(JobJournalLine, IsHandled);
+        if not IsHandled then
+            if Location."Bin Mandatory" and JobJournalLine.IsInventoriableItem() then
+                JobJournalLine.TestField("Bin Code", ErrorInfo.Create());
     end;
 
     local procedure TestJobStatusOpen(var JobJnlLine: Record "Job Journal Line")
@@ -326,6 +334,11 @@ codeunit 1011 "Job Jnl.-Check Line"
 
     [IntegrationEvent(false, false)]
     local procedure OnRunCheckOnBeforeTestFieldJobStatus(var IsHandled: Boolean; var JobJnlLine: Record "Job Journal Line")
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnCheckItemQuantityAndBinCodeOnBeforeCheckBinCode(JobJournalLine: Record "Job Journal Line"; var IsHandled: Boolean)
     begin
     end;
 }

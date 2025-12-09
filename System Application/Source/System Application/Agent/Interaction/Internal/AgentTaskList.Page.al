@@ -5,6 +5,11 @@
 
 namespace System.Agents;
 
+using System.Environment.Consumption;
+
+#pragma warning disable AS0032 
+#pragma warning disable AS0050
+
 page 4300 "Agent Task List"
 {
     PageType = List;
@@ -19,6 +24,7 @@ page 4300 "Agent Task List"
     SourceTableView = sorting("Last Log Entry Timestamp") order(descending);
     InherentEntitlements = X;
     InherentPermissions = X;
+    Editable = false;
 
     layout
     {
@@ -56,14 +62,6 @@ page 4300 "Agent Task List"
                     Caption = 'Created at';
                     ToolTip = 'Specifies the date and time when the agent task was created.';
                 }
-                field(ID; Rec.ID)
-                {
-                    Caption = 'ID';
-                    trigger OnDrillDown()
-                    begin
-                        ShowTaskMessages();
-                    end;
-                }
                 field(NumberOfStepsDone; NumberOfStepsDone)
                 {
                     Caption = 'Steps Done';
@@ -94,6 +92,22 @@ page 4300 "Agent Task List"
                 {
                     Visible = false;
                 }
+                field(Credits; ConsumedCredits)
+                {
+                    Visible = ConsumedCreditsVisible;
+                    Caption = 'Copilot credits';
+                    ToolTip = 'Specifies the number of Copilot credits consumed by the agent task.';
+                    AutoFormatType = 0;
+                    DecimalPlaces = 0 : 2;
+
+                    trigger OnDrillDown()
+                    var
+                        UserAIConsumptionData: Record "User AI Consumption Data";
+                    begin
+                        UserAIConsumptionData.SetRange("Agent Task Id", Rec.ID);
+                        Page.Run(Page::"Agent Consumption Overview", UserAIConsumptionData);
+                    end;
+                }
             }
         }
     }
@@ -106,6 +120,7 @@ page 4300 "Agent Task List"
                 ApplicationArea = All;
                 Caption = 'View messages';
                 ToolTip = 'Show messages for the selected task.';
+                Enabled = TaskSelected;
                 Image = ShowList;
 
                 trigger OnAction()
@@ -118,7 +133,9 @@ page 4300 "Agent Task List"
                 ApplicationArea = All;
                 Caption = 'View log entries';
                 ToolTip = 'Show log entries for the selected task.';
+                Enabled = TaskSelected;
                 Image = TaskList;
+                Scope = Repeater;
 
                 trigger OnAction()
                 var
@@ -132,7 +149,9 @@ page 4300 "Agent Task List"
                 ApplicationArea = All;
                 Caption = 'Stop';
                 ToolTip = 'Stop the selected task.';
+                Enabled = TaskSelected;
                 Image = Stop;
+                Scope = Repeater;
 
                 trigger OnAction()
                 var
@@ -143,6 +162,21 @@ page 4300 "Agent Task List"
                 end;
             }
         }
+
+        area(Navigation)
+        {
+            action(AgentSetup)
+            {
+                Caption = 'Agent setup';
+                ToolTip = 'Opens the agent card page for the agent who has been assigned the selected task.';
+                Image = Setup;
+                Enabled = TaskSelected;
+
+                RunObject = page "Agent Card";
+                RunPageLink = "User Security ID" = field("Agent User Security ID");
+            }
+        }
+
         area(Promoted)
         {
             group(Category_Process)
@@ -157,14 +191,37 @@ page 4300 "Agent Task List"
         }
     }
 
+    trigger OnOpenPage()
+    var
+        AgentImpl: Codeunit "Agent Impl.";
+    begin
+        ConsumedCreditsVisible := AgentImpl.CanShowMonetizationData();
+    end;
+
     trigger OnAfterGetRecord()
     begin
         UpdateControls();
+        CalculateTaskConsumedCredits();
     end;
 
     trigger OnAfterGetCurrRecord()
     begin
         UpdateControls();
+        CalculateTaskConsumedCredits();
+    end;
+
+    local procedure CalculateTaskConsumedCredits()
+    var
+        UserAIConsumptionData: Record "User AI Consumption Data";
+    begin
+        if not ConsumedCreditsVisible then begin
+            Clear(ConsumedCredits);
+            exit;
+        end;
+
+        UserAIConsumptionData.SetRange("Agent Task Id", Rec.ID);
+        UserAIConsumptionData.CalcSums("Copilot Credits");
+        ConsumedCredits := UserAIConsumptionData."Copilot Credits";
     end;
 
     local procedure UpdateControls()
@@ -172,6 +229,7 @@ page 4300 "Agent Task List"
         AgentTaskImpl: Codeunit "Agent Task Impl.";
     begin
         NumberOfStepsDone := AgentTaskImpl.GetStepsDoneCount(Rec);
+        TaskSelected := Rec.ID <> 0;
     end;
 
     local procedure ShowTaskMessages()
@@ -184,4 +242,9 @@ page 4300 "Agent Task List"
 
     var
         NumberOfStepsDone: Integer;
+        TaskSelected: Boolean;
+        ConsumedCredits: Decimal;
+        ConsumedCreditsVisible: Boolean;
 }
+#pragma warning restore AS0050
+#pragma warning restore AS0032

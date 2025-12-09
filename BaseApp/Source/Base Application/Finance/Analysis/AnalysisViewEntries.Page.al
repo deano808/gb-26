@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.Analysis;
 
 page 558 "Analysis View Entries"
@@ -6,6 +10,8 @@ page 558 "Analysis View Entries"
     Caption = 'Analysis View Entries';
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Analysis View Entries';
+    AboutText = 'Review financial analysis data by dimensions, accounts, and business units to gain insights into posted amounts, debits, and credits across various analysis views.';
     SourceTable = "Analysis View Entry";
     UsageCategory = History;
 

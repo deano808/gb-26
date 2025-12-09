@@ -1,4 +1,4 @@
-// ------------------------------------------------------------------------------------------------
+﻿// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -14,6 +14,8 @@ page 317 "VAT Statement"
     Caption = 'VAT Statements';
     MultipleNewLines = true;
     PageType = Worksheet;
+    AboutTitle = 'About VAT Statements';
+    AboutText = 'Define and manage VAT statement formats to calculate VAT settlement amounts for specific periods, customize statement lines by posting groups and totaling types, and ensure compliance with official VAT reporting requirements.';
     SaveValues = true;
     SourceTable = "VAT Statement Line";
     UsageCategory = Tasks;
@@ -163,12 +165,16 @@ page 317 "VAT Statement"
         }
         area(reporting)
         {
+#if not CLEAN27
             action("VAT Audit Report")
             {
                 ApplicationArea = VAT;
                 Caption = 'VAT Audit Report';
                 Image = "Report";
                 RunObject = Report "VAT Audit";
+                ObsoleteReason = 'Moved to VAT Audit Reports GB app';
+                ObsoleteState = Pending;
+                ObsoleteTag = '27.0';
                 ToolTip = 'Export the data required for auditing in a comma-separated value (CSV) file format.';
             }
             action("VAT Entry Exception Report")
@@ -177,8 +183,12 @@ page 317 "VAT Statement"
                 Caption = 'VAT Entry Exception Report';
                 Image = "Report";
                 RunObject = Report "VAT Entry Exception Report";
+                ObsoleteReason = 'Moved to VAT Audit Reports GB app';
+                ObsoleteState = Pending;
+                ObsoleteTag = '27.0';
                 ToolTip = 'Print the Exception report so that you can document and show differences in VAT amounts to tax authorities.';
             }
+#endif
         }
         area(processing)
         {
@@ -230,12 +240,20 @@ page 317 "VAT Statement"
             {
                 Caption = 'Reports';
 
+#if not CLEAN27
                 actionref("VAT Audit Report_Promoted"; "VAT Audit Report")
                 {
+                    ObsoleteReason = 'Moved to VAT Audit Reports GB app';
+                    ObsoleteState = Pending;
+                    ObsoleteTag = '27.0';
                 }
                 actionref("VAT Entry Exception Report_Promoted"; "VAT Entry Exception Report")
                 {
+                    ObsoleteReason = 'Moved to VAT Audit Reports GB app';
+                    ObsoleteState = Pending;
+                    ObsoleteTag = '27.0';
                 }
+#endif
             }
         }
     }

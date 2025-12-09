@@ -15,9 +15,11 @@ using Microsoft.Sales.Setup;
 using System.IO;
 using System.TestLibraries.Utilities;
 
+#pragma warning disable AA0210
 codeunit 148153 "Usage Based Billing Test"
 {
     Subtype = Test;
+    TestType = Uncategorized;
     TestPermissions = Disabled;
     Access = Internal;
 
@@ -1123,7 +1125,40 @@ codeunit 148153 "Usage Based Billing Test"
 
     [Test]
     [HandlerFunctions('ExchangeRateSelectionModalPageHandler,CreateVendorBillingDocumentPageHandler,MessageHandler')]
-    procedure TestUpdateUsageBasedAfterDeletePurchaseHeader()
+    procedure TestUpdateUsageBasedAfterDeletePurchaseCreditMemo()
+    var
+        PurchaseInvoiceHeader: Record "Purch. Inv. Header";
+    begin
+        //[SCENARIO]: Check that usage data billing is deleted after deleting purchase credit memo
+        ResetAll();
+
+        //[GIVEN] Usage Data import with Usage Data Billing
+        CreateUsageDataBilling("Usage Based Pricing"::"Fixed Quantity", LibraryRandom.RandDec(10, 2));
+        UsageDataImport.ProcessUsageDataImport(UsageDataImport, Enum::"Processing Step"::"Process Usage Data Billing");
+        UsageDataImport.TestField("Processing Status", "Processing Status"::Ok);
+
+        //[GIVEN] Create sales invoice from Usage Data Import
+        UsageDataImport.CollectVendorContractsAndCreateInvoices(UsageDataImport);
+        PostPurchaseDocuments();
+        PurchaseInvoiceHeader.FindLast();
+
+        //[GIVEN] Create sales credit memo from sales invoice
+        CorrectPostedPurchaseInvoice.CreateCreditMemoCopyDocument(PurchaseInvoiceHeader, PurchaseHeader);
+
+        //[GIVEN] Usage Data Billing for sales credit memo
+        UsageDataBilling.FilterOnDocumentTypeAndDocumentNo("Service Partner"::Vendor, Enum::"Usage Based Billing Doc. Type"::"Credit Memo", PurchaseHeader."No.");
+        UsageDataBilling.FindSet();
+
+        //[WHEN] Delete Purchase Credit Memo
+        PurchaseHeader.Delete(true);
+
+        //[THEN] Usage Data billing is deleted
+        asserterror UsageDataBilling.Get(UsageDataBilling."Entry No.");
+    end;
+
+    [Test]
+    [HandlerFunctions('ExchangeRateSelectionModalPageHandler,CreateVendorBillingDocumentPageHandler,MessageHandler')]
+    procedure TestUpdateUsageBasedAfterDeletePurchaseInvoice()
     begin
         Initialize();
         CreateUsageDataBilling("Usage Based Pricing"::"Fixed Quantity", LibraryRandom.RandDec(10, 2));
@@ -1166,7 +1201,41 @@ codeunit 148153 "Usage Based Billing Test"
 
     [Test]
     [HandlerFunctions('ExchangeRateSelectionModalPageHandler,CreateCustomerBillingDocumentPageHandler,MessageHandler')]
-    procedure TestUpdateUsageBasedAfterDeleteSalesHeader()
+    procedure TestUpdateUsageBasedAfterDeleteSalesCreditMemo()
+    begin
+        //[SCENARIO]: Check that usage data billing is deleted after deleting sales credit memo
+        ResetAll();
+
+        //[GIVEN] Usage Data Import with Usage Data Billing
+        CreateUsageDataBilling("Usage Based Pricing"::"Fixed Quantity", LibraryRandom.RandDec(10, 2));
+        PostDocument := true;
+        UsageDataImport.ProcessUsageDataImport(UsageDataImport, Enum::"Processing Step"::"Process Usage Data Billing");
+        UsageDataImport.TestField("Processing Status", "Processing Status"::Ok);
+
+        //[GIVEN] Create sales invoice from Usage Data Import
+        UsageDataImport.CollectCustomerContractsAndCreateInvoices(UsageDataImport);
+        FilterUsageDataBillingOnUsageDataImport(UsageDataImport."Entry No.", "Service Partner"::Customer, UsageDataBilling."Document Type"::"Posted Invoice");
+        UsageDataBilling.FindSet();
+        SalesInvoiceHeader.Get(UsageDataBilling."Document No.");
+
+        //[GIVEN] Create sales credit memo from sales invoice
+        CorrectPostedSalesInvoice.CreateCreditMemoCopyDocument(SalesInvoiceHeader, SalesCrMemoHeader);
+
+        //[GIVEN] Usage Data Billing for sales credit memo
+        UsageDataBilling.FilterOnDocumentTypeAndDocumentNo("Service Partner"::Customer, Enum::"Usage Based Billing Doc. Type"::"Credit Memo", SalesCrMemoHeader."No.");
+        UsageDataBilling.FindSet();
+
+        //[WHEN] Delete sales credit memo
+        SalesCrMemoHeader.Delete(true);
+
+        //[THEN] Usage Data Billing is deleted
+        asserterror UsageDataBilling.Get(UsageDataBilling."Entry No.");
+    end;
+
+
+    [Test]
+    [HandlerFunctions('ExchangeRateSelectionModalPageHandler,CreateCustomerBillingDocumentPageHandler,MessageHandler')]
+    procedure TestUpdateUsageBasedAfterDeleteSalesInvoice()
     begin
         Initialize();
         CreateUsageDataBilling("Usage Based Pricing"::"Fixed Quantity", LibraryRandom.RandDec(10, 2));
@@ -1609,7 +1678,7 @@ codeunit 148153 "Usage Based Billing Test"
             UBBTestLibrary.CreateSimpleUsageDataGenericImport(UsageDataGenericImport, UsageDataImport."Entry No.", ServiceObject."No.", Customer."No.", Item."Unit Cost",
              BillingPeriodStartDate, CalcDate('<CM>', BillingPeriodStartDate), SubscriptionStartDate, CalcDate('<CM>', SubscriptionStartDate), LibraryRandom.RandInt(10));
 
-            UsageDataGenericImport."Supp. Subscription ID" := SubscriptionID;
+            UsageDataGenericImport."Supp. Subscription ID" := CopyStr(SubscriptionID, 1, MaxStrLen(UsageDataGenericImport."Supp. Subscription ID"));
             UsageDataGenericImport.Modify();
             BillingPeriodStartDate := CalcDate('<1M>', BillingPeriodStartDate);
             SubscriptionStartDate := CalcDate('<1M>', SubscriptionStartDate);
@@ -2223,12 +2292,12 @@ codeunit 148153 "Usage Based Billing Test"
         Assert.AreEqual(ExpectedServiceObjectNo, UsageDataGenericImport."Subscription Header No.", 'Service Object No. is not set to expected value in Usage Data Generic Import.');
     end;
 
-    local procedure MockServiceCommitment(var ServiceCommitment: Record "Subscription Line"; BillingBasePeriod: DateFormula; BillingRhythm: DateFormula; Price: Decimal)
+    local procedure MockServiceCommitment(var ServiceCommitment2: Record "Subscription Line"; BillingBasePeriod: DateFormula; BillingRhythm: DateFormula; Price: Decimal)
     begin
-        ServiceCommitment.Init();
-        ServiceCommitment."Billing Base Period" := BillingBasePeriod;
-        ServiceCommitment."Billing Rhythm" := BillingRhythm;
-        ServiceCommitment.Price := Price;
+        ServiceCommitment2.Init();
+        ServiceCommitment2."Billing Base Period" := BillingBasePeriod;
+        ServiceCommitment2."Billing Rhythm" := BillingRhythm;
+        ServiceCommitment2.Price := Price;
     end;
     #endregion Procedures
 
@@ -2281,3 +2350,4 @@ codeunit 148153 "Usage Based Billing Test"
 
     #endregion Handlers
 }
+#pragma warning restore AA0210

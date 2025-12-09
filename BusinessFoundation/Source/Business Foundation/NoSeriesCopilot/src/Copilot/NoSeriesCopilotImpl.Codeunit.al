@@ -7,7 +7,6 @@ namespace Microsoft.Foundation.NoSeries;
 
 using System.Telemetry;
 using System.Azure.KeyVault;
-using System.Environment;
 using System.AI;
 using System.Text.Json;
 
@@ -173,15 +172,7 @@ codeunit 324 "No. Series Copilot Impl."
         if not AzureOpenAI.IsEnabled(Enum::"Copilot Capability"::"No. Series Copilot") then
             exit;
 
-#if not CLEAN27
-#pragma warning disable AS0105    
-#pragma warning disable AL0432
-        AzureOpenAI.SetAuthorization(Enum::"AOAI Model Type"::"Chat Completions", AOAIDeployments.GetGPT4oLatest());
-#pragma warning restore AL0432
-#pragma warning restore AS0105            
-#else
         AzureOpenAI.SetAuthorization(Enum::"AOAI Model Type"::"Chat Completions", AOAIDeployments.GetGPT41Latest());
-#endif    
         AzureOpenAI.SetCopilotCapability(Enum::"Copilot Capability"::"No. Series Copilot");
         AOAIChatCompletionParams.SetMaxTokens(MaxOutputTokens());
         AOAIChatCompletionParams.SetTemperature(0);
@@ -575,12 +566,9 @@ codeunit 324 "No. Series Copilot Impl."
 
     procedure IsCopilotVisible(): Boolean
     var
-        EnvironmentInformation: Codeunit "Environment Information";
+        CopilotCapability: Codeunit "Copilot Capability";
     begin
-        if not EnvironmentInformation.IsSaaSInfrastructure() then
-            exit(false);
-
-        exit(true);
+        exit(CopilotCapability.IsCapabilityRegistered(Enum::"Copilot Capability"::"No. Series Copilot"));
     end;
 
     procedure GetChatCompletionResponseErr(): Text

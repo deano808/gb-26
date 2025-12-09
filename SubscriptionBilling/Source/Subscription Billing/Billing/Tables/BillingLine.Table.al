@@ -88,6 +88,7 @@ table 8061 "Billing Line"
         field(39; "Service Object Quantity"; Decimal)
         {
             Caption = 'Quantity';
+            AutoFormatType = 0;
         }
         field(50; "Billing from"; Date)
         {
@@ -101,7 +102,8 @@ table 8061 "Billing Line"
         {
             Caption = 'Amount';
             BlankZero = true;
-            AutoFormatType = 2;
+            AutoFormatType = 1;
+            AutoFormatExpression = Rec."Currency Code";
         }
         field(53; "Billing Rhythm"; DateFormula)
         {
@@ -132,6 +134,7 @@ table 8061 "Billing Line"
         field(57; "Unit Price"; Decimal)
         {
             AutoFormatType = 2;
+            AutoFormatExpression = Rec."Currency Code";
             Caption = 'Price';
         }
         field(58; "Discount %"; Decimal)
@@ -141,6 +144,7 @@ table 8061 "Billing Line"
             MaxValue = 100;
             BlankZero = true;
             DecimalPlaces = 0 : 5;
+            AutoFormatType = 0;
         }
         field(60; "Correction Document Type"; Enum "Rec. Billing Document Type")
         {
@@ -167,6 +171,11 @@ table 8061 "Billing Line"
             else
             if (Partner = const(Vendor), "Document Type" = const("Credit Memo")) "Purchase Line"."Line No." where("Document Type" = const("Credit Memo"), "Document No." = field("Document No."));
         }
+        field(63; "Billing Reference Date Changed"; Boolean)
+        {
+            Caption = 'Billing Reference Date Changed';
+            ToolTip = 'Specifies whether the billing period has been adjusted manually. This is taken into account by the period calculation and may have an effect on the creation of future billing proposals.';
+        }
         field(100; "Billing Template Code"; Code[20])
         {
             Caption = 'Code';
@@ -187,6 +196,7 @@ table 8061 "Billing Line"
         field(103; "Unit Cost (LCY)"; Decimal)
         {
             AutoFormatType = 2;
+            AutoFormatExpression = '';
             Caption = 'Unit Cost (LCY)';
         }
         field(200; Indent; Integer)
@@ -218,6 +228,15 @@ table 8061 "Billing Line"
         key(SK3; "Subscription Contract No.", "Subscription Contract Line No.", "Billing from")
         {
         }
+        key(SK4; "Billing Template Code", "Subscription Contract No.")
+        {
+        }
+        key(SK5; "Document Type", "Document No.")
+        {
+        }
+        key(SK6; "Billing Template Code", Partner)
+        {
+        }
     }
 
     trigger OnDelete()
@@ -237,7 +256,7 @@ table 8061 "Billing Line"
     var
         PageManagement: Codeunit "Page Management";
         DocumentExistsErr: Label 'There is an unposted invoice or credit memo for the Subscription Line. Please delete this document before updating the data.';
-        OnlyLastServiceLineCanBeDeletedErr: Label 'Only last Billing Line for Subscription Line can be deleted or all Billing Lines. Please make your selection accordingly or use the "Clear Billing Proposal" action. (%1)';
+        OnlyLastServiceLineCanBeDeletedErr: Label 'Only last Billing Line for Subscription Line can be deleted or all Billing Lines. Please make your selection accordingly or use the "Clear Billing Proposal" action. (%1)', Comment = '%1=Subscription Header No.';
         CannotDeleteBillingLinesWithDocumentNoErr: Label 'Billing line connected with a sales/purchase document cannot be deleted.';
 
     internal procedure FindFirstBillingLineForServiceCommitment(var BillingLine2: Record "Billing Line")
@@ -322,17 +341,17 @@ table 8061 "Billing Line"
         exit(BillingLine.Amount);
     end;
 
-    local procedure GetSalesDocumentTypeForAmount(Amount: Decimal) SalesDocumentType: Enum "Sales Document Type"
+    local procedure GetSalesDocumentTypeForAmount(InputAmount: Decimal) SalesDocumentType: Enum "Sales Document Type"
     begin
-        if Amount >= 0 then
+        if InputAmount >= 0 then
             SalesDocumentType := SalesDocumentType::Invoice
         else
             SalesDocumentType := SalesDocumentType::"Credit Memo";
     end;
 
-    local procedure GetPurchaseDocumentTypeForAmount(Amount: Decimal) PurchaseDocumentType: Enum "Purchase Document Type"
+    local procedure GetPurchaseDocumentTypeForAmount(InputAmount: Decimal) PurchaseDocumentType: Enum "Purchase Document Type"
     begin
-        if Amount >= 0 then
+        if InputAmount >= 0 then
             PurchaseDocumentType := PurchaseDocumentType::Invoice
         else
             PurchaseDocumentType := PurchaseDocumentType::"Credit Memo";
@@ -358,7 +377,7 @@ table 8061 "Billing Line"
         end;
     end;
 
-    internal procedure GetBillingDocumentTypeFromSalesDocumentType(SalesDocumentType: Enum "Sales Document Type") RecurringBillingDocumentType: Enum "Rec. Billing Document Type"
+    procedure GetBillingDocumentTypeFromSalesDocumentType(SalesDocumentType: Enum "Sales Document Type") RecurringBillingDocumentType: Enum "Rec. Billing Document Type"
     begin
         case SalesDocumentType of
             SalesDocumentType::Invoice:
@@ -368,7 +387,7 @@ table 8061 "Billing Line"
         end;
     end;
 
-    internal procedure GetBillingDocumentTypeFromPurchaseDocumentType(PurchaseDocumentType: Enum "Purchase Document Type") RecurringBillingDocumentType: Enum "Rec. Billing Document Type"
+    procedure GetBillingDocumentTypeFromPurchaseDocumentType(PurchaseDocumentType: Enum "Purchase Document Type") RecurringBillingDocumentType: Enum "Rec. Billing Document Type"
     begin
         case PurchaseDocumentType of
             PurchaseDocumentType::Invoice:
@@ -463,7 +482,7 @@ table 8061 "Billing Line"
         exit('');
     end;
 
-    internal procedure FilterBillingLineOnDocumentLine(DocumentType: Enum "Rec. Billing Document Type"; DocumentNo: Code[20]; DocumentLineNo: Integer)
+    procedure FilterBillingLineOnDocumentLine(DocumentType: Enum "Rec. Billing Document Type"; DocumentNo: Code[20]; DocumentLineNo: Integer)
     begin
         Rec.SetRange("Document Type", DocumentType);
         Rec.SetRange("Document No.", DocumentNo);

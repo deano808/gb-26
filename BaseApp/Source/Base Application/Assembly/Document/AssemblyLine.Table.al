@@ -87,6 +87,7 @@ table 901 "Assembly Line"
             trigger OnValidate()
             begin
                 "Location Code" := '';
+                "Bin Code" := '';
                 TestField("Consumed Quantity", 0);
                 CalcFields("Reserved Quantity");
                 AssemblyWarehouseMgt.AssemblyLineVerifyChange(Rec, xRec);
@@ -573,6 +574,7 @@ table 901 "Assembly Line"
         field(65; "Unit Cost"; Decimal)
         {
             AutoFormatType = 2;
+            AutoFormatExpression = '';
             Caption = 'Unit Cost';
             MinValue = 0;
 
@@ -597,6 +599,7 @@ table 901 "Assembly Line"
         field(67; "Cost Amount"; Decimal)
         {
             AutoFormatType = 1;
+            AutoFormatExpression = '';
             Caption = 'Cost Amount';
             Editable = false;
         }
@@ -633,6 +636,7 @@ table 901 "Assembly Line"
             MinValue = 0;
             MaxValue = 1;
             Editable = false;
+            AutoFormatType = 0;
         }
         field(83; "Qty. Rounding Precision (Base)"; Decimal)
         {
@@ -642,6 +646,7 @@ table 901 "Assembly Line"
             MinValue = 0;
             MaxValue = 1;
             Editable = false;
+            AutoFormatType = 0;
         }
         field(480; "Dimension Set ID"; Integer)
         {
@@ -1373,6 +1378,7 @@ table 901 "Assembly Line"
 
     procedure CalcBOMQuantity(LineType: Enum "BOM Component Type"; QtyPer: Decimal; HeaderQty: Decimal; HeaderQtyPerUOM: Decimal; LineResourceUsageType: Option): Decimal
     var
+        UOMMgt: Codeunit "Unit of Measure Management";
         IsHandled: Boolean;
         ReturnBOMQuantity: Decimal;
     begin
@@ -1385,8 +1391,13 @@ table 901 "Assembly Line"
         if FixedUsage(LineType, LineResourceUsageType) then
             exit(QtyPer);
 
-        if "Qty. Rounding Precision" <> 0 then
-            exit(Round(QtyPer * HeaderQty * HeaderQtyPerUOM, "Qty. Rounding Precision"));
+        if QtyPer = 0 then
+            exit(0);
+
+        CheckingRoundingPrecision();
+
+        if ("Qty. Rounding Precision" <> 0) then
+            exit(UOMMgt.RoundToItemRndPrecision(QtyPer * HeaderQty * HeaderQtyPerUOM, "Qty. Rounding Precision"));
         exit(QtyPer * HeaderQty * HeaderQtyPerUOM);
     end;
 
@@ -1824,11 +1835,11 @@ table 901 "Assembly Line"
 
     procedure VerifyReservationDateConflict(NewAsmLine: Record "Assembly Line")
     var
-        ReservationCheckDateConfl: Codeunit "Reservation-Check Date Confl.";
+        AsmReservCheckDateConfl: Codeunit "Asm. ReservCheckDateConfl";
     begin
         if SkipVerificationsThatChangeDatabase then
             exit;
-        ReservationCheckDateConfl.AssemblyLineCheck(NewAsmLine, (CurrFieldNo <> 0) or TestReservationDateConflict);
+        AsmReservCheckDateConfl.AssemblyLineCheck(NewAsmLine, (CurrFieldNo <> 0) or TestReservationDateConflict);
     end;
 
     procedure SetSkipVerificationsThatChangeDatabase(State: Boolean)
@@ -2097,6 +2108,33 @@ table 901 "Assembly Line"
         exit(CalledFromHeader);
     end;
 
+    local procedure CheckingRoundingPrecision()
+    var
+        Item2: Record Item;
+        UOMMgt: Codeunit "Unit of Measure Management";
+        UOMQtyRoundPrecision: Decimal;
+    begin
+        if (Rec.Type <> Rec.Type::Item) or (Rec."No." = '') then
+            exit;
+
+        if not Item2.Get(Rec."No.") or (Rec."Unit of Measure Code" = '') then
+            exit;
+
+        UOMQtyRoundPrecision := UOMMgt.GetQtyRoundingPrecision(Item2, Rec."Unit of Measure Code");
+
+        if (Item2."Rounding Precision" = 0) or (UOMQtyRoundPrecision = 0) then
+            exit;
+
+        if Item2."Base Unit of Measure" <> Rec."Unit of Measure Code" then begin
+            Rec."Qty. Rounding Precision" := UOMQtyRoundPrecision;
+            Rec."Qty. Rounding Precision (Base)" := Item2."Rounding Precision";
+            exit;
+        end;
+
+        Rec."Qty. Rounding Precision" := Item2."Rounding Precision";
+        Rec."Qty. Rounding Precision (Base)" := Item2."Rounding Precision";
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnAfterInitDefaultDimensionSources(var AssemblyLine: Record "Assembly Line"; var DefaultDimSource: List of [Dictionary of [Integer, Code[20]]])
     begin
@@ -2322,4 +2360,3 @@ table 901 "Assembly Line"
     begin
     end;
 }
-

@@ -1,4 +1,3 @@
-#pragma warning disable AS0049, AS0009, AS0005, AS0125
 // ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
@@ -26,10 +25,8 @@ table 6101 "E-Document Purchase Line"
     Access = Internal;
     DataClassification = CustomerContent;
     ReplicateData = false;
-#pragma warning disable AS0034
     InherentEntitlements = RIMDX;
     InherentPermissions = RIMDX;
-#pragma warning restore AS0034
 
     fields
     {
@@ -69,6 +66,7 @@ table 6101 "E-Document Purchase Line"
             Caption = 'Quantity';
             ToolTip = 'Specifies the quantity.';
             Editable = false;
+            DecimalPlaces = 0 : 5;
         }
         field(7; "Unit of Measure"; Text[50])
         {
@@ -77,17 +75,25 @@ table 6101 "E-Document Purchase Line"
         }
         field(8; "Unit Price"; Decimal)
         {
+            AutoFormatExpression = Rec."Currency Code";
+            AutoFormatType = 2;
             Caption = 'Unit Price';
             ToolTip = 'Specifies the direct unit cost.';
             Editable = false;
         }
         field(9; "Sub Total"; Decimal)
         {
+            AutoFormatExpression = Rec."Currency Code";
+            AutoFormatType = 2;
             Caption = 'Sub Total';
+            ToolTip = 'Specifies the line subtotal.';
         }
         field(10; "Total Discount"; Decimal)
         {
             Caption = 'Total Discount';
+            ToolTip = 'Specifies the line discount.';
+            AutoFormatExpression = Rec."Currency Code";
+            AutoFormatType = 2;
         }
         field(11; "VAT Rate"; Decimal)
         {
@@ -124,6 +130,11 @@ table 6101 "E-Document Purchase Line"
             if ("[BC] Purchase Line Type" = const("Allocation Account")) "Allocation Account"
             else
             if ("[BC] Purchase Line Type" = const(Resource)) Resource;
+
+            trigger OnValidate()
+            begin
+                ValidateNoField();
+            end;
         }
         field(103; "[BC] Unit of Measure"; Code[20])
         {
@@ -155,7 +166,9 @@ table 6101 "E-Document Purchase Line"
             TableRelation = "Dimension Value".Code where("Global Dimension No." = const(2),
                                                           Blocked = const(false));
         }
-        field(107; "[BC] Item Reference No."; Code[20])
+#pragma warning disable AS0086
+        field(107; "[BC] Item Reference No."; Code[50])
+#pragma warning restore AS0086
         {
             Caption = 'Item Reference No.';
             ToolTip = 'Specifies the item reference number.';
@@ -209,6 +222,40 @@ table 6101 "E-Document Purchase Line"
     var
         DimMgt: Codeunit DimensionManagement;
 
+    local procedure ValidateNoField()
+    var
+        Item: Record Item;
+        GLAccount: Record "G/L Account";
+        AllocationAccount: Record "Allocation Account";
+        FixedAsset: Record "Fixed Asset";
+        Resource: Record Resource;
+        ItemCharge: Record "Item Charge";
+    begin
+        if Rec.Description <> '' then
+            exit;
+
+        case Rec."[BC] Purchase Line Type" of
+            "Purchase Line Type"::Item:
+                if Item.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := Item.Description;
+            "Purchase Line Type"::"G/L Account":
+                if GLAccount.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := GLAccount.Name;
+            "Purchase Line Type"::"Allocation Account":
+                if AllocationAccount.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := AllocationAccount.Name;
+            "Purchase Line Type"::"Fixed Asset":
+                if FixedAsset.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := FixedAsset.Description;
+            "Purchase Line Type"::Resource:
+                if Resource.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := Resource.Name;
+            "Purchase Line Type"::"Charge (Item)":
+                if ItemCharge.Get(Rec."[BC] Purchase Type No.") then
+                    Rec.Description := ItemCharge.Description;
+        end;
+    end;
+
     internal procedure GetNextLineNo(EDocumentEntryNo: Integer): Integer
     var
         EDocumentPurchaseLine: Record "E-Document Purchase Line";
@@ -259,4 +306,3 @@ table 6101 "E-Document Purchase Line"
     end;
 
 }
-#pragma warning restore AS0049, AS0009, AS0005, AS0125

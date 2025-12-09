@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Warehouse.Activity;
 
 using Microsoft.Warehouse.Activity.History;
@@ -11,6 +15,8 @@ page 9314 "Warehouse Movements"
     CardPageID = "Warehouse Movement";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Warehouse Movements';
+    AboutText = 'Register and manage warehouse movements by specifying source and destination details, quantities, and locations, ensuring accurate tracking and completion of inventory transfers within the warehouse.';
     SourceTable = "Warehouse Activity Header";
     SourceTableView = where(Type = const(Movement));
     UsageCategory = Lists;

@@ -80,11 +80,19 @@
 
     procedure CheckPreview(PaymentJournal: TestPage "Payment Journal"): Text
     var
+#if not CLEAN27
         CheckPreviewPage: TestPage "Check Preview GB";
+#else
+        CheckPreviewPage: TestPage "Check Preview";
+#endif
     begin
         CheckPreviewPage.Trap();
         PaymentJournal.PreviewCheck.Invoke();
+#if not CLEAN27
         exit(CheckPreviewPage.AmountInText.Value);
+#else
+        exit(CheckPreviewPage.AmountText.Value);
+#endif
     end;
 
     procedure ClearGenJournalLines(GenJournalBatch: Record "Gen. Journal Batch")
@@ -2770,6 +2778,7 @@
     procedure SetLCYCode(LCYCode: Code[10])
     begin
         GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."LCY Code" := '';        // to avoid error on updating LCY Code
         GeneralLedgerSetup.Validate("LCY Code", LCYCode);
         GeneralLedgerSetup.Modify(true);
     end;

@@ -1,3 +1,8 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 using Microsoft.Sales.Document;
@@ -26,6 +31,18 @@ pageextension 30112 "Shpfy Sales Invoice List" extends "Sales Invoice List"
                     VariantRec := Rec;
                     ShopifyOrderMgt.ShowShopifyOrder(VariantRec);
                 end;
+            }
+        }
+    }
+
+    views
+    {
+        addlast
+        {
+            view(FromShopify)
+            {
+                Caption = 'From Shopify';
+                Filters = where("Shpfy Order Id" = filter(<> 0));
             }
         }
     }

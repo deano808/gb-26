@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -206,24 +206,6 @@ page 949 "Time Sheet Lines"
     {
         area(Processing)
         {
-#if not CLEAN24
-            action(LoadMoreLines)
-            {
-                ApplicationArea = Jobs;
-                Caption = 'Load More Entries';
-                ToolTip = 'Use this action to get more time sheet lines.';
-                Image = WorkCenterLoad;
-                ObsoleteState = Pending;
-                ObsoleteReason = 'Removed as not needed.';
-                ObsoleteTag = '24.0';
-                Visible = false;
-
-                trigger OnAction()
-                begin
-                    Error('');
-                end;
-            }
-#endif
             action(ViewAll)
             {
                 ApplicationArea = Jobs;
@@ -300,15 +282,6 @@ page 949 "Time Sheet Lines"
             {
                 Caption = 'Process', Comment = 'Generated from the PromotedActionCategories property index 1.';
 
-#if not CLEAN24
-                actionref(LoadMoreLines_Promoted; LoadMoreLines)
-                {
-                    Visible = false;
-                    ObsoleteState = Pending;
-                    ObsoleteReason = 'Removed as not needed.';
-                    ObsoleteTag = '24.0';
-                }
-#endif
                 actionref(OpenTimeSheet_Promoted; OpenTimeSheet)
                 {
                 }
@@ -358,7 +331,6 @@ page 949 "Time Sheet Lines"
 
     var
         GlobalTimeSheetHeader: Record "Time Sheet Header";
-        TempTimeSheetLine: Record "Time Sheet Line" temporary;
         TimeSheetManagement: Codeunit "Time Sheet Management";
         CellData: array[32] of Decimal;
         LineTotal: Decimal;
@@ -480,6 +452,7 @@ page 949 "Time Sheet Lines"
     local procedure IsFirstDocLine(): Boolean
     var
         TimeSheetLine: Record "Time Sheet Line";
+        TempTimeSheetLine: Record "Time Sheet Line" temporary;
         TimeSheetLineArchive: Record "Time Sheet Line Archive";
     begin
         TempTimeSheetLine.Reset();

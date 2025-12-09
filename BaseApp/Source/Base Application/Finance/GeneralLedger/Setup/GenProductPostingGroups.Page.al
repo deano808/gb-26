@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.GeneralLedger.Setup;
 
 page 313 "Gen. Product Posting Groups"
@@ -5,6 +9,8 @@ page 313 "Gen. Product Posting Groups"
     ApplicationArea = Basic, Suite;
     Caption = 'General Product Posting Groups';
     PageType = List;
+    AboutTitle = 'About General Product Posting Groups';
+    AboutText = 'Categorize items and resources by product type for sales and purchasing transactions, enabling accurate posting and reporting based on general product posting groups and default VAT settings.';
     SourceTable = "Gen. Product Posting Group";
     UsageCategory = Administration;
 

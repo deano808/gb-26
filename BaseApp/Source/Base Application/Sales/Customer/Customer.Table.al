@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Customer;
 
 using Microsoft.Bank.BankAccount;
@@ -115,6 +119,7 @@ table 18 Customer
         field(3; "Search Name"; Code[100])
         {
             Caption = 'Search Name';
+            OptimizeForTextSearch = true;
             ToolTip = 'Specifies an alternate name that you can use to search for a customer.';
         }
         field(4; "Name 2"; Text[50])
@@ -342,6 +347,7 @@ table 18 Customer
         field(26; "Statistics Group"; Integer)
         {
             Caption = 'Statistics Group';
+            ToolTip = 'Specifies the statistics group.';
         }
         field(27; "Payment Terms Code"; Code[10])
         {
@@ -462,10 +468,20 @@ table 18 Customer
                         Error(CanNotChangeBlockedDueToPrivacyBlockedErr);
             end;
         }
+#if not CLEANSCHEMA30
         field(40; "Invoice Copies"; Integer)
         {
             Caption = 'Invoice Copies';
+            ObsoleteReason = 'This field is not used consequently and hence does not work as expected. It should be retired.';
+#if not CLEAN27
+            ObsoleteState = Pending;
+            ObsoleteTag = '27.0';
+#else
+            ObsoleteState = Removed;
+            ObsoleteTag = '30.0';
+#endif
         }
+#endif
         field(41; "Last Statement No."; Integer)
         {
             Caption = 'Last Statement No.';
@@ -481,6 +497,7 @@ table 18 Customer
             Caption = 'Bill-to Customer No.';
             TableRelation = Customer;
             ToolTip = 'Specifies a different customer who will be invoiced for products that you sell to the customer in the Name field on the customer card.';
+            OptimizeForTextSearch = true;
         }
         field(46; Priority; Integer)
         {
@@ -510,6 +527,15 @@ table 18 Customer
             TableRelation = "Language Selection"."Language Tag";
             ToolTip = 'Specifies the Format Region to be used on printouts for this customer.';
         }
+#pragma warning disable AA0232
+        field(52; "First Transaction Date"; Date)
+        {
+            Caption = 'Customer Since';
+            ToolTip = 'Specifies the date of the first transaction with the customer.';
+            FieldClass = FlowField;
+            CalcFormula = min("Cust. Ledger Entry"."Posting Date" where("Customer No." = field("No.")));
+        }
+#pragma warning restore AA0232
         field(53; "Last Modified Date Time"; DateTime)
         {
             Caption = 'Last Modified Date Time';
@@ -562,7 +588,7 @@ table 18 Customer
             Caption = 'Balance (LCY)';
             Editable = false;
             FieldClass = FlowField;
-            ToolTip = 'Specifies the payment amount that the customer owes for completed sales. This value is also known as the customer''s balance.';
+            ToolTip = 'Specifies the total amount the customer owes you, or you owe them, based on all sales and credits for the customer. A positive amount means they owe you, and a negative amount means you owe them. The amount isn''t necessarily due today though. The customer''s payment terms determine due dates. Select the amount to explore the ledger entries behind it.';
         }
         field(60; "Net Change"; Decimal)
         {
@@ -660,10 +686,10 @@ table 18 Customer
                                                                                  "Initial Entry Global Dim. 1" = field("Global Dimension 1 Filter"),
                                                                                  "Initial Entry Global Dim. 2" = field("Global Dimension 2 Filter"),
                                                                                  "Currency Code" = field("Currency Filter")));
-            Caption = 'Balance Due (LCY)';
+            Caption = 'Overdue Balance (LCY)';
             Editable = false;
             FieldClass = FlowField;
-            ToolTip = 'Specifies payments from the customer that are overdue per today''s date.';
+            ToolTip = 'Specifies the total amount that''s due from the customer as of today. Consider using reminders to minimize late payments and optimize cashflow.';
         }
         field(69; Payments; Decimal)
         {
@@ -1010,28 +1036,19 @@ table 18 Customer
                 ValidateEmail();
             end;
         }
-#if not CLEAN24
-        field(103; "Home Page"; Text[80])
-        {
-            Caption = 'Home Page';
-            OptimizeForTextSearch = true;
-            ExtendedDatatype = URL;
-            ObsoleteReason = 'Field length will be increased to 255.';
-            ObsoleteState = Pending;
-            ObsoleteTag = '24.0';
-            ToolTip = 'Specifies the customer''s home page address.';
-        }
-#else
+#if not CLEAN27
 #pragma warning disable AS0086
+#endif
         field(103; "Home Page"; Text[255])
-        {
-            Caption = 'Home Page';
-            OptimizeForTextSearch = true;
-            ExtendedDatatype = URL;
-            ToolTip = 'Specifies the customer''s home page address.';
-        }
+#if not CLEAN27
 #pragma warning restore AS0086
 #endif
+        {
+            Caption = 'Home Page';
+            OptimizeForTextSearch = true;
+            ExtendedDatatype = URL;
+            ToolTip = 'Specifies the customer''s home page address.';
+        }
         field(104; "Reminder Terms Code"; Code[10])
         {
             Caption = 'Reminder Terms Code';
@@ -1042,7 +1059,7 @@ table 18 Customer
             trigger OnLookup()
             var
                 ReminderTermsRecord: Record "Reminder Terms";
-                ReminderTerms: Page "Reminder Terms";
+                ReminderTerms: Page "Reminder Terms List";
             begin
                 ReminderTerms.LookupMode(true);
                 if ReminderTerms.RunModal() <> ACTION::LookupOK then
@@ -1264,6 +1281,7 @@ table 18 Customer
             Caption = 'Refunds (LCY)';
             FieldClass = FlowField;
             ToolTip = 'Specifies the sum of refunds received from the customer.';
+            AutoFormatType = 1;
         }
         field(122; "Other Amounts"; Decimal)
         {
@@ -1288,6 +1306,7 @@ table 18 Customer
                                                                                  "Currency Code" = field("Currency Filter")));
             Caption = 'Other Amounts (LCY)';
             FieldClass = FlowField;
+            AutoFormatType = 1;
         }
         field(124; "Prepayment %"; Decimal)
         {
@@ -1434,7 +1453,8 @@ table 18 Customer
                 if "Primary Contact No." <> '' then begin
                     Cont.Get("Primary Contact No.");
 
-                    CheckCustomerContactRelation(Cont);
+                    if Rec."Contact Type" = Rec."Contact Type"::Company then
+                        CheckCustomerContactRelation(Cont);
 
                     if Cont.Type = Cont.Type::Person then begin
                         Contact := Cont.Name;
@@ -1839,7 +1859,7 @@ table 18 Customer
 
     fieldgroups
     {
-        fieldgroup(DropDown; "No.", Name, City, "Post Code", "Phone No.", Contact)
+        fieldgroup(DropDown; "No.", Name, Address, City, "Post Code", "Phone No.", Contact, "E-Mail", "Bill-to Customer No.", "Registration Number")
         {
         }
         fieldgroup(Brick; "No.", Name, "Balance (LCY)", Contact, "Balance Due (LCY)", Image)
@@ -1880,9 +1900,6 @@ table 18 Customer
     trigger OnInsert()
     var
         Customer: Record Customer;
-#if not CLEAN24
-        NoSeriesMgt: Codeunit NoSeriesManagement;
-#endif
         IsHandled: Boolean;
     begin
         IsHandled := false;
@@ -1893,22 +1910,14 @@ table 18 Customer
         if "No." = '' then begin
             SalesSetup.Get();
             SalesSetup.TestField("Customer Nos.");
-#if not CLEAN24
-            NoSeriesMgt.RaiseObsoleteOnBeforeInitSeries(SalesSetup."Customer Nos.", xRec."No. Series", 0D, "No.", "No. Series", IsHandled);
-            if not IsHandled then begin
-#endif
-                "No. Series" := SalesSetup."Customer Nos.";
-                if NoSeries.AreRelated("No. Series", xRec."No. Series") then
-                    "No. Series" := xRec."No. Series";
+            "No. Series" := SalesSetup."Customer Nos.";
+            if NoSeries.AreRelated("No. Series", xRec."No. Series") then
+                "No. Series" := xRec."No. Series";
+            "No." := NoSeries.GetNextNo("No. Series");
+            Customer.ReadIsolation(IsolationLevel::ReadUncommitted);
+            Customer.SetLoadFields("No.");
+            while Customer.Get("No.") do
                 "No." := NoSeries.GetNextNo("No. Series");
-                Customer.ReadIsolation(IsolationLevel::ReadUncommitted);
-                Customer.SetLoadFields("No.");
-                while Customer.Get("No.") do
-                    "No." := NoSeries.GetNextNo("No. Series");
-#if not CLEAN24
-                NoSeriesMgt.RaiseObsoleteOnAfterInitSeries("No. Series", SalesSetup."Customer Nos.", 0D, "No.");
-            end;
-#endif
         end;
 
         if "Invoice Disc. Code" = '' then
@@ -2303,7 +2312,22 @@ table 18 Customer
     begin
         Clear(PrimaryContact);
         if Customer.Get(CustomerNo) then
-            if PrimaryContact.Get(Customer."Primary Contact No.") then;
+            if not PrimaryContact.Get(Customer."Primary Contact No.") then
+                GetContact(CustomerNo, PrimaryContact);
+    end;
+
+    local procedure GetContact(CustomerNo: Code[20]; var PrimaryContact: Record Contact)
+    var
+        ContactBusinessRelation: Record "Contact Business Relation";
+    begin
+        ContactBusinessRelation.SetCurrentKey("Link to Table", "No.");
+        ContactBusinessRelation.SetRange("Link to Table", ContactBusinessRelation."Link to Table"::Customer);
+        ContactBusinessRelation.SetRange("No.", CustomerNo);
+        if ContactBusinessRelation.FindSet() then
+            repeat
+                if PrimaryContact.Get(ContactBusinessRelation."Contact No.") then
+                    exit;
+            until ContactBusinessRelation.Next() = 0;
     end;
 
     local procedure GetCustomerPriceGroupPriceCalcMethod(): Enum "Price Calculation Method";
@@ -2349,30 +2373,32 @@ table 18 Customer
     var
         [SecurityFiltering(SecurityFilter::Filtered)]
         SalesLine: Record "Sales Line";
-        SalesOutstandingAmountFromShipment: Decimal;
+        SalesInvoiceOutstandingAmountLCYForInvoicingShippedOrders: Decimal;
         InvoicedPrepmtAmountLCY: Decimal;
         RetRcdNotInvAmountLCY: Decimal;
         AdditionalAmountLCY: Decimal;
         IsHandled: Boolean;
         TotalAmountLCY: Decimal;
-        ShippedFromOrderLCY: Decimal;
-        ShippedOutstandingInvoicesLCY: Decimal;
     begin
         IsHandled := false;
         OnBeforeGetTotalAmountLCYCommon(Rec, AdditionalAmountLCY, IsHandled);
         if IsHandled then
             exit(AdditionalAmountLCY);
 
-        SalesOutstandingAmountFromShipment := SalesLine.OutstandingInvoiceAmountFromShipment("No.");
+        // Sum up "Outstanding Amount (LCY)" of sales invoices for invoicing shipped orders. This amount is already included in "Shipped Not Invoiced (LCY)", and should be subtracted from outstanding invoices.
+        SalesInvoiceOutstandingAmountLCYForInvoicingShippedOrders := SalesLine.OutstandingInvoiceAmountFromShipment("No.");
+
         InvoicedPrepmtAmountLCY := GetInvoicedPrepmtAmountLCY();
         RetRcdNotInvAmountLCY := GetReturnRcdNotInvAmountLCY();
-        ShippedFromOrderLCY := GetShippedFromOrderLCYAmountLCY();
-        ShippedOutstandingInvoicesLCY := GetShippedOutstandingInvoicesAmountLCY();
 
         TotalAmountLCY :=
-            "Balance (LCY)" + "Outstanding Orders (LCY)" + ("Shipped Not Invoiced (LCY)" - ShippedFromOrderLCY) +
-            ("Outstanding Invoices (LCY)" - ShippedOutstandingInvoicesLCY) + SalesOutstandingAmountFromShipment -
-            InvoicedPrepmtAmountLCY - RetRcdNotInvAmountLCY + AdditionalAmountLCY;
+            "Balance (LCY)"
+            + "Outstanding Orders (LCY)"
+            + "Shipped Not Invoiced (LCY)"
+            + "Outstanding Invoices (LCY)" - SalesInvoiceOutstandingAmountLCYForInvoicingShippedOrders
+            - InvoicedPrepmtAmountLCY
+            - RetRcdNotInvAmountLCY
+            + AdditionalAmountLCY;
 
         OnAfterGetTotalAmountLCYCommon(Rec, TotalAmountLCY);
         exit(TotalAmountLCY);
@@ -2849,14 +2875,6 @@ table 18 Customer
         exit(Result);
     end;
 
-#if not CLEAN24
-    [Scope('OnPrem')]
-    [Obsolete('Use SelectCustomer(var Customer: Record Customer): Boolean instead.', '24.0')]
-    procedure LookupCustomer(var Customer: Record Customer): Boolean
-    begin
-        exit(SelectCustomer(Customer));
-    end;
-#endif
 
     local procedure MarkCustomersByFilters(var Customer: Record Customer)
     begin
@@ -3483,15 +3501,37 @@ table 18 Customer
     var
         SalesShippedNotInvoicedLCY: Query "Sales Shipped Not Invoiced LCY";
         ShippedFromOrderLCY: Decimal;
+        SalesOrderNo: Code[20];
     begin
+        SalesOrderNo := '';
         ShippedFromOrderLCY := 0;
         SalesShippedNotInvoicedLCY.SetRange(BillToCustomerNo, "No.");
         SalesShippedNotInvoicedLCY.SetFilter(OrderNo, '<>%1', '');
         SalesShippedNotInvoicedLCY.SetFilter(OrderLineNo, '<>%1', 0);
         if SalesShippedNotInvoicedLCY.Open() then
-            while SalesShippedNotInvoicedLCY.Read() do
-                ShippedFromOrderLCY += SalesShippedNotInvoicedLCY.ShippedNotInvoicedLCY;
+            while SalesShippedNotInvoicedLCY.Read() do begin
+                if SalesShippedNotInvoicedLCY.OrderNo <> SalesOrderNo then
+                    ShippedFromOrderLCY += SalesShippedNotInvoicedLCY.ShippedNotInvoicedLCY;
+
+                SalesOrderNo := SalesShippedNotInvoicedLCY.OrderNo;
+            end;
         exit(ShippedFromOrderLCY);
+    end;
+
+    procedure GetDefaultLocation() ReturnLocationCode: Code[10]
+    var
+        ShipToAddress: Record "Ship-to Address";
+        UserSetupMgt: Codeunit "User Setup Management";
+        LocationCode: Code[10];
+    begin
+        LocationCode := Rec."Location Code";
+        if Rec."Ship-to Code" <> '' then begin
+            ShipToAddress.SetLoadFields("Location Code");
+            if ShipToAddress.Get(Rec."No.", Rec."Ship-to Code") then
+                if ShipToAddress."Location Code" <> '' then
+                    LocationCode := ShipToAddress."Location Code";
+        end;
+        ReturnLocationCode := UserSetupMgt.GetLocation(0, LocationCode, Rec."Responsibility Center");
     end;
 
     [InherentPermissions(PermissionObjectType::TableData, Database::"My Customer", 'rm')]

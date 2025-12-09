@@ -1,4 +1,4 @@
-﻿namespace System.Security.Authentication;
+namespace System.Security.Authentication;
 
 using Microsoft.Foundation.Enums;
 using Microsoft.Utilities;
@@ -33,6 +33,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
         ConnectionErr: Label 'Connection to the remote service ''%1'' could not be established.', Comment = '%1 - url, e.g. https://microsoft.com';
         BaseAuthorizationUrlTxt: Label '%1%2?response_type=%3&client_id=%4&scope=%5&redirect_uri=%6', Locked = true;
         AuthCodeUrlTxt: Label 'grant_type=authorization_code&client_secret=%1&client_id=%2&redirect_uri=%3&code=%4', Locked = true;
+        PlaceholderTok: Label 'Placeholder', Locked = true;
 
     [EventSubscriber(ObjectType::Page, Page::"OAuth 2.0 Setup", 'OnAfterGetCurrRecordEvent', '', false, false)]
     local procedure OnAfterGetCurrRecordPageEvent(var Rec: Record "OAuth 2.0 Setup")
@@ -71,21 +72,10 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit('7CC74E1E-641D-4FCC-A074-1F64CEE53AEA');
     end;
 
-#if not CLEAN24
-    [NonDebuggable]
-    [Obsolete('Use procedure GetAuthorizationURLAsSecretText instead.', '24.0')]
-    procedure GetAuthorizationURL(OAuth20Setup: Record "OAuth 2.0 Setup"; ClientID: Text): Text
-    var
-        AuthorizationURLSecretText: SecretText;
-    begin
-        AuthorizationURLSecretText := GetAuthorizationURLAsSecretText(OAuth20Setup, ClientID);
-        exit(AuthorizationURLSecretText.Unwrap());
-    end;
-#endif
-
     procedure GetAuthorizationURLAsSecretText(OAuth20Setup: Record "OAuth 2.0 Setup"; ClientID: Text) AuthorizationUrl: SecretText
     var
         ServiceUrl: Text;
+        RequestJson: Text;
     begin
         OAuth20Setup.TestField("Service URL");
         OAuth20Setup.TestField("Authorization URL Path");
@@ -95,7 +85,8 @@ codeunit 1140 "OAuth 2.0 Mgt."
         OAuth20Setup.TestField(Scope);
         OAuth20Setup.TestField("Redirect URL");
 
-        LogActivity(OAuth20Setup, true, RequestAuthCodeTxt, '', '', '', true);
+        RequestJson := '';
+        LogActivity(OAuth20Setup, true, RequestAuthCodeTxt, '', RequestJson, '', true);
         ServiceUrl := OAuth20Setup."Service URL";
         OnBeforeGetServiceUrlForAuthorizationURL(ServiceUrl, OAuth20Setup);
         AuthorizationUrl :=
@@ -107,28 +98,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit(AuthorizationUrl);
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Request access token using application/json ContentType.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use RequestAccessToken procedure with parameters declared as SecretText instead.', '24.0')]
-    procedure RequestAccessToken(var OAuth20Setup: Record "OAuth 2.0 Setup"; var MessageText: Text; AuthorizationCode: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text): Boolean
-    var
-        AuthorizationCodeSecretText: SecretText;
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        AuthorizationCodeSecretText := AuthorizationCode;
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-        exit(
-            RequestAccessTokenWithGivenRequestJson(
-                OAuth20Setup, '', MessageText, AuthorizationCodeSecretText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText));
-    end;
-#endif
 
     /// <summary>
     /// Request access token using application/json ContentType.
@@ -140,26 +109,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
                 OAuth20Setup, '', MessageText, AuthorizationCode, ClientID, ClientSecret, AccessToken, RefreshToken));
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Request access token using given request json and application/json ContentType.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use RequestAccessTokenWithGivenRequestJson with paramaters declared as SecretText instead.', '24.0')]
-    procedure RequestAccessTokenWithGivenRequestJson(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; AuthorizationCode: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text) Result: Boolean
-    var
-        AuthorizationCodeSecretText: SecretText;
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        AuthorizationCodeSecretText := AuthorizationCode;
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-        exit(RequestAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, AuthorizationCodeSecretText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText, false));
-    end;
-#endif
 
     /// <summary>
     /// Request access token using given request json and application/json ContentType.
@@ -169,26 +118,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit(RequestAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, AuthorizationCode, ClientID, ClientSecret, AccessToken, RefreshToken, false));
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Request access token using application/x-www-form-urlencoded ContentType if UseUrlEncodedContentType is set to true or application/json ContentType otherwise.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use "RequestAccessTokenWithContentType with paramaters declared as SecretText instead.', '24.0')]
-    procedure RequestAccessTokenWithContentType(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; AuthorizationCode: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text; UseUrlEncodedContentType: Boolean) Result: Boolean
-    var
-        AuthorizationCodeSecretText: SecretText;
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        AuthorizationCodeSecretText := AuthorizationCode;
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-        exit(RequestAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, AuthorizationCodeSecretText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText, UseUrlEncodedContentType));
-    end;
-#endif
 
     /// <summary>
     /// Request access token using application/x-www-form-urlencoded ContentType if UseUrlEncodedContentType is set to true or application/json ContentType otherwise.
@@ -198,11 +127,10 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit(RequestAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, AuthorizationCode, ClientID, ClientSecret, AccessToken, RefreshToken, UseUrlEncodedContentType));
     end;
 
-    [NonDebuggable]
     local procedure RequestAccessTokenWithGivenRequestJsonAndContentType(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; AuthorizationCode: SecretText; ClientID: Text; ClientSecret: SecretText; var AccessToken: SecretText; var RefreshToken: SecretText; UseUrlEncodedContentType: Boolean) Result: Boolean
     var
-        RequestJsonContent: JsonObject;
-        RequestUrlContent: Text;
+        RequestJsonContent: SecretText;
+        ContentJson: SecretText;
         ResponseJson: Text;
         HttpError: Text;
         ExpireInSec: BigInteger;
@@ -215,40 +143,19 @@ codeunit 1140 "OAuth 2.0 Mgt."
         OAuth20Setup.TestField("Redirect URL");
 
         if UseUrlEncodedContentType then begin
-            CreateContentRequestForAccessToken(RequestUrlContent, ClientSecret, ClientID, OAuth20Setup."Redirect URL", AuthorizationCode, OAuth20Setup.GetTokenAsSecretText(OAuth20Setup."Code Verifier"));
-            CreateRequestJSONForAccessRefreshTokenURLEncoded(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Access Token URL Path", RequestUrlContent);
+            CreateContentRequestForAccessToken(ContentJson, ClientSecret, ClientID, OAuth20Setup."Redirect URL", AuthorizationCode, OAuth20Setup.GetTokenAsSecretText(OAuth20Setup."Code Verifier"));
+            CreateRequestJSONForAccessRefreshTokenURLEncoded(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Access Token URL Path", ContentJson, RequestJsonContent);
         end else begin
-            CreateContentRequestJSONForAccessToken(RequestJsonContent, ClientSecret, ClientID, OAuth20Setup."Redirect URL", AuthorizationCode, OAuth20Setup.GetTokenAsSecretText(OAuth20Setup."Code Verifier"));
-            CreateRequestJSONForAccessRefreshToken(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Access Token URL Path", RequestJsonContent);
+            CreateContentRequestJSONForAccessToken(ContentJson, ClientSecret, ClientID, OAuth20Setup."Redirect URL", AuthorizationCode, OAuth20Setup.GetTokenAsSecretText(OAuth20Setup."Code Verifier"));
+            CreateRequestJSONForAccessRefreshToken(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Access Token URL Path", ContentJson, RequestJsonContent);
         end;
 
-        Result := RequestAccessAndRefreshTokens(RequestJson, ResponseJson, AccessToken, RefreshToken, ExpireInSec, HttpError);
+        Result := RequestAccessAndRefreshTokens(RequestJsonContent, ResponseJson, AccessToken, RefreshToken, ExpireInSec, HttpError);
         SaveResultForRequestAccessAndRefreshTokens(
           OAuth20Setup, MessageText, Result, RequestAccessTokenTxt, AuthorizationSuccessfulTxt,
-          AuthorizationFailedTxt, HttpError, RequestJson, ResponseJson, ExpireInSec);
+          AuthorizationFailedTxt, HttpError, RequestJsonContent, ResponseJson, ExpireInSec);
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Refreshes access token using application/json ContentType.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use RefreshAccessToken with paramaters declared as SecretText instead.', '24.0')]
-    procedure RefreshAccessToken(var OAuth20Setup: Record "OAuth 2.0 Setup"; var MessageText: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text): Boolean
-    var
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-
-        exit(
-            RefreshAccessTokenWithGivenRequestJson(
-                OAuth20Setup, '', MessageText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText));
-    end;
-#endif
 
     /// <summary>
     /// Refreshes access token using application/json ContentType.
@@ -261,24 +168,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
                 OAuth20Setup, '', MessageText, ClientID, ClientSecret, AccessToken, RefreshToken));
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Refreshes access token with given request json using application/json ContentType.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use RefreshAccessTokenWithGivenRequestJson with paramaters declared as SecretText instead.', '24.0')]
-    procedure RefreshAccessTokenWithGivenRequestJson(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text) Result: Boolean
-    var
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-        exit(RefreshAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText, false));
-    end;
-#endif
 
     /// <summary>
     /// Refreshes access token with given request json using application/json ContentType.
@@ -288,24 +177,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit(RefreshAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, ClientID, ClientSecret, AccessToken, RefreshToken, false));
     end;
 
-#if not CLEAN24
-    /// <summary>
-    /// Refreshes access token using application/x-www-form-urlencoded ContentType if UseUrlEncodedContentType is set to true or application/json ContentType otherwise.
-    /// </summary>
-    [NonDebuggable]
-    [Obsolete('Use RefreshAccessTokenWithContentType with paramaters declared as SecretText instead.', '24.0')]
-    procedure RefreshAccessTokenWithContentType(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; ClientID: Text; ClientSecret: Text; var AccessToken: Text; var RefreshToken: Text; UseUrlEncodedContentType: Boolean): Boolean
-    var
-        ClientSecretText: SecretText;
-        AccessTokenSecretText: SecretText;
-        RefreshTokenSecretText: SecretText;
-    begin
-        ClientSecretText := ClientSecret;
-        AccessTokenSecretText := AccessToken;
-        RefreshTokenSecretText := RefreshToken;
-        exit(RefreshAccessTokenWithGivenRequestJsonAndContentType(OAuth20Setup, RequestJson, MessageText, ClientID, ClientSecretText, AccessTokenSecretText, RefreshTokenSecretText, UseUrlEncodedContentType));
-    end;
-#endif
 
     /// <summary>
     /// Refreshes access token using application/x-www-form-urlencoded ContentType if UseUrlEncodedContentType is set to true or application/json ContentType otherwise.
@@ -317,8 +188,8 @@ codeunit 1140 "OAuth 2.0 Mgt."
 
     local procedure RefreshAccessTokenWithGivenRequestJsonAndContentType(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var MessageText: Text; ClientID: Text; ClientSecret: SecretText; var AccessToken: SecretText; var RefreshToken: SecretText; UseUrlEncodedContentType: Boolean) Result: Boolean
     var
-        RequestJsonContent: JsonObject;
-        RequestUrlContent: Text;
+        RequestJsonContent: SecretText;
+        ContentJson: SecretText;
         ResponseJson: Text;
         HttpError: Text;
         ExpireInSec: BigInteger;
@@ -331,21 +202,20 @@ codeunit 1140 "OAuth 2.0 Mgt."
         OAuth20Setup.TestField("Refresh Token");
 
         if UseUrlEncodedContentType then begin
-            CreateContentRequestForRefreshAccessToken(RequestUrlContent, ClientSecret, ClientID, RefreshToken);
-            CreateRequestJSONForAccessRefreshTokenURLEncoded(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Refresh Token URL Path", RequestUrlContent);
+            CreateContentRequestForRefreshAccessToken(ContentJson, ClientSecret, ClientID, RefreshToken);
+            CreateRequestJSONForAccessRefreshTokenURLEncoded(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Refresh Token URL Path", ContentJson, RequestJsonContent);
         end else begin
-            CreateContentRequestJSONForRefreshAccessToken(RequestJsonContent, ClientSecret, ClientID, RefreshToken);
-            CreateRequestJSONForAccessRefreshToken(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Refresh Token URL Path", RequestJsonContent);
+            CreateContentRequestJSONForRefreshAccessToken(ContentJson, ClientSecret, ClientID, RefreshToken);
+            CreateRequestJSONForAccessRefreshToken(RequestJson, OAuth20Setup."Service URL", OAuth20Setup."Refresh Token URL Path", ContentJson, RequestJsonContent);
         end;
 
-        Result := RequestAccessAndRefreshTokens(RequestJson, ResponseJson, AccessToken, RefreshToken, ExpireInSec, HttpError);
+        Result := RequestAccessAndRefreshTokens(RequestJsonContent, ResponseJson, AccessToken, RefreshToken, ExpireInSec, HttpError);
         SaveResultForRequestAccessAndRefreshTokens(
           OAuth20Setup, MessageText, Result, RefreshAccessTokenTxt, RefreshSuccessfulTxt,
-          RefreshFailedTxt, HttpError, RequestJson, ResponseJson, ExpireInSec);
+          RefreshFailedTxt, HttpError, RequestJsonContent, ResponseJson, ExpireInSec);
     end;
 
-    [NonDebuggable]
-    local procedure SaveResultForRequestAccessAndRefreshTokens(var OAuth20Setup: Record "OAuth 2.0 Setup"; var MessageText: Text; Result: Boolean; Context: Text; SuccessMsg: Text; ErrorMsg: Text; HttpError: Text; RequestJson: Text; ResponseJson: Text; ExpireInSec: BigInteger)
+    local procedure SaveResultForRequestAccessAndRefreshTokens(var OAuth20Setup: Record "OAuth 2.0 Setup"; var MessageText: Text; Result: Boolean; Context: Text; SuccessMsg: Text; ErrorMsg: Text; HttpError: Text; RequestJson: SecretText; ResponseJson: Text; ExpireInSec: BigInteger)
     begin
         if Result then begin
             MessageText := SuccessMsg;
@@ -360,21 +230,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
         end;
         LogActivity(OAuth20Setup, Result, Context, MessageText, RequestJson, ResponseJson, true);
     end;
-
-#if not CLEAN24
-    [NonDebuggable]
-    [Obsolete('Use InvokeRequest with paramaters declared as SecretText instead.', '24.0')]
-    procedure InvokeRequest(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var ResponseJson: Text; var HttpError: Text; AccessToken: Text; RetryOnCredentialsFailure: Boolean) Result: Boolean
-    var
-        StatusCode: Integer;
-        StatusReason: Text;
-        StatusDetails: Text;
-        AccessTokenSecureText: SecretText;
-    begin
-        AccessTokenSecureText := AccessToken;
-        exit(InvokeRequest(OAuth20Setup, RequestJson, ResponseJson, HttpError, AccessTokenSecureText, RetryOnCredentialsFailure));
-    end;
-#endif
 
     procedure InvokeRequest(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var ResponseJson: Text; var HttpError: Text; AccessToken: SecretText; RetryOnCredentialsFailure: Boolean) Result: Boolean
     var
@@ -404,20 +259,6 @@ codeunit 1140 "OAuth 2.0 Mgt."
         HyperLink(GetAuthorizationURLAsSecretText(OAuth20Setup, OAuth20Setup.GetTokenAsSecretText(OAuth20Setup."Client ID").Unwrap()).Unwrap());
     end;
 
-#if not CLEAN24
-    [NonDebuggable]
-    [Obsolete('Use RequestAndSaveAccessToken with paramaters declared as SecretText instead.', '24.0')]
-    [Scope('OnPrem')]
-    procedure RequestAndSaveAccessToken(var OAuth20Setup: Record "OAuth 2.0 Setup"; var MessageText: Text; AuthorizationCode: Text) Result: Boolean
-    var
-        AccessToken: Text;
-        RefreshToken: Text;
-        AuthorizationCodeSecretText: SecretText;
-    begin
-        AuthorizationCodeSecretText := AuthorizationCode;
-        exit(RequestAndSaveAccessToken(OAuth20Setup, MessageText, AuthorizationCodeSecretText));
-    end;
-#endif
 
     [NonDebuggable]
     [Scope('OnPrem')]
@@ -478,24 +319,25 @@ codeunit 1140 "OAuth 2.0 Mgt."
                 Page.RunModal(Page::"Data Encryption Management");
     end;
 
-    [NonDebuggable]
     local procedure InvokeSingleRequest(var OAuth20Setup: Record "OAuth 2.0 Setup"; RequestJson: Text; var ResponseJson: Text; var HttpError: Text; AccessToken: SecretText) Result: Boolean
     var
         RequestJObject: JsonObject;
         HeaderJObject: JsonObject;
         JToken: JsonToken;
+        RequestJsonSecret: SecretText;
     begin
         OAuth20Setup.TestField("Service URL");
         OAuth20Setup.TestField("Access Token");
 
         if RequestJObject.ReadFrom(RequestJson) then;
         RequestJObject.Add('ServiceURL', OAuth20Setup."Service URL");
-        HeaderJObject.Add('Authorization', StrSubstNo('Bearer %1', AccessToken.Unwrap()));
+        HeaderJObject.Add('Authorization', PlaceholderTok);
         if RequestJObject.SelectToken('Header', JToken) then
-            JToken.AsObject().Add('Authorization', StrSubstNo('Bearer %1', AccessToken.Unwrap()))
+            JToken.AsObject().Add('Authorization', PlaceholderTok)
         else
             RequestJObject.Add('Header', HeaderJObject);
-        RequestJObject.WriteTo(RequestJson);
+
+        RequestJObject.WriteWithSecretsTo('$.Header.Authorization', SecretStrSubstNo('Bearer %1', AccessToken), RequestJsonSecret);
 
         if OAuth20Setup."Latest Datetime" = 0DT then
             OAuth20Setup."Daily Count" := 0
@@ -503,7 +345,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
             if OAuth20Setup."Latest Datetime" < CreateDateTime(Today(), 0T) then
                 OAuth20Setup."Daily Count" := 0;
         if (OAuth20Setup."Daily Limit" <= 0) or (OAuth20Setup."Daily Count" < OAuth20Setup."Daily Limit") or (OAuth20Setup."Latest Datetime" = 0DT) then begin
-            Result := InvokeHttpJSONRequest(RequestJson, ResponseJson, HttpError);
+            Result := InvokeHttpJSONRequest(RequestJsonSecret, ResponseJson, HttpError);
             OAuth20Setup."Latest Datetime" := CurrentDateTime();
             OAuth20Setup."Daily Count" += 1;
         end else begin
@@ -514,7 +356,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
         RequestJObject.Get('Method', JToken);
         LogActivity(
             OAuth20Setup, Result, StrSubstNo(InvokeRequestTxt, JToken.AsValue().AsText()),
-            HttpError, RequestJson, ResponseJson, false);
+            HttpError, RequestJsonSecret, ResponseJson, false);
     end;
 
     [NonDebuggable]
@@ -526,7 +368,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
         Commit(); // need to prevent rollback to save new keys
     end;
 
-    local procedure RequestAccessAndRefreshTokens(RequestJson: Text; var ResponseJson: Text; var AccessToken: SecretText; var RefreshToken: SecretText; var ExpireInSec: BigInteger; var HttpError: Text): Boolean
+    local procedure RequestAccessAndRefreshTokens(RequestJson: SecretText; var ResponseJson: Text; var AccessToken: SecretText; var RefreshToken: SecretText; var ExpireInSec: BigInteger; var HttpError: Text): Boolean
     var
         AccessTokenText: Text;
         RefreshTokenText: Text;
@@ -577,8 +419,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
         exit(true);
     end;
 
-    [NonDebuggable]
-    local procedure CreateRequestJSONForAccessRefreshTokenUrlEncoded(var JsonString: Text; ServiceURL: Text; URLRequestPath: Text; Content: Text)
+    local procedure CreateRequestJSONForAccessRefreshTokenUrlEncoded(JsonString: Text; ServiceURL: Text; URLRequestPath: Text; ContentJson: SecretText; var RequestJsonContent: SecretText)
     var
         JObject: JsonObject;
     begin
@@ -587,12 +428,12 @@ codeunit 1140 "OAuth 2.0 Mgt."
         JObject.Add('Method', 'POST');
         JObject.Add('URLRequestPath', URLRequestPath);
         JObject.Add('Content-Type', 'application/x-www-form-urlencoded');
-        JObject.Add('Content', Content);
-        JObject.WriteTo(JsonString);
+        JObject.Add('Content', PlaceholderTok);
+
+        JObject.WriteWithSecretsTo('$.Content', ContentJson, RequestJsonContent);
     end;
 
-    [NonDebuggable]
-    local procedure CreateRequestJSONForAccessRefreshToken(var JsonString: Text; ServiceURL: Text; URLRequestPath: Text; var ContentJson: JsonObject)
+    local procedure CreateRequestJSONForAccessRefreshToken(JsonString: Text; ServiceURL: Text; URLRequestPath: Text; ContentJson: SecretText; var RequestJsonContent: SecretText)
     var
         JObject: JsonObject;
     begin
@@ -601,53 +442,79 @@ codeunit 1140 "OAuth 2.0 Mgt."
         JObject.Add('Method', 'POST');
         JObject.Add('URLRequestPath', URLRequestPath);
         JObject.Add('Content-Type', 'application/json');
-        JObject.Add('Content', ContentJson);
-        JObject.WriteTo(JsonString);
+        JObject.Add('Content', PlaceholderTok);
+
+        JObject.WriteWithSecretsTo('$.Content', ContentJson, RequestJsonContent);
     end;
 
     [NonDebuggable]
-    local procedure CreateContentRequestForAccessToken(var UrlString: Text; ClientSecret: SecretText; ClientID: SecretText; RedirectURI: Text; AuthorizationCode: SecretText; CodeVerifier: SecretText)
+    local procedure CreateContentRequestForAccessToken(var UrlStringSecret: SecretText; ClientSecret: SecretText; ClientID: SecretText; RedirectURI: Text; AuthorizationCode: SecretText; CodeVerifier: SecretText)
     var
         HttpUtility: DotNet HttpUtility;
+        UrlString: Text;
     begin
         UrlString := StrSubstNo(AuthCodeUrlTxt,
              HttpUtility.UrlEncode(ClientSecret.Unwrap()), HttpUtility.UrlEncode(ClientID.Unwrap()), HttpUtility.UrlEncode(RedirectURI), HttpUtility.UrlEncode(AuthorizationCode.Unwrap()));
         if CodeVerifier.Unwrap() <> '' then
             UrlString += StrSubstNo('&code_verifier=%1', CodeVerifier.Unwrap());
+
+        UrlStringSecret := UrlString;
     end;
 
-    [NonDebuggable]
-    local procedure CreateContentRequestJSONForAccessToken(var JObject: JsonObject; ClientSecret: SecretText; ClientID: SecretText; RedirectURI: Text; AuthorizationCode: SecretText; CodeVerifier: SecretText)
+    local procedure CreateContentRequestJSONForAccessToken(var RequestJsonContent: SecretText; ClientSecret: SecretText; ClientID: SecretText; RedirectURI: Text; AuthorizationCode: SecretText; CodeVerifier: SecretText)
+    var
+        Secrets: Dictionary of [Text, SecretText];
+        JObject: JsonObject;
     begin
         JObject.Add('grant_type', 'authorization_code');
-        JObject.Add('client_secret', ClientSecret.Unwrap());
-        JObject.Add('client_id', ClientID.Unwrap());
+        JObject.Add('client_secret', PlaceholderTok);
+        JObject.Add('client_id', PlaceholderTok);
         JObject.Add('redirect_uri', RedirectURI);
-        JObject.Add('code', AuthorizationCode.Unwrap());
-        if CodeVerifier.Unwrap() <> '' then
-            JObject.Add('code_verifier', CodeVerifier.Unwrap());
+        JObject.Add('code', PlaceholderTok);
+
+        Secrets.Add('$.client_secret', ClientSecret);
+        Secrets.Add('$.client_id', ClientID);
+        Secrets.Add('$.code', AuthorizationCode);
+
+        if not CodeVerifier.IsEmpty() then begin
+            JObject.Add('code_verifier', PlaceholderTok);
+            Secrets.Add('$.code_verifier', CodeVerifier);
+        end;
+
+        JObject.WriteWithSecretsTo(Secrets, RequestJsonContent);
     end;
 
     [NonDebuggable]
-    local procedure CreateContentRequestForRefreshAccessToken(var UrlString: Text; ClientSecret: SecretText; ClientID: SecretText; RefreshToken: SecretText)
+    local procedure CreateContentRequestForRefreshAccessToken(var UrlStringSecret: SecretText; ClientSecret: SecretText; ClientID: SecretText; RefreshToken: SecretText)
     var
         HttpUtility: DotNet HttpUtility;
+        UrlString: Text;
     begin
         UrlString := StrSubstNo('grant_type=refresh_token&client_secret=%1&client_id=%2&refresh_token=%3',
             HttpUtility.UrlEncode(ClientSecret.Unwrap()), HttpUtility.UrlEncode(ClientID.Unwrap()), HttpUtility.UrlEncode(RefreshToken.Unwrap()));
+
+        UrlStringSecret := UrlString;
     end;
 
-    [NonDebuggable]
-    local procedure CreateContentRequestJSONForRefreshAccessToken(var JObject: JsonObject; ClientSecret: SecretText; ClientID: SecretText; RefreshToken: SecretText)
+    local procedure CreateContentRequestJSONForRefreshAccessToken(var RequestJsonContent: SecretText; ClientSecret: SecretText; ClientID: SecretText; RefreshToken: SecretText)
+    var
+        JObject: JsonObject;
+        Secrets: Dictionary of [Text, SecretText];
     begin
         JObject.Add('grant_type', 'refresh_token');
-        JObject.Add('client_secret', ClientSecret.Unwrap());
-        JObject.Add('client_id', ClientID.Unwrap());
-        JObject.Add('refresh_token', RefreshToken.Unwrap());
+        JObject.Add('client_secret', PlaceholderTok);
+        JObject.Add('client_id', PlaceholderTok);
+        JObject.Add('refresh_token', PlaceholderTok);
+
+        Secrets.Add('$.client_secret', ClientSecret);
+        Secrets.Add('$.client_id', ClientID);
+        Secrets.Add('$.refresh_token', RefreshToken);
+
+        JObject.WriteWithSecretsTo(Secrets, RequestJsonContent);
     end;
 
     [NonDebuggable]
-    local procedure LogActivity(var OAuth20Setup: Record "OAuth 2.0 Setup"; Result: Boolean; ActivityDescription: Text; ActivityMessage: Text; RequestJson: Text; ResponseJson: Text; MaskContent: Boolean)
+    local procedure LogActivity(var OAuth20Setup: Record "OAuth 2.0 Setup"; Result: Boolean; ActivityDescription: Text; ActivityMessage: Text; RequestJson: SecretText; ResponseJson: Text; MaskContent: Boolean)
     var
         ActivityLog: Record "Activity Log";
         JObject: JsonObject;
@@ -657,8 +524,10 @@ codeunit 1140 "OAuth 2.0 Mgt."
         Context: Text[30];
         Status: Option;
         JsonString: Text;
+        Body: Text;
         DetailedInfoExists: Boolean;
     begin
+        Body := RequestJson.Unwrap();
         Context := CopyStr(StrSubstNo('%1 %2', ActivityLogContextTxt, OAuth20Setup.Code), 1, MaxStrLen(Context));
         if Result then
             Status := ActivityLog.Status::Success
@@ -666,7 +535,7 @@ codeunit 1140 "OAuth 2.0 Mgt."
             Status := ActivityLog.Status::Failed;
 
         ActivityLog.LogActivity(OAuth20Setup.RecordId(), Status, Context, ActivityDescription, ActivityMessage);
-        if RequestJObject.ReadFrom(MaskHeaders(RequestJson)) then begin
+        if RequestJObject.ReadFrom(MaskHeaders(Body)) then begin
             if MaskContent then
                 if RequestJObject.SelectToken('Content', JToken) then
                     RequestJObject.Replace('Content', '***');
@@ -740,13 +609,15 @@ codeunit 1140 "OAuth 2.0 Mgt."
     end;
 
     [NonDebuggable]
-    local procedure InvokeHttpJSONRequest(RequestJson: Text; var ResponseJson: Text; var HttpError: Text): Boolean
+    local procedure InvokeHttpJSONRequest(RequestJsonSecret: SecretText; var ResponseJson: Text; var HttpError: Text): Boolean
     var
         Client: HttpClient;
         RequestMessage: HttpRequestMessage;
         ResponseMessage: HttpResponseMessage;
         ErrorMessage: Text;
+        RequestJson: Text;
     begin
+        RequestJson := RequestJsonSecret.Unwrap();
         ResponseJson := '';
         HttpError := '';
 

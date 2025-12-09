@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Projects.Project.Ledger;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Projects.Project.Ledger;
 
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Navigate;
@@ -15,6 +19,8 @@ page 92 "Job Ledger Entries"
     DataCaptionFields = "Job No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Project Ledger Entries';
+    AboutText = 'Review all financial and usage entries posted to projects, including details on costs, prices, quantities, and dimensions, to track project progress and analyze performance. View links to project planning lines and monitor adjustments for accurate project accounting.';
     SourceTable = "Job Ledger Entry";
     SourceTableView = sorting("Job No.", "Posting Date")
                       order(descending);

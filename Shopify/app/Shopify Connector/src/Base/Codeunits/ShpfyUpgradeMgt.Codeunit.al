@@ -1,3 +1,8 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 using System.IO;
@@ -31,10 +36,11 @@ codeunit 30106 "Shpfy Upgrade Mgt."
         LocationUpgrade();
         SyncPricesWithProductsUpgrade();
         SendShippingConfirmationUpgrade();
-#if CLEAN24
         OrderAttributeValueUpgrade();
-#endif
         CreditMemoCanBeCreatedUpgrade();
+        ArchiveProcessedOrdersUpgrade();
+        SetShopifyCatalogsType();
+        CreateInvoicesFromOrdersUpgrade();
     end;
 
     internal procedure UpgradeTemplatesData()
@@ -328,7 +334,6 @@ codeunit 30106 "Shpfy Upgrade Mgt."
         UpgradeTag.SetUpgradeTag(GetSendShippingConfirmationUpgradeTag());
     end;
 
-#if CLEAN24
     local procedure OrderAttributeValueUpgrade()
     var
         OrderAttribute: Record "Shpfy Order Attribute";
@@ -347,7 +352,6 @@ codeunit 30106 "Shpfy Upgrade Mgt."
 
         UpgradeTag.SetUpgradeTag(GetOrderAttributeValueUpgradeTag());
     end;
-#endif
 
     local procedure CreditMemoCanBeCreatedUpgrade()
     var
@@ -430,6 +434,48 @@ codeunit 30106 "Shpfy Upgrade Mgt."
         WebhookSubscription.Delete();
     end;
 
+    local procedure ArchiveProcessedOrdersUpgrade()
+    var
+        Shop: Record "Shpfy Shop";
+        UpgradeTag: Codeunit "Upgrade Tag";
+    begin
+        if UpgradeTag.HasUpgradeTag(GetArchiveProcessedOrdersUpgradeTag()) then
+            exit;
+
+        if not Shop.IsEmpty() then
+            Shop.ModifyAll("Archive Processed Orders", true);
+
+        UpgradeTag.SetUpgradeTag(GetArchiveProcessedOrdersUpgradeTag());
+    end;
+
+    local procedure SetShopifyCatalogsType()
+    var
+        Catalog: Record "Shpfy Catalog";
+        UpgradeTag: Codeunit "Upgrade Tag";
+    begin
+        if UpgradeTag.HasUpgradeTag(GetShopifyCatalogsTypeUpgradeTag()) then
+            exit;
+
+        Catalog.SetRange("Catalog Type", Catalog."Catalog Type"::" ");
+        Catalog.ModifyAll("Catalog Type", Catalog."Catalog Type"::"Company", false);
+
+        UpgradeTag.SetUpgradeTag(GetShopifyCatalogsTypeUpgradeTag());
+    end;
+
+    local procedure CreateInvoicesFromOrdersUpgrade()
+    var
+        Shop: Record "Shpfy Shop";
+        UpgradeTag: Codeunit "Upgrade Tag";
+    begin
+        if UpgradeTag.HasUpgradeTag(GetCreateInvoicesFromOrdersUpgradeTag()) then
+            exit;
+
+        if not Shop.IsEmpty() then
+            Shop.ModifyAll("Create Invoices From Orders", true);
+
+        UpgradeTag.SetUpgradeTag(GetCreateInvoicesFromOrdersUpgradeTag());
+    end;
+
     internal procedure GetAllowOutgoingRequestseUpgradeTag(): Code[250]
     begin
         exit('MS-445989-AllowOutgoingRequestseUpgradeTag-20220816');
@@ -470,12 +516,10 @@ codeunit 30106 "Shpfy Upgrade Mgt."
         exit('MS-495193-SendShippingConfirmationUpgradeTag-20231221');
     end;
 
-#if CLEAN24
     local procedure GetOrderAttributeValueUpgradeTag(): Code[250]
     begin
         exit('MS-497909-OrderAttributeValueUpgradeTag-20240125');
     end;
-#endif
 
     local procedure GetCreditMemoCanBeCreatedUpgradeTag(): Code[250]
     begin
@@ -485,6 +529,21 @@ codeunit 30106 "Shpfy Upgrade Mgt."
     local procedure GetWebhookSubscriptionUpgradeTag(): Code[250]
     begin
         exit('MS-574620-WebHookSubscriptionUpgradeTag-20250419');
+    end;
+
+    local procedure GetArchiveProcessedOrdersUpgradeTag(): Code[250]
+    begin
+        exit('MS-593841-ArchiveProcessedOrdersUpgradeTag-20250731');
+    end;
+
+    local procedure GetShopifyCatalogsTypeUpgradeTag(): Code[250]
+    begin
+        exit('MS-581129-ShopifyCatalogsTypeUpgradeTag-20250807');
+    end;
+
+    local procedure GetCreateInvoicesFromOrdersUpgradeTag(): Code[250]
+    begin
+        exit('MS-604148-CreateInvoicesFromOrdersUpgradeTag-20250922');
     end;
 
     local procedure GetDateBeforeFeature(): DateTime
@@ -502,5 +561,8 @@ codeunit 30106 "Shpfy Upgrade Mgt."
         PerCompanyUpgradeTags.Add(GetLoggingModeUpgradeTag());
         PerCompanyUpgradeTags.Add(GetLocationUpgradeTag());
         PerCompanyUpgradeTags.Add(GetSyncPricesWithProductsUpgradeTag());
+        PerCompanyUpgradeTags.Add(GetArchiveProcessedOrdersUpgradeTag());
+        PerCompanyUpgradeTags.Add(GetShopifyCatalogsTypeUpgradeTag());
+        PerCompanyUpgradeTags.Add(GetCreateInvoicesFromOrdersUpgradeTag());
     end;
 }

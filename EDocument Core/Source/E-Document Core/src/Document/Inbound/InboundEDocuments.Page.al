@@ -1,4 +1,3 @@
-#pragma warning disable AS0031, AS0032
 // ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
@@ -8,9 +7,7 @@ namespace Microsoft.eServices.EDocument;
 using Microsoft.Foundation.Attachment;
 using Microsoft.eServices.EDocument.Processing.Import;
 
-#pragma warning disable AS0050
 page 6105 "Inbound E-Documents"
-#pragma warning restore AS0050
 {
     ApplicationArea = Basic, Suite;
     SourceTable = "E-Document";
@@ -148,7 +145,7 @@ page 6105 "Inbound E-Documents"
                 AllowedFileExtensions = '.xml';
                 AllowMultipleFiles = true;
                 Image = XMLFile;
-                Visible = false;
+                Visible = true;
 
                 trigger OnAction(Files: List of [FileUpload])
                 begin
@@ -220,7 +217,8 @@ page 6105 "Inbound E-Documents"
                     EDocImport: Codeunit "E-Doc. Import";
                     ImportEDocumentProcess: Codeunit "Import E-Document Process";
                 begin
-                    EDocImportParameters."Step to Run" := "Import E-Document Steps"::"Prepare Draft";
+                    EDocImportParameters := Rec.GetEDocumentService().GetDefaultImportParameters();
+                    EDocImportParameters."Desired E-Document Status" := EDocImportParameters."Desired E-Document Status"::"Draft Ready";
                     EDocImport.ProcessIncomingEDocument(Rec, EDocImportParameters);
                     if ImportEDocumentProcess.IsEDocumentInStateGE(Rec, Enum::"Import E-Doc. Proc. Status"::"Ready for draft") then
                         EDocumentHelper.OpenDraftPage(Rec)
@@ -497,4 +495,3 @@ page 6105 "Inbound E-Documents"
         HasPdf: Boolean;
         EmailVisibilityFlag: Boolean;
 }
-#pragma warning restore AS0031, AS0032

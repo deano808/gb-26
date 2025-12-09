@@ -258,13 +258,17 @@ codeunit 5812 "Calculate Standard Cost"
             until TempItem.Next() = 0;
     end;
 
+#if not CLEAN27
+    [Obsolete('procedure that was implemented to throw the error has now been identified as unnecessary', '27.0')]
     procedure CalcItemForNonInventoryValue(var Item: Record Item)
     begin
     end;
 
+    [Obsolete('procedure that was implemented to throw the error has now been identified as unnecessary', '27.0')]
     procedure CalcSKUForNonInventoryValue(var SKU: Record "Stockkeeping Unit")
     begin
     end;
+#endif
 
     procedure CalcItemSKU(ItemNo: Code[20]; LocationCode: Code[20]; VariantCode: Code[20])
     var
@@ -588,7 +592,7 @@ codeunit 5812 "Calculate Standard Cost"
             if Item."Lot Size" <> 0 then
                 LotSize := Item."Lot Size";
             MfgItemQtyBase := MfgCostCalcMgt.CalcQtyAdjdForBOMScrap(LotSize, Item."Scrap %");
-            OnCalcMfgItemOnBeforeCalcRtngCost(Item, Level, LotSize, MfgItemQtyBase);
+            OnCalcMfgItemOnBeforeCalcRtngCost(Item, Level, LotSize, MfgItemQtyBase, SLCap);
             CalcRtngCost(Item."Routing No.", MfgItemQtyBase, SLCap, SLSub, SLCapOvhd, Item);
             CalcProdBOMCost(
               Item, Item."Production BOM No.", Item."Routing No.",
@@ -1050,7 +1054,7 @@ codeunit 5812 "Calculate Standard Cost"
                         StdCostWksh."New Standard Cost", StdCostWksh."New Overhead Rate", StdCostWksh."New Indirect Cost %");
                 end;
 
-            OnGetWorkCenterOnBeforeAssignWorkCenterToTemp(WorkCenter, TempItem);
+            OnGetWorkCenterOnBeforeAssignWorkCenterToTemp(WorkCenter, TempItem, StdCostWkshName);
             TempWorkCenter := WorkCenter;
             TempWorkCenter.Insert();
         end;
@@ -1362,9 +1366,19 @@ codeunit 5812 "Calculate Standard Cost"
     begin
     end;
 
+    internal procedure RunOnBeforeCalcItems(var Item: Record Item)
+    begin
+        OnBeforeCalcItems(Item);
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCalcItems(var Item: Record Item)
     begin
+    end;
+
+    internal procedure RunOnBeforeCalcItem(var Item: Record Item; UseAssemblyList: Boolean; var IsHandled: Boolean)
+    begin
+        OnBeforeCalcItem(Item, UseAssemblyList, IsHandled);
     end;
 
     [IntegrationEvent(false, false)]
@@ -1382,9 +1396,19 @@ codeunit 5812 "Calculate Standard Cost"
     begin
     end;
 
+    internal procedure RunOnCalcAssemblyItemOnAfterInitItemCost(var Item: Record Item)
+    begin
+        OnCalcAssemblyItemOnAfterInitItemCost(Item);
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnCalcAssemblyItemOnAfterInitItemCost(var Item: Record Item)
     begin
+    end;
+
+    internal procedure RunOnCalcAssemblyItemOnAfterCalcItemRolledupCost(var Item: Record Item)
+    begin
+        OnCalcAssemblyItemOnAfterCalcItemRolledupCost(Item);
     end;
 
     [IntegrationEvent(false, false)]
@@ -1402,9 +1426,19 @@ codeunit 5812 "Calculate Standard Cost"
     begin
     end;
 
+    internal procedure RunOnCalcAssemblyItemOnAfterCalcSingleLevelCost(var Item: Record Item)
+    begin
+        OnCalcAssemblyItemOnAfterCalcSingleLevelCost(Item);
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnCalcAssemblyItemOnAfterCalcSingleLevelCost(var Item: Record Item)
     begin
+    end;
+
+    internal procedure RunOnCalcAssemblyItemOnAfterCalcItemCost(var Item: Record Item; CompItem: Record Item; BOMComponent: Record "BOM Component"; ComponentQuantity: Decimal)
+    begin
+        OnCalcAssemblyItemOnAfterCalcItemCost(Item, CompItem, BOMComponent, ComponentQuantity);
     end;
 
     [IntegrationEvent(false, false)]
@@ -1423,7 +1457,7 @@ codeunit 5812 "Calculate Standard Cost"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnCalcMfgItemOnBeforeCalcRtngCost(var Item: Record Item; Level: Integer; var LotSize: Decimal; var MfgItemQtyBase: Decimal)
+    local procedure OnCalcMfgItemOnBeforeCalcRtngCost(var Item: Record Item; Level: Integer; var LotSize: Decimal; var MfgItemQtyBase: Decimal; var SLCap: Decimal)
     begin
     end;
 
@@ -1458,8 +1492,13 @@ codeunit 5812 "Calculate Standard Cost"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnGetWorkCenterOnBeforeAssignWorkCenterToTemp(var WorkCenter: Record "Work Center"; var TempItem: Record Item temporary)
+    local procedure OnGetWorkCenterOnBeforeAssignWorkCenterToTemp(var WorkCenter: Record "Work Center"; var TempItem: Record Item temporary; StdCostWkshName: Text[50])
     begin
+    end;
+
+    internal procedure RunOnAfterGetItem(var Item: Record Item; StdCostWkshName: Text[50]; IsInBuffer: Boolean)
+    begin
+        OnAfterGetItem(Item, StdCostWkshName, IsInBuffer);
     end;
 
     [IntegrationEvent(false, false)]
@@ -1477,9 +1516,19 @@ codeunit 5812 "Calculate Standard Cost"
     begin
     end;
 
+    internal procedure RunOnBeforeDoCalcAssemblyItemPrice(var Item: Record Item; Level: Integer; MaxLevel: Integer; CalcMultiLevel: Boolean; var IsHandled: Boolean)
+    begin
+        OnBeforeDoCalcAssemblyItemPrice(Item, Level, MaxLevel, CalcMultiLevel, IsHandled);
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnBeforeDoCalcAssemblyItemPrice(var Item: Record Item; Level: Integer; MaxLevel: Integer; CalcMultiLevel: Boolean; var IsHandled: Boolean)
     begin
+    end;
+
+    internal procedure RunOnDoCalcAssemblyItemPriceOnAfterSetBOMCompFilters(var Item: Record Item; var BOMComponent: Record "BOM Component")
+    begin
+        OnDoCalcAssemblyItemPriceOnAfterSetBOMCompFilters(Item, BOMComponent);
     end;
 
     [IntegrationEvent(false, false)]
@@ -1507,7 +1556,7 @@ codeunit 5812 "Calculate Standard Cost"
     begin
     end;
 
-    [EventSubscriber(ObjectType::Table, Database::"Standard Cost Worksheet", 'OnAfterValidateEvent', 'No.', true, true)]
+    [EventSubscriber(ObjectType::Table, Database::"Standard Cost Worksheet", 'OnAfterValidateEvent', 'No.', false, false)]
     local procedure OnValidateNoByType(var Rec: Record "Standard Cost Worksheet")
     var
         MachineCenter: Record "Machine Center";

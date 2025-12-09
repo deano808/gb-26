@@ -44,10 +44,24 @@ codeunit 3110 "PDF Document"
     /// <param name="ImageStream">Stream of the image file.</param>
     /// <param name="ImageFormat">Image format to convert the PDF to.</param>
     /// <param name="PageNumber">Page number to convert.</param>
+    /// <returns>Whether or not the conversion was successful.</returns>
+    procedure ConvertPdfToImage(var ImageStream: InStream; ImageFormat: Enum "Image Format"; PageNumber: Integer): Boolean
+    begin
+        exit(PDFDocumentImpl.ConvertToImage(ImageStream, ImageFormat, PageNumber));
+    end;
+#if not CLEAN27
+    /// <summary>
+    /// This procedure is used to convert a PDF file to an image.
+    /// </summary>
+    /// <param name="ImageStream">Stream of the image file.</param>
+    /// <param name="ImageFormat">Image format to convert the PDF to.</param>
+    /// <param name="PageNumber">Page number to convert.</param>
+    [Obsolete('Use the ConvertPdfToImage procedure instead.', '27.2')]
     procedure ConvertToImage(var ImageStream: InStream; ImageFormat: Enum "Image Format"; PageNumber: Integer)
     begin
         PDFDocumentImpl.ConvertToImage(ImageStream, ImageFormat, PageNumber);
     end;
+#endif
 
     /// <summary>
     /// This procedure is used to get the invoice attachment stream from a PDF file.
@@ -135,10 +149,24 @@ codeunit 3110 "PDF Document"
     /// <param name="FileName">The file name of the attachment as it should appear in the PDF.</param>
     /// <param name="Description">A textual description of the attachment.</param>
     /// <param name="PrimaryDocument">Indicates whether this attachment is the primary document.</param>
-
     procedure AddAttachment(AttachmentName: Text; PDFAttachmentDataType: Enum "PDF Attach. Data Relationship"; MimeType: Text; FileName: Text; Description: Text; PrimaryDocument: Boolean)
     begin
         PDFDocumentImpl.AddAttachment(AttachmentName, PDFAttachmentDataType, MimeType, FileName, Description, PrimaryDocument);
+    end;
+
+    /// <summary>
+    /// Configure the attachment lists. An empty name will reset the list.
+    /// This procedure adds a new attachment to the PDF document with the specified metadata and relationship type.
+    /// </summary>
+    /// <param name="AttachmentName">Attachment name. If empty, the list will be reset.</param>
+    /// <param name="PDFAttachmentDataType">Defines the relationship of the attachment to the PDF (e.g. supplementary, source, data, alternative).</param>
+    /// <param name="MimeType">MIME type of the attachment (e.g., application/pdf, image/png).</param>
+    /// <param name="FileInStream">The stream with content to attach in the PDF.</param>
+    /// <param name="Description">A textual description of the attachment.</param>
+    /// <param name="PrimaryDocument">Indicates whether this attachment is the primary document.</param>
+    procedure AddAttachment(AttachmentName: Text; PDFAttachmentDataType: Enum "PDF Attach. Data Relationship"; MimeType: Text; FileInStream: InStream; Description: Text; PrimaryDocument: Boolean)
+    begin
+        PDFDocumentImpl.AddAttachment(AttachmentName, PDFAttachmentDataType, MimeType, FileInStream, Description, PrimaryDocument);
     end;
 
     /// <summary>

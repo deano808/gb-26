@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Document;
 
 using Microsoft.Finance.Currency;
@@ -45,6 +49,8 @@ page 160 "Sales Statistics"
 
                     trigger OnValidate()
                     begin
+                        if Rec."Document Type" in [Rec."Document Type"::Order, Rec."Document Type"::Invoice] then
+                            Rec.TestStatusOpen();
                         UpdateInvDiscAmount();
                     end;
                 }
@@ -485,12 +491,12 @@ page 160 "Sales Statistics"
         Clear(TotalSalesLineLCY);
         Clear(SalesPost);
 
-        SalesPost.GetSalesLines(Rec, TempSalesLine, 0);
+        SalesPost.GetSalesLines(Rec, TempSalesLine, 0, true, true);
         OnCalculateTotalsOnAfterGetSalesLines(Rec, TempSalesLine);
         Clear(SalesPost);
         SalesPost.SumSalesLinesTemp(
           Rec, TempSalesLine, 0, TotalSalesLine, TotalSalesLineLCY,
-          VATAmount, VATAmountText, ProfitLCY, ProfitPct, TotalAdjCostLCY);
+          VATAmount, VATAmountText, ProfitLCY, ProfitPct, TotalAdjCostLCY, true, true);
 
         AdjProfitLCY := TotalSalesLineLCY.Amount - TotalAdjCostLCY;
         if TotalSalesLineLCY.Amount <> 0 then

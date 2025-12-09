@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Sales.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Sales.Document;
 
 using Microsoft.Foundation.UOM;
 using Microsoft.Inventory.Item;
@@ -477,6 +481,9 @@ codeunit 99000832 "Sales Line-Reserve"
     begin
         if not SalesLine.ReservEntryExist() then
             exit(true);
+
+        if GuiAllowed then
+            Commit();
 
         ReservationManagement.SetReservSource(SalesLine);
         if ReservationManagement.DeleteItemTrackingConfirm() then
@@ -1297,6 +1304,9 @@ codeunit 99000832 "Sales Line-Reserve"
         if (NewSalesLine.Type <> NewSalesLine.Type::Item) or (NewSalesLine.Quantity = 0) or (NewSalesLine.Reserve <> NewSalesLine.Reserve::Always) then
             exit(false);
 
+        if ShipmentExists(NewSalesLine) then
+            exit(false);
+
         Item.SetLoadFields("Costing Method");
         Item.Get(NewSalesLine."No.");
 
@@ -1304,6 +1314,15 @@ codeunit 99000832 "Sales Line-Reserve"
             exit(false);
 
         exit(NewSalesLine.Quantity < OldSalesLine.Quantity);
+    end;
+
+    local procedure ShipmentExists(SalesLine: Record "Sales Line"): Boolean
+    var
+        SalesShipmentLine: Record "Sales Shipment Line";
+    begin
+        SalesShipmentLine.SetRange("Document No.", SalesLine."Shipment No.");
+        SalesShipmentLine.SetRange("Line No.", SalesLine."Shipment Line No.");
+        exit(not SalesShipmentLine.IsEmpty());
     end;
 
     [IntegrationEvent(false, false)]
@@ -1513,16 +1532,19 @@ codeunit 99000832 "Sales Line-Reserve"
         end;
     end;
 
+#if not CLEAN27
+    [Obsolete('This event is never raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnSetSourceForReservationOnBeforeUpdateReservation(var ReservEntry: Record "Reservation Entry"; SalesLine: Record "Sales Line")
     begin
     end;
 
+    [Obsolete('This event is never raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnAfterSetSourceForReservation(var CalcReservEntry: Record "Reservation Entry"; SalesLine: Record "Sales Line")
     begin
     end;
-
+#endif
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Reservation Management", 'OnAutoReserveOnBeforeStopReservation', '', false, false)]
     local procedure OnAutoReserveOnBeforeStopReservation(var CalcReservEntry: Record "Reservation Entry"; var StopReservation: Boolean; SourceRecRef: RecordRef);
     var
@@ -1757,4 +1779,3 @@ codeunit 99000832 "Sales Line-Reserve"
         end;
     end;
 }
-

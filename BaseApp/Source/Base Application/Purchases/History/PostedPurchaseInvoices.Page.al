@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.History;
 
 using Microsoft.CRM.Outlook;
@@ -16,6 +20,8 @@ page 146 "Posted Purchase Invoices"
     CardPageID = "Posted Purchase Invoice";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Purchase Invoices';
+    AboutText = 'Review, track, and manage all posted purchase invoices, including viewing invoice details, payment status, related ledger entries, and performing corrections or cancellations before vendor payment. Print, send, or reverse invoices as needed to ensure accurate processing and compliance.';
     QueryCategory = 'Posted Purchase Invoices';
     SourceTable = "Purch. Inv. Header";
     SourceTableView = sorting("Posting Date")

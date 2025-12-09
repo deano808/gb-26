@@ -33,6 +33,7 @@ codeunit 134227 "ERM PostRecurringJournal"
         DocumentOutOfBalanceErr: Label 'Document No. %1 is out of balance', Locked = true;
         AllocAccountImportWrongAccTypeErr: Label 'Import from Allocation Account is only allowed for G/L Account Destination account type.', Locked = true;
         AllocationDimensionErr: Label 'Allocation dimension is not correct';
+        PostingDateErr: Label '%1 is not within your range of allowed posting dates in Gen. Journal Line Journal Template Name=''%2'',Journal Batch Name=''%3'',Line No.=''%4''.', Comment = '%1= Field Name, %2= Field Value, %3= Field Value, %4= Field Value.';
 
     [Test]
     [Scope('OnPrem')]
@@ -1342,6 +1343,89 @@ codeunit 134227 "ERM PostRecurringJournal"
         VerifyGenJnlAllocationDimension(GenJnlAllocation, GenJournalLine, GLAccounts[2], DimensionSetID[2]);
     end;
 
+    [Test]
+    procedure RecurringJournalLineGLSetupNotAllowedPostingPeriod()
+    var
+        GLAccount: Record "G/L Account";
+        GenJournalLine: array[2] of Record "Gen. Journal Line";
+        GenJournalBatch: Record "Gen. Journal Batch";
+        RecurringFrequency: DateFormula;
+        Amount: Decimal;
+        AllowedDate: Date;
+    begin
+        // [SCENARIO 221154] Lines with posting date outside GL Setup allowed posting period are not posted in Recurring Journal
+        Initialize();
+
+        // [GIVEN] General Journal Batch
+        CreateRecurringGenJournalBatch(GenJournalBatch);
+
+        // [GIVEN] Date when posting is allowed "D"
+        AllowedDate := LibraryRandom.RandDate(-10);
+
+        // [GIVEN] Admin User with "D" as allowed posting period
+        CreateGLSetupWithAllowedPostingPeriod(AllowedDate - 10, AllowedDate + 10);
+
+        LibraryERM.CreateGLAccount(GLAccount);
+
+        Amount := LibraryRandom.RandIntInRange(100, 200);
+
+        // [GIVEN] Recurring Journal with 3 lines: "Posting Date" is more, less and equal to "DPA", "Expiration Date" is always more than "Posting Date"
+        LibraryERM.CreateGeneralJnlLine(
+            GenJournalLine[1],
+            GenJournalBatch."Journal Template Name",
+            GenJournalBatch.Name,
+            GenJournalLine[1]."Document Type"::" ",
+            GenJournalLine[1]."Account Type"::"G/L Account",
+            GLAccount."No.",
+            Amount);
+        GenJournalLine[1].Validate("Posting Date", AllowedDate - 11);
+        GenJournalLine[1].Validate("Recurring Method", GenJournalLine[1]."Recurring Method"::"RV Reversing Variable");
+        Evaluate(RecurringFrequency, '<' + Format(LibraryRandom.RandIntInRange(1, 1)) + 'M >');
+        GenJournalLine[1].Validate("Recurring Frequency", RecurringFrequency);
+        GenJournalLine[1].Modify(true);
+
+        LibraryERM.CreateGeneralJnlLine(
+            GenJournalLine[2],
+            GenJournalBatch."Journal Template Name",
+            GenJournalBatch.Name,
+            GenJournalLine[2]."Document Type"::" ",
+            GenJournalLine[2]."Account Type"::"G/L Account",
+            GLAccount."No.",
+            -Amount);
+        GenJournalLine[2].Validate("Posting Date", AllowedDate - 11);
+        GenJournalLine[2].Validate("Document No.", GenJournalLine[1]."Document No.");
+        GenJournalLine[2].Validate("Recurring Method", GenJournalLine[2]."Recurring Method"::"RV Reversing Variable");
+        GenJournalLine[2].Validate("Recurring Frequency", GenJournalLine[1]."Recurring Frequency");
+        GenJournalLine[2].Modify(true);
+
+        // [WHEN] Post Recurring Journal
+        asserterror LibraryERM.PostGeneralJnlLine(GenJournalLine[1]);
+
+        Assert.ExpectedError(
+            StrSubstNo(
+                PostingDateErr,
+                GenJournalLine[1].FieldCaption("Posting Date"),
+                GenJournalLine[1]."Journal Template Name",
+                GenJournalLine[1]."Journal Batch Name",
+                GenJournalLine[1]."Line No."));
+    end;
+
+    [Test]
+    procedure RecurringJournalSuccessfullyPostedWhenUnlinkIncomingDocumentOnPostingOptionIsActivated()
+    var
+        GenJournalLine: Record "Gen. Journal Line";
+        RecurringFrequency: array[6] of DateFormula;
+    begin
+        // [SCENARIO 602441] The changes to the Gen. Journal Line record cannot be saved because some information is not up-to-date" error when posting Recurring General Journal and the Unlink Incoming Document on Posting option is activated.
+        Initialize();
+
+        // [GIVEN] Create Recurring Journal Lines.
+        CreateRecurringJournalLineWithVariable(GenJournalLine, RecurringFrequency);
+
+        // [THEN] Post Recurring Journal Lines Successfully
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+    end;
+
     local procedure Initialize()
     begin
         LibraryTestInitialize.OnTestInitialize(Codeunit::"ERM PostRecurringJournal");
@@ -1884,6 +1968,73 @@ codeunit 134227 "ERM PostRecurringJournal"
         GenJnlAllocation.SetRange("Account No.", GLAccount."No.");
         GenJnlAllocation.FindFirst();
         Assert.AreEqual(GenJnlAllocation."Dimension Set ID", DimensionSetID, AllocationDimensionErr);
+    end;
+
+    local procedure CreateRecurringJournalLineWithVariable(var GenJournalLine: Record "Gen. Journal Line"; var RecurringFrequency: array[6] of DateFormula)
+    var
+        GLAccount: Record "G/L Account";
+        GenJournalBatch: Record "Gen. Journal Batch";
+        Vendor: Record Vendor;
+        Counter: Integer;
+        NoOfLines: Integer;
+    begin
+        // Use Random Number Generator to generate the No. of lines.
+        NoOfLines := 2 * LibraryRandom.RandInt(3);
+
+        //[GIVEN] Find G/L Account
+        FindGLAccount(GLAccount);
+
+        //[GIVEN] Create Vendor
+        LibraryPurchase.CreateVendor(Vendor);
+
+        //[WHEN] Create Recurring Journal Lines with Allocation and with random values.
+        CreateRecurringGenJournalTemplateAndBatch(GenJournalBatch);
+        for Counter := 1 to NoOfLines do begin
+            if Counter = 1 then begin
+                CreateGeneralJournalLineWithAccountType(
+                  GenJournalLine, GenJournalBatch, GenJournalLine."Recurring Method"::"V  Variable", -1000,
+                  Vendor."No.");
+                RecurringFrequency[Counter] := GenJournalLine."Recurring Frequency";
+                GenJournalLine."Document No." := '123';
+                GenJournalLine.Modify();
+            end else
+                CreateGeneralJournalLineDocType(
+                  GenJournalLine, GenJournalBatch, GenJournalLine."Recurring Method"::"V  Variable", 1000,
+                  GLAccount."No.");
+            GenJournalLine."Document No." := '123';
+            GenJournalLine.Modify();
+            GLAccount.Next();
+            RecurringFrequency[Counter] := GenJournalLine."Recurring Frequency";
+        end;
+    end;
+
+    local procedure CreateGeneralJournalLineWithAccountType(var GenJournalLine: Record "Gen. Journal Line"; GenJournalBatch: Record "Gen. Journal Batch"; RecurringMethod: Enum "Gen. Journal Recurring Method"; Amount: Decimal; AccountNo: Code[20])
+    begin
+        CreateGeneralJournalLineWithType(
+          GenJournalLine, GenJournalBatch, RecurringMethod, GenJournalLine."Document Type"::Invoice,
+          GenJournalLine."Account Type"::Vendor, AccountNo, Amount);
+    end;
+
+    local procedure CreateGeneralJournalLineDocType(var GenJournalLine: Record "Gen. Journal Line"; GenJournalBatch: Record "Gen. Journal Batch"; RecurringMethod: Enum "Gen. Journal Recurring Method"; Amount: Decimal; AccountNo: Code[20])
+    begin
+        CreateGeneralJournalLineWithType(
+          GenJournalLine, GenJournalBatch, RecurringMethod, GenJournalLine."Document Type"::Invoice,
+          GenJournalLine."Account Type"::"G/L Account", AccountNo, Amount);
+    end;
+
+    local procedure CreateRecurringGenJournalTemplateAndBatch(var GenJournalBatch: Record "Gen. Journal Batch")
+    var
+        GenJnlTemplate: Record "Gen. Journal Template";
+    begin
+        LibraryERM.FindRecurringTemplateName(GenJnlTemplate);
+        GenJnlTemplate.Validate(Type, GenJnlTemplate.Type::General);
+        GenJnlTemplate.Validate(Recurring, true);
+        GenJnlTemplate.Validate("Bal. Account Type", GenJnlTemplate."Bal. Account Type"::"G/L Account");
+        GenJnlTemplate.Validate("Force Doc. Balance", true);
+        GenJnlTemplate.Validate("Copy VAT Setup to Jnl. Lines", true);
+        GenJnlTemplate.Validate("Unlink Inc. Doc On Posting", true);
+        GenJnlTemplate.Modify(true);
+        LibraryERM.CreateRecurringBatchName(GenJournalBatch, GenJnlTemplate.Name);
     end;
 
     [ConfirmHandler]

@@ -1,3 +1,4 @@
+#if not CLEAN28
 // // ------------------------------------------------------------------------------------------------
 // // Copyright (c) Microsoft Corporation. All rights reserved.
 // // Licensed under the MIT License. See License.txt in the project root for license information.
@@ -9,6 +10,9 @@ page 9643 "Table and Column Picker"
     PageType = List;
     ApplicationArea = All;
     SourceTable = "Table Relations Buffer";
+    ObsoleteState = Pending;
+    ObsoleteTag = '28.0';
+    ObsoleteReason = 'The Analysis View module is being moved to be part of the Business Central platform.';
     Caption = 'Insert column(s)';
     DataCaptionExpression = '';
     InsertAllowed = false;
@@ -37,7 +41,8 @@ page 9643 "Table and Column Picker"
                 var
                     TableRelationsBuffer: Record "Table Relations Buffer";
                 begin
-                    Selected.SetTable(TableRelationsBuffer);
+                    TableRelationsBuffer := Selected;
+
                     IsTableSet := true;
 
                     RelatedTableName := StrSubstNo(TableRelationNameLbl, TableRelationsBuffer."Related Table Name", TableRelationsBuffer."Field Name", TableRelationsBuffer."Related Field Name");
@@ -68,3 +73,4 @@ page 9643 "Table and Column Picker"
         RelatedTableName: Text[250];
         IsTableSet: Boolean;
 }
+#endif

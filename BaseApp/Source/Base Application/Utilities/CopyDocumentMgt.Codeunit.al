@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -747,6 +747,7 @@ codeunit 6620 "Copy Document Mgt."
     begin
         FromSalesHeader.CalcFields("Work Description");
         ToSalesHeader.TransferFields(FromSalesHeader, false);
+        UpdateShipToAddress(ToSalesHeader);
         UpdateSalesHeaderWhenCopyFromSalesHeader(ToSalesHeader, OldSalesHeader, FromDocType);
         SetReceivedFromCountryCode(FromDocType, ToSalesHeader);
         OnAfterCopySalesHeader(ToSalesHeader, OldSalesHeader, FromSalesHeader, FromDocType);
@@ -890,6 +891,11 @@ codeunit 6620 "Copy Document Mgt."
     end;
 
     procedure CopyPurchDoc(FromDocType: Enum "Purchase Document Type From"; FromDocNo: Code[20]; var ToPurchHeader: Record "Purchase Header")
+    begin
+        CopyPurchDoc(FromDocType, FromDocNo, ToPurchHeader, false);
+    end;
+
+    procedure CopyPurchDoc(FromDocType: Enum "Purchase Document Type From"; FromDocNo: Code[20]; var ToPurchHeader: Record "Purchase Header"; ClearOriginalDocNo: Boolean)
     var
         ToPurchLine: Record "Purchase Line";
         FromPurchHeader: Record "Purchase Header";
@@ -965,7 +971,7 @@ codeunit 6620 "Copy Document Mgt."
         if IncludeHeader then
             CopyPurchDocUpdateHeader(
                 FromDocType, FromDocNo, ToPurchHeader, FromPurchHeader,
-                FromPurchRcptHeader, FromPurchInvHeader, FromReturnShptHeader, FromPurchCrMemoHeader, FromPurchHeaderArchive, ReleaseDocument)
+                FromPurchRcptHeader, FromPurchInvHeader, FromReturnShptHeader, FromPurchCrMemoHeader, FromPurchHeaderArchive, ReleaseDocument, ClearOriginalDocNo)
         else
             OnCopyPurchDocWithoutHeader(ToPurchHeader, FromDocType.AsInteger(), FromDocNo, FromDocOccurrenceNo, FromDocVersionNo, FromPurchInvHeader, FromPurchCrMemoHeader);
 
@@ -1164,7 +1170,7 @@ codeunit 6620 "Copy Document Mgt."
             until FromPurchLineArchive.Next() = 0;
     end;
 
-    local procedure CopyPurchDocUpdateHeader(FromDocType: Enum "Purchase Document Type From"; FromDocNo: Code[20]; var ToPurchHeader: Record "Purchase Header"; FromPurchHeader: Record "Purchase Header"; FromPurchRcptHeader: Record "Purch. Rcpt. Header"; FromPurchInvHeader: Record "Purch. Inv. Header"; FromReturnShptHeader: Record "Return Shipment Header"; FromPurchCrMemoHeader: Record "Purch. Cr. Memo Hdr."; FromPurchHeaderArchive: Record "Purchase Header Archive"; var ReleaseDocument: Boolean)
+    local procedure CopyPurchDocUpdateHeader(FromDocType: Enum "Purchase Document Type From"; FromDocNo: Code[20]; var ToPurchHeader: Record "Purchase Header"; FromPurchHeader: Record "Purchase Header"; FromPurchRcptHeader: Record "Purch. Rcpt. Header"; FromPurchInvHeader: Record "Purch. Inv. Header"; FromReturnShptHeader: Record "Return Shipment Header"; FromPurchCrMemoHeader: Record "Purch. Cr. Memo Hdr."; FromPurchHeaderArchive: Record "Purchase Header Archive"; var ReleaseDocument: Boolean; ClearOriginalDocNosOnTarget: Boolean)
     var
         Vend: Record Vendor;
         OldPurchHeader: Record "Purchase Header";
@@ -1231,6 +1237,9 @@ codeunit 6620 "Copy Document Mgt."
         ToPurchHeader."Applies-to Doc. No." := '';
         ToPurchHeader."Applies-to ID" := '';
         ToPurchHeader."Quote No." := '';
+        if ClearOriginalDocNosOnTarget then
+            ClearOriginalDocumentNos(ToPurchHeader);
+
         OnCopyPurchDocUpdateHeaderOnBeforeUpdateVendLedgerEntry(ToPurchHeader, FromDocType.AsInteger(), FromDocNo);
 
         if ((FromDocType = "Purchase Document Type From"::"Posted Invoice") and
@@ -1955,8 +1964,7 @@ codeunit 6620 "Copy Document Mgt."
         end else begin
             AssemblyItem.Get(ToSalesLine."No.");
             if (AssemblyItem."Assembly Policy" = AssemblyItem."Assembly Policy"::"Assemble-to-Order") and
-               (AssemblyItem."Replenishment System" = AssemblyItem."Replenishment System"::Assembly) and
-               ToSalesLine.IsAsmToOrderAllowed()
+               AssemblyItem.IsAssemblyItem() and ToSalesLine.IsAsmToOrderAllowed()
             then begin
                 ToSalesLine.Validate("Qty. to Assemble to Order", ToSalesLine.Quantity);
                 ToSalesLine.Modify();
@@ -2917,31 +2925,7 @@ codeunit 6620 "Copy Document Mgt."
                 ItemCheckAvail.RaiseUpdateInterruptedError();
     end;
 
-#if not CLEAN24
-    [Obsolete('Replaced by same procedure in codeunit CopyServiceContractMgt.', '24.0')]
-    procedure CopyServContractLines(ToServContractHeader: Record Microsoft.Service.Contract."Service Contract Header"; FromDocType: Option; FromDocNo: Code[20]; var FromServContractLine: Record Microsoft.Service.Contract."Service Contract Line") AllLinesCopied: Boolean
-    var
-        CopyServiceContractMgt: Codeunit Microsoft.Service.Contract."Copy Service Contract Mgt.";
-    begin
-        exit(CopyServiceContractMgt.CopyServiceContractLines(ToServContractHeader, Microsoft.Service.Contract."Service Contract Type From".FromInteger(FromDocType), FromDocNo, FromServContractLine));
-    end;
-#endif
 
-#if not CLEAN24
-    [Obsolete('Replaced by procedure GetServiceContractType() in codeunit CopyServiceContractMgt.', '24.0')]
-    procedure ServContractHeaderDocType(DocType: Option): Integer
-    var
-        ServContractHeader: Record Microsoft.Service.Contract."Service Contract Header";
-        ServDocType: Option Quote,Contract;
-    begin
-        case DocType of
-            ServDocType::Quote:
-                exit(ServContractHeader."Contract Type"::Quote.AsInteger());
-            ServDocType::Contract:
-                exit(ServContractHeader."Contract Type"::Contract.AsInteger());
-        end;
-    end;
-#endif
 
     procedure CopySalesShptLinesToDoc(ToSalesHeader: Record "Sales Header"; var FromSalesShptLine: Record "Sales Shipment Line"; var LinesNotCopied: Integer; var MissingExCostRevLink: Boolean)
     var
@@ -3982,7 +3966,7 @@ codeunit 6620 "Copy Document Mgt."
                         ToLineCounter := ToLineCounter + 1;
                         if IsTimeForUpdate() then
                             UpdateWindow(2, ToLineCounter);
-                        if FromPurchLine."Prod. Order No." <> '' then
+                        if FromPurchLine.IsProdOrder() then
                             FromPurchLine."Quantity (Base)" := 0;
 
                         OnCopyPurchRcptLinesToDocOnBeforeCopyPurchLine(ToPurchHeader, TempFromPurchLineBuf, CopyItemTrkg);
@@ -4184,7 +4168,7 @@ codeunit 6620 "Copy Document Mgt."
                         CopyFromPurchLineItemChargeAssign(FromPurchLine, ToPurchLine, FromPurchHeader, ItemChargeAssgntNextLineNo);
                     end;
                     // copy item tracking
-                    ShouldCopyItemTrackingEntries := (TempFromPurchLineBuf.Type = TempFromPurchLineBuf.Type::Item) and (TempFromPurchLineBuf.Quantity <> 0) and (TempFromPurchLineBuf."Prod. Order No." = '') and PurchaseDocCanReceiveTracking(ToPurchHeader);
+                    ShouldCopyItemTrackingEntries := (TempFromPurchLineBuf.Type = TempFromPurchLineBuf.Type::Item) and (TempFromPurchLineBuf.Quantity <> 0) and (not TempFromPurchLineBuf.IsProdOrder()) and PurchaseDocCanReceiveTracking(ToPurchHeader);
                     OnCopyPurchInvLinesToDocOnAfterCalcShouldCopyItemTrackingEntries(ToPurchLine, ShouldCopyItemTrackingEntries);
                     if ShouldCopyItemTrackingEntries then begin
                         FromPurchInvLine."Document No." := OldInvDocNo;
@@ -4357,7 +4341,7 @@ codeunit 6620 "Copy Document Mgt."
                         CopyFromPurchLineItemChargeAssign(FromPurchLine, ToPurchLine, FromPurchHeader, ItemChargeAssgntNextLineNo);
                     end;
                     // copy item tracking
-                    ShouldCopyItemTrackingEntries := (TempFromPurchLineBuf.Type = TempFromPurchLineBuf.Type::Item) and (TempFromPurchLineBuf.Quantity <> 0) and (TempFromPurchLineBuf."Prod. Order No." = '');
+                    ShouldCopyItemTrackingEntries := (TempFromPurchLineBuf.Type = TempFromPurchLineBuf.Type::Item) and (TempFromPurchLineBuf.Quantity <> 0) and (not TempFromPurchLineBuf.IsProdOrder());
                     OnCopyPurchCrMemoLinesToDocOnAfterCalcShouldCopyItemTrackingEntries(ToPurchLine, ShouldCopyItemTrackingEntries);
                     if ShouldCopyItemTrackingEntries then begin
                         FromPurchCrMemoLine."Document No." := OldCrMemoDocNo;
@@ -4595,8 +4579,7 @@ codeunit 6620 "Copy Document Mgt."
 
         CopyItemTrkg := false;
 
-        if (FromPurchLine.Type <> FromPurchLine.Type::Item) or (FromPurchLine.Quantity = 0) or (FromPurchLine."Prod. Order No." <> '')
-        then
+        if (FromPurchLine.Type <> FromPurchLine.Type::Item) or (FromPurchLine.Quantity = 0) or FromPurchLine.IsProdOrder() then
             exit(false);
 
         PurchaseItem.Get(FromPurchLine."No.");
@@ -8368,6 +8351,14 @@ codeunit 6620 "Copy Document Mgt."
             SkipCopyFromDescription := true;
     end;
 
+    local procedure ClearOriginalDocumentNos(var ToPurchHeader: Record "Purchase Header")
+    begin
+        ToPurchHeader."Vendor Order No." := '';
+        ToPurchHeader."Vendor Invoice No." := '';
+        ToPurchHeader."Vendor Cr. Memo No." := '';
+        ToPurchHeader."Vendor Shipment No." := '';
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnBeforeAddPurchDocLine(var TempDocPurchaseLine: Record "Purchase Line" temporary; BufferLineNo: Integer; DocumentNo: Code[20]; DocumentLineNo: Integer)
     begin
@@ -9404,18 +9395,6 @@ codeunit 6620 "Copy Document Mgt."
     begin
     end;
 
-#if not CLEAN24
-    internal procedure RunOnAfterCopyServContractLines(ToServiceContractHeader: Record Microsoft.Service.Contract."Service Contract Header"; FromDocType: Option; FromDocNo: Code[20]; var FormServiceContractLine: Record Microsoft.Service.Contract."Service Contract Line")
-    begin
-        OnAfterCopyServContractLines(ToServiceContractHeader, FromDocType, FromDocNo, FormServiceContractLine);
-    end;
-
-    [IntegrationEvent(false, false)]
-    [Obsolete('Replaced by event OnAfterCopyServiceContractLines in codeunit Copy Service Contract Mgt.', '24.0')]
-    local procedure OnAfterCopyServContractLines(ToServiceContractHeader: Record Microsoft.Service.Contract."Service Contract Header"; FromDocType: Option; FromDocNo: Code[20]; var FormServiceContractLine: Record Microsoft.Service.Contract."Service Contract Line")
-    begin
-    end;
-#endif
 
     /// <summary>
     /// Event triggered after copying data from a posted purchase credit memo header to a purchase header.
@@ -9617,18 +9596,6 @@ codeunit 6620 "Copy Document Mgt."
     begin
     end;
 
-#if not CLEAN24
-    internal procedure RunOnAfterProcessServContractLine(var ToServContractLine: Record Microsoft.Service.Contract."Service Contract Line"; FromServContractLine: Record Microsoft.Service.Contract."Service Contract Line")
-    begin
-        OnAfterProcessServContractLine(ToServContractLine, FromServContractLine);
-    end;
-
-    [IntegrationEvent(false, false)]
-    [Obsolete('Replaced by event OnAfterProcessServiceContractLine in codeunit Copy Service Contract Mgt.', '24.0')]
-    local procedure OnAfterProcessServContractLine(var ToServContractLine: Record Microsoft.Service.Contract."Service Contract Line"; FromServContractLine: Record Microsoft.Service.Contract."Service Contract Line")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterProcessToAsmHeader(var ToAsmHeader: Record "Assembly Header"; TempFromAsmHeader: Record "Assembly Header" temporary; ToSalesLine: Record "Sales Line"; BasicAsmOrderCopy: Boolean; AvailabilityCheck: Boolean)
@@ -12515,4 +12482,3 @@ codeunit 6620 "Copy Document Mgt."
     begin
     end;
 }
-

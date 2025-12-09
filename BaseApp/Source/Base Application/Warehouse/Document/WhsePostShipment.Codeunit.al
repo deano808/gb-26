@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Document;
 
 using Microsoft.Finance.GeneralLedger.Journal;
 using Microsoft.Finance.GeneralLedger.Preview;
@@ -24,7 +28,10 @@ codeunit 5763 "Whse.-Post Shipment"
     TableNo = "Warehouse Shipment Line";
 
     trigger OnRun()
+    var
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
     begin
+        SequenceNoMgt.SetPreviewMode(WhsePostParameters."Preview Posting");
         OnBeforeRun(Rec, WhsePostParameters."Suppress Commit", WhsePostParameters."Preview Posting");
 
         WhseShptLine.Copy(Rec);
@@ -82,11 +89,13 @@ codeunit 5763 "Whse.-Post Shipment"
 #endif
         GenJnlPostPreview: Codeunit "Gen. Jnl.-Post Preview";
         NoSeries: Codeunit "No. Series";
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
 #if not CLEAN25
         SourceRecRef: RecordRef;
 #endif
         IsHandled: Boolean;
     begin
+        SequenceNoMgt.SetPreviewMode(WhsePostParameters."Preview Posting");
         WhseShptLine.SetCurrentKey(WhseShptLine."No.");
         WhseShptLine.SetRange("No.", WhseShptLine."No.");
         IsHandled := false;
@@ -175,7 +184,6 @@ codeunit 5763 "Whse.-Post Shipment"
 #endif
                 OnBeforePostSourceHeader(WhseShptLine, GlobalSourceHeader, WhsePostParameters);
                 PostSourceDocument(WhseShptLine, GlobalSourceHeader);
-                WhseJnlRegisterLine.LockIfLegacyPosting();
 
                 if WhseShptLine.FindLast() then;
                 WhseShptLine.SetRange(WhseShptLine."Source Type");

@@ -369,6 +369,22 @@ codeunit 132201 "Library - Inventory"
         ItemAttributeValueMapping.Insert(true);
     end;
 
+    procedure CreateUpdateItemTranslation(ItemNo: Code[20]; VariantCode: Code[10]; LanguageCode: Code[10]; Description: Text[100]; Description2: Text[50])
+    var
+        ItemTranslation: Record "Item Translation";
+    begin
+        if not ItemTranslation.Get(ItemNo, VariantCode, LanguageCode) then begin
+            ItemTranslation.Init();
+            ItemTranslation.Validate("Item No.", ItemNo);
+            ItemTranslation.Validate("Variant Code", VariantCode);
+            ItemTranslation.Validate("Language Code", LanguageCode);
+            ItemTranslation.Insert(true);
+        end;
+        ItemTranslation.Validate(Description, Description);
+        ItemTranslation.Validate("Description 2", Description2);
+        ItemTranslation.Modify(true);
+    end;
+
     procedure CreateItemWithVATProdPostingGroup(VATProdPostingGroup: Code[20]): Code[20]
     var
         Item: Record Item;
@@ -1581,18 +1597,6 @@ codeunit 132201 "Library - Inventory"
         InventorySetup."Prevent Negative Inventory" := PreventNegativeInventory;
         InventorySetup.Modify();
     end;
-
-#if not CLEAN24
-    [Obsolete('Temporary setup to enable/disable package tracking in Phys. Inventory Orders', '24.0')]
-    procedure SetInvtOrdersPackageTracking(PackageTracking: Boolean)
-    begin
-        InventorySetup.Get();
-        if InventorySetup."Invt. Orders Package Tracking" <> PackageTracking then begin
-            InventorySetup."Invt. Orders Package Tracking" := PackageTracking;
-            InventorySetup.Modify();
-        end;
-    end;
-#endif
 
     procedure UpdateAverageCostSettings(AverageCostCalcType: Enum "Average Cost Calculation Type"; AverageCostPeriod: Enum "Average Cost Period Type")
     begin

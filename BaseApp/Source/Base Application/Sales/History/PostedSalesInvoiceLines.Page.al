@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.History;
 
 using Microsoft.Finance.Dimension;
@@ -8,6 +12,8 @@ page 526 "Posted Sales Invoice Lines"
     Caption = 'Posted Sales Invoice Lines';
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Sales Invoice Lines';
+    AboutText = 'Review detailed line information from posted sales invoices, including customer, item, quantity, pricing, discounts, and related order data for financial analysis and reporting.';
     SourceTable = "Sales Invoice Line";
     UsageCategory = History;
 

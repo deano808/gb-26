@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Warehouse.Structure;
 
 using Microsoft.Inventory.Location;
@@ -89,7 +93,13 @@ table 7300 Zone
         Bin.SetCurrentKey("Location Code", "Zone Code");
         Bin.SetRange("Location Code", "Location Code");
         Bin.SetRange("Zone Code", Code);
+        OnDeleteOnBeforeDeleteAllBin(Rec, Bin);
         Bin.DeleteAll(true);
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnDeleteOnBeforeDeleteAllBin(var Zone: Record Zone; var Bin: Record Bin)
+    begin
     end;
 }
 

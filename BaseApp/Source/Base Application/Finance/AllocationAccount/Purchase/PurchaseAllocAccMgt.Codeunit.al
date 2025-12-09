@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.AllocationAccount.Purchase;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.AllocationAccount.Purchase;
 
 using Microsoft.Finance.AllocationAccount;
 using Microsoft.Finance.Deferral;
@@ -65,6 +69,7 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
             AllocationLine."Dimension Set ID" := AllocAccManualOverride."Dimension Set ID";
             AllocationLine.Amount := AllocAccManualOverride.Amount;
             AllocationLine.Quantity := AllocAccManualOverride.Quantity;
+            OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(AllocAccManualOverride, AllocationLine);
             AllocationLine.Insert();
         until AllocAccManualOverride.Next() = 0;
     end;
@@ -94,6 +99,7 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
                 Error(InvalidAccountTypeForInheritFromParentErr, PurchaseLine.Type);
         end;
 
+        IsInheritFromParent := true;
         AllocationLine.Reset();
         AllocationLine.SetView(CurrentFilters);
     end;
@@ -358,7 +364,8 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
 
         BindSubscription(AllocAccHandleDocPost);
         PurchaseLine.Validate("No.", AllocationLine."Destination Account Number");
-        PurchaseLine.Validate("Tax Group Code", AllocationPurchaseLine."Tax Group Code");
+        if AllocationPurchaseLine."Tax Group Code" <> '' then
+            PurchaseLine.Validate("Tax Group Code", AllocationPurchaseLine."Tax Group Code");
         UnbindSubscription(AllocAccHandleDocPost);
 
         if DescriptionChanged then begin
@@ -371,11 +378,13 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
         MoveAmounts(PurchaseLine, AllocationPurchaseLine, AllocationLine, AllocationAccount);
         MoveQuantities(PurchaseLine, AllocationPurchaseLine);
 
+        PurchaseLine."VAT Difference" := AllocationLine.Percentage * AllocationPurchaseLine."VAT Difference" / 100;
         PurchaseLine."Deferral Code" := AllocationPurchaseLine."Deferral Code";
         CopyDeferralSchedule(PurchaseLine, AllocationPurchaseLine);
         TransferDimensionSetID(PurchaseLine, AllocationLine, AllocationPurchaseLine."Alloc. Acc. Modified by User");
         PurchaseLine."Allocation Account No." := AllocationLine."Allocation Account No.";
         PurchaseLine."Selected Alloc. Account No." := '';
+        PurchaseLine."Alloc. Purch. Line SystemId" := AllocationPurchaseLine.SystemId;
         OnBeforeCreatePurchaseLine(PurchaseLine, AllocationLine, AllocationPurchaseLine);
         BindSubscription(AllocAccHandleDocPost);
         PurchaseLine.Insert(true);
@@ -530,12 +539,21 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
     end;
 
     local procedure MoveAmounts(var PurchaseLine: Record "Purchase Line"; var AllocationPurchaseLine: Record "Purchase Line"; var AllocationLine: Record "Allocation Line"; var AllocationAccount: Record "Allocation Account")
+    var
+        AllocationAccountMgt: Codeunit "Allocation Account Mgt.";
+        AmountRoundingPrecision: Decimal;
     begin
         PurchaseLine."Unit Cost" := AllocationPurchaseLine."Unit Cost";
 
         if AllocationAccount."Document Lines Split" = AllocationAccount."Document Lines Split"::"Split Amount" then begin
-            PurchaseLine.Validate("Direct Unit Cost", GetUnitPrice(PurchaseLine, AllocationLine.Amount));
-            PurchaseLine."Line Amount" := AllocationLine.Amount;
+            if IsInheritFromParent then begin
+                PurchaseLine.Validate("Direct Unit Cost", GetUnitPrice(PurchaseLine, AllocationLine.Amount));
+                PurchaseLine."Line Amount" := AllocationLine.Amount;
+            end else begin
+                AmountRoundingPrecision := AllocationAccountMgt.GetCurrencyRoundingPrecision(PurchaseLine."Currency Code");
+                PurchaseLine.Validate("Direct Unit Cost", Round(AllocationLine.Amount / PurchaseLine.Quantity, AmountRoundingPrecision));
+                PurchaseLine.Validate("Line Amount", AllocationLine.Amount);
+            end;
         end else begin
             PurchaseLine.Validate("Direct Unit Cost", AllocationPurchaseLine."Direct Unit Cost");
             PurchaseLine."Line Amount" := AllocationPurchaseLine."Line Amount";
@@ -758,7 +776,13 @@ codeunit 2679 "Purchase Alloc. Acc. Mgt."
     begin
     end;
 
+    [IntegrationEvent(false, false)]
+    local procedure OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(var AllocAccManualOverride: Record "Alloc. Acc. Manual Override"; var AllocationLine: Record "Allocation Line")
+    begin
+    end;
+
     var
+        IsInheritFromParent: Boolean;
         AllocationAccountMustOnlyDistributeToGLAccountsErr: Label 'The allocation account must contain G/L accounts as distribution accounts.';
         CannotGetAllocationAccountFromLineErr: Label 'Cannot get allocation account from Purchase line %1.', Comment = '%1 - Line No., it is an integer that identifies the line e.g. 10000, 200000.';
         NoLinesGeneratedLbl: Label 'No allocation account lines were generated for Purchase line %1.', Comment = '%1 - Unique identification of the line.';

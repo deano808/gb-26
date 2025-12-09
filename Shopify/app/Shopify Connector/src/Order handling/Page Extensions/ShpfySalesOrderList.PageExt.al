@@ -1,3 +1,8 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
 namespace Microsoft.Integration.Shopify;
 
 using Microsoft.Sales.Document;
@@ -38,6 +43,18 @@ pageextension 30116 "Shpfy Sales Order List" extends "Sales Order List"
                 ObsoleteTag = '25.0';
             }
 #endif
+        }
+    }
+
+    views
+    {
+        addlast
+        {
+            view(FromShopify)
+            {
+                Caption = 'From Shopify';
+                Filters = where("Shpfy Order Id" = filter(<> 0));
+            }
         }
     }
 }

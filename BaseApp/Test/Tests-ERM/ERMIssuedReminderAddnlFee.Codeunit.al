@@ -587,6 +587,117 @@ codeunit 134905 "ERM Issued Reminder Addnl Fee"
         Assert.AreEqual(ReminderFinChargeEntry."Due Date", CustLedgerEntry."Due Date", ReminderDueDateErr);
     end;
 
+    [Test]
+    [Scope('OnPrem')]
+    procedure VerifyEmailOnReminderPageWhenCustomerHasNoContacts()
+    var
+        Customer: Record Customer;
+        ReminderLevel: Record "Reminder Level";
+        ReminderText: Record "Reminder Text";
+        ReminderHeader: Record "Reminder Header";
+        ReminderPage: TestPage Reminder;
+        CustomerCard: TestPage "Customer Card";
+        EMail: Text[80];
+        DueDate: Date;
+        DocumentDate: Date;
+    begin
+        // [SCENARIO 581797] [ALL-E] Field Email on Reminder is empty when customer does not have any contacts
+        Initialize();
+
+        // [GIVEN] Create Customer with E-Mail and Reminder Terms Code.
+        CreateCustomer(Customer, '');
+        Customer.Validate("Reminder Terms Code", CreateReminderTerms());
+        EMail := 'test1@test.com';
+        Customer.Modify(true);
+
+        CustomerCard.OpenEdit();
+        CustomerCard.GoToRecord(Customer);
+        CustomerCard."E-Mail".SetValue(EMail);
+        CustomerCard.Close();
+
+        // [GIVEN] Create Reminder Level with Random Grace Period and Random Additional Fee.
+        ReminderLevel.SetRange("Reminder Terms Code", Customer."Reminder Terms Code");
+        ReminderLevel.FindFirst();
+        LibraryERM.CreateReminderText(
+            ReminderText, Customer."Reminder Terms Code",
+            ReminderLevel."No.", ReminderText.Position::Ending, ReminderEndingText);
+
+        // [WHEN] Post Sales Invoice and Create Reminder.
+        DueDate := CreateAndPostSalesInvoice(Customer."No.", '');
+        DocumentDate := CalcDate('<' + Format(LibraryRandom.RandInt(5)) + 'D>', CalcDate(ReminderLevel."Grace Period", DueDate));
+        CreateReminder(Customer."No.", DocumentDate, false);
+
+        // [THEN] Find Reminder Header for Customer and open Reminder Page.
+        FindReminderHeader(ReminderHeader, Customer."No.");
+        ReminderPage.OpenEdit();
+        ReminderPage.GoToRecord(ReminderHeader);
+
+        // [THEN] Verify E-Mail on Reminder Page.
+        ReminderPage.ContactEmail.AssertEquals(EMail);
+    end;
+
+    [Test]
+    procedure VerifyDueDateAfterUpdateDueDateInCustLedgerEntry()
+    var
+        CustLedgerEntry: Record "Cust. Ledger Entry";
+        Customer: Record Customer;
+        CustomerPostingGroup: Record "Customer Posting Group";
+        GLAccount: Record "G/L Account";
+        ReminderFinChargeEntry: Record "Reminder/Fin. Charge Entry";
+        ReminderLevel: Record "Reminder Level";
+        VATProductPostingGroup: Record "VAT Product Posting Group";
+        VATPostingSetup: Record "VAT Posting Setup";
+        DueDate: Date;
+        DocumentDate: Date;
+        IssuedReminderNo: Code[20];
+    begin
+        // [SCENARIO 598460] The Due date in created Reminder is updated incorrectly when changing the Due date in the Customer Ledger Entry.
+        Initialize();
+
+        // [GIVEN] Create Customer and VAT Posting Setup. 
+        CreateCustomer(Customer, '');
+        CustomerPostingGroup.Get(Customer."Customer Posting Group");
+        GLAccount.Get(CustomerPostingGroup."Additional Fee Account");
+        LibraryERM.CreateVATProductPostingGroup(VATProductPostingGroup);
+        GLAccount.Validate("VAT Prod. Posting Group", VATProductPostingGroup.Code);
+        GLAccount.Modify(true);
+
+        LibraryERM.CreateVATPostingSetup(VATPostingSetup, Customer."VAT Bus. Posting Group", VATProductPostingGroup.Code);
+
+        //[GIVEN] Create and post Sales Invoice.
+        DueDate := CreateAndPostSalesInvoice(Customer."No.", '');
+        GetReminderLevel(ReminderLevel, Customer."Reminder Terms Code");
+        DocumentDate := CalcDate('<' + Format(LibraryRandom.RandInt(5)) + 'D>', CalcDate(ReminderLevel."Grace Period", DueDate));
+
+        // [GIVEN] Create and Issue Reminder.
+        CreateReminder(Customer."No.", DocumentDate, false);
+        IssuedReminderNo := IssueReminder(DocumentDate);
+
+        // [WHEN] Update Due Date in forward direction for Customer Ledger Entry.
+        DueDate := DocumentDate + LibraryRandom.RandIntInRange(16, 17);
+        CustLedgerEntry.SetRange("Customer No.", Customer."No.");
+        CustLedgerEntry.FindLast();
+        CustLedgerEntry.Validate("Due Date", DueDate);
+        CustLedgerEntry.Modify(true);
+
+        // [VERIFY] Verify Due Date in Reminder/Fin. Charge Entry should be equal to Cust. Ledger Entry - Due Date.
+        ReminderFinChargeEntry.SetRange(Type, ReminderFinChargeEntry.Type::Reminder);
+        ReminderFinChargeEntry.SetRange("No.", IssuedReminderNo);
+        ReminderFinChargeEntry.FindFirst();
+        Assert.AreEqual(ReminderFinChargeEntry."Due Date", CustLedgerEntry."Due Date", ReminderDueDateErr);
+
+        // [WHEN] Update Due Date in backward direction for Customer Ledger Entry.
+        DueDate := DocumentDate - LibraryRandom.RandIntInRange(16, 17);
+        CustLedgerEntry.Validate("Due Date", DueDate);
+        CustLedgerEntry.Modify(true);
+
+        // [VERIFY] Verify Due Date in Reminder/Fin. Charge Entry should be equal to Cust. Ledger Entry - Due Date.
+        ReminderFinChargeEntry.SetRange(Type, ReminderFinChargeEntry.Type::Reminder);
+        ReminderFinChargeEntry.SetRange("No.", IssuedReminderNo);
+        ReminderFinChargeEntry.FindFirst();
+        Assert.AreEqual(ReminderFinChargeEntry."Due Date", CustLedgerEntry."Due Date", ReminderDueDateErr);
+    end;
+
     local procedure Initialize()
     var
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";

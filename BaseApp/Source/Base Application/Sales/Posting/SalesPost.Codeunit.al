@@ -1,4 +1,4 @@
-﻿// ------------------------------------------------------------------------------------------------
+// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -67,6 +67,7 @@ using Microsoft.Sales.Receivables;
 using Microsoft.Sales.Setup;
 using Microsoft.Utilities;
 using Microsoft.Warehouse.Activity;
+using Microsoft.Warehouse.Availability;
 using Microsoft.Warehouse.Document;
 using Microsoft.Warehouse.Journal;
 using Microsoft.Warehouse.History;
@@ -76,7 +77,9 @@ using System.Automation;
 using System.Utilities;
 using System.Environment.Configuration;
 using System.Email;
+#if not CLEAN27
 using System.Telemetry;
+#endif
 
 codeunit 80 "Sales-Post"
 {
@@ -194,7 +197,9 @@ codeunit 80 "Sales-Post"
         DeferralUtilities: Codeunit "Deferral Utilities";
         UOMMgt: Codeunit "Unit of Measure Management";
         ApplicationAreaMgmt: Codeunit "Application Area Mgmt.";
+#if not CLEAN27
         FeatureTelemetry: Codeunit "Feature Telemetry";
+#endif
         InvoicePostingInterface: Interface "Invoice Posting";
         IsInterfaceInitalized: Boolean;
         Window: Dialog;
@@ -254,10 +259,13 @@ codeunit 80 "Sales-Post"
         CalledBy: Integer;
         PreviewMode: Boolean;
         TotalInvoiceAmountNegativeErr: Label 'The total amount for the invoice must be 0 or greater.';
+#if not CLEAN27
         ReverseChargeApplies: Boolean;
+#endif
         SendShipmentAlsoQst: Label 'You can take the same actions for the related Sales - Shipment document.\\Do you want to do that now?';
         SuppressCommit: Boolean;
         PostingPreviewNoTok: Label '***', Locked = true;
+        PostingPreviewNoFormatTxt: Label '<Filler Character,0><Integer,6>', Comment = 'Previewed document numbers are displayed in the format ***000000', Locked = true;
         InvPickExistsErr: Label 'One or more related inventory picks must be registered before you can post the shipment.';
         InvPutAwayExistsErr: Label 'One or more related inventory put-aways must be registered before you can post the receipt.';
         CheckSalesHeaderMsg: Label 'Check sales document fields.';
@@ -276,13 +284,15 @@ codeunit 80 "Sales-Post"
         ItemReservDisruptionLbl: Label 'Confirm Item Reservation Disruption', Locked = true;
         ItemChargeZeroAmountErr: Label 'The amount for item charge %1 cannot be 0.', Comment = '%1 = Item Charge No.';
         SuppressCommitErr: Label 'Commit is blocked when %1 %2 is used.', Comment = '%1 = Date Order, %2 = Number Series';
+#if not CLEAN27
         ReverseChargeFeatureNameTok: Label 'Reverse Charge GB', Locked = true;
         ReverseChargeEventNameTok: Label 'Reverse Charge GB has been used', Locked = true;
+#endif
         DateOrderSeriesUsed: Boolean;
 
     /// <summary>
     /// Verifies and posts the sales document.
-    /// As a result, posted documents will be created, dependent on the type of the doucment, as well as any relevant posting to inventory and finance.
+    /// As a result, posted documents will be created, dependent on the type of the document, as well as any relevant posting to inventory and finance.
     /// A Quote cannot be posted - it has to be turned into an order or invoice first, which then can be posted.
     /// An Order can be shipped and/or invoiced.
     /// A Return order can be received and/or invoiced.
@@ -298,6 +308,7 @@ codeunit 80 "Sales-Post"
         DisableAggregateTableUpdate: Codeunit "Disable Aggregate Table Update";
         UpdateAnalysisView: Codeunit "Update Analysis View";
         UpdateItemAnalysisView: Codeunit "Update Item Analysis View";
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
         EverythingInvoiced: Boolean;
         SavedPreviewMode: Boolean;
         SavedSuppressCommit: Boolean;
@@ -305,6 +316,7 @@ codeunit 80 "Sales-Post"
         SavedHideProgressWindow: Boolean;
         IsHandled: Boolean;
     begin
+        SequenceNoMgt.SetPreviewMode(PreviewMode);
         IsHandled := false;
         OnBeforePostSalesDoc(SalesHeader2, SuppressCommit, PreviewMode, HideProgressWindow, IsHandled, CalledBy);
         if IsHandled then
@@ -411,7 +423,7 @@ codeunit 80 "Sales-Post"
     /// <param name="SalesHeader2">An unmodified copy of the sales header.</param>
     /// <param name="TempDropShptPostBuffer">An internal temp table holding drop shipment information.</param>
     /// <param name="CustLedgEntry">The customer ledger entry we are creating (='the invoice').</param>
-    /// <param name="EverythingInvoiced">A flag telling whether it was a partial invoice and something is still left.</param>    
+    /// <param name="EverythingInvoiced">A flag telling whether it was a partial invoice and something is still left.</param>
     [CommitBehavior(CommitBehavior::Ignore)]
     local procedure ProcessPostingLinesCommitBehaviorIgnore(var SalesHeader: Record "Sales Header"; var SalesHeader2: Record "Sales Header";
                                    var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary;
@@ -422,7 +434,7 @@ codeunit 80 "Sales-Post"
     end;
 
     /// <summary>
-    /// The main funciton that processes the document lines.
+    /// The main function that processes the document lines.
     /// Will update inventory, finance, resources, jobs, etc., dependent on what lines are in the document.
     /// </summary>
     /// <param name="SalesHeader">The sales header of the document that is being posted.</param>
@@ -438,6 +450,7 @@ codeunit 80 "Sales-Post"
         TempItemLedgEntryNotInvoiced: Record "Item Ledger Entry" temporary;
         TempVATAmountLine: Record "VAT Amount Line" temporary;
         TempVATAmountLineRemainder: Record "VAT Amount Line" temporary;
+        InventorySetup: Record "Inventory Setup";
         ErrorContextElementProcessLines: Codeunit "Error Context Element";
         ErrorContextElementPostLine: Codeunit "Error Context Element";
         ZeroSalesLineRecID: RecordId;
@@ -463,8 +476,10 @@ codeunit 80 "Sales-Post"
         AdjustFinalInvWith100PctPrepmt(TempSalesLineGlobal);
 
         TempVATAmountLineRemainder.DeleteAll();
+#if not CLEAN27
         if ReverseChargeApplies then
             TempSalesLineGlobal.SetReverseChargeApplies();
+#endif
         IsHandled := false;
         OnRunOnBeforeCalcVATAmountLines(TempSalesLineGlobal, SalesHeader, TempVATAmountLine, IsHandled);
         if not IsHandled then
@@ -476,6 +491,8 @@ codeunit 80 "Sales-Post"
         BindSubscription(this); // Start collect value entries for GLPosting
 
         SalesLinesProcessed := false;
+        if not InventorySetup.UseLegacyPosting() then
+            TempSalesLineGlobal.SetCurrentKey(Type, "Line No.");
         if TempSalesLineGlobal.FindSet() then
             repeat
                 ErrorMessageMgt.PushContext(ErrorContextElementPostLine, TempSalesLineGlobal.RecordId, 0, PostDocumentLinesMsg);
@@ -494,6 +511,7 @@ codeunit 80 "Sales-Post"
                     SalesHeader, TempSalesLineGlobal, LastLineRetrieved, SalesInvHeader, SalesCrMemoHeader, SalesHeader2, xSalesLine, SalesShptHeader, ReturnRcptHeader);
                 ErrorMessageMgt.PopContext(ErrorContextElementPostLine);
             until LastLineRetrieved;
+        TempSalesLineGlobal.SetCurrentKey("Document Type", "Document No.", "Line No.");
 
         UnBindSubscription(this); // Stop collecting value entries for GLPosting
         ItemJnlPostLine.PostDeferredValueEntriesToGL(PostponedValueEntries);
@@ -570,7 +588,7 @@ codeunit 80 "Sales-Post"
     end;
 
     /// <summary>
-    /// Copies all the sales lines to a temporary table, if they haven't been copied yet, to speed up later processing 
+    /// Copies all the sales lines to a temporary table, if they haven't been copied yet, to speed up later processing
     /// </summary>
     /// <param name="SalesHeader">The sales header of the document that is being posted.</param>
     /// <param name="TempSalesLine">Return value: The temp table that holds a copy of all sales lines.</param>
@@ -720,13 +738,13 @@ codeunit 80 "Sales-Post"
     /// <summary>
     /// Checks if document header and lines are valid for posting, updates the document and lines and creates posted documents.
     /// Prepayment lines are created for documents that are invoiced.
-    /// Unposted document is archived   
+    /// Unposted document is archived
     /// </summary>
     /// <remarks>
     /// Transaction is commited after updating the document header if posting is not in PreviewMode
     /// Several related tables are locked for update after this procedure.
     /// DocumentIsReadyToBeChecked is set to true, so that PrepareCheckDocument() is not called again in CheckSalesDocument(). Preparation already happened in RunWithCheck() (parent function).
-    /// </remarks>    
+    /// </remarks>
     /// <param name="SalesHeader">Return value: The sales header of the document that is being posted, returned with updated values.</param>
     local procedure CheckAndUpdate(var SalesHeader: Record "Sales Header")
     var
@@ -906,14 +924,24 @@ codeunit 80 "Sales-Post"
     /// <param name="SalesHeader">The sales header of the document that is being posted.</param>
     local procedure CheckSalesLines(var SalesHeader: Record "Sales Header")
     var
+        InventorySetup: Record "Inventory Setup";
         ErrorContextElement: Codeunit "Error Context Element";
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
+        NoOfItemLines: Integer;
     begin
         if TempSalesLineGlobal.FindSet() then
             repeat
                 ErrorMessageMgt.PushContext(ErrorContextElement, TempSalesLineGlobal.RecordId(), 0, CheckSalesLineMsg);
                 TestSalesLine(SalesHeader, TempSalesLineGlobal);
+                if (SalesHeader.Ship or SalesHeader.Receive or SalesHeader.Invoice) and (TempSalesLineGlobal.Type = TempSalesLineGlobal.Type::Item) and (TempSalesLineGlobal."Qty. to Ship" <> 0) then 
+                    NoOfItemLines += 1;
             until TempSalesLineGlobal.Next() = 0;
         ErrorMessageMgt.PopContext(ErrorContextElement);
+        if not InventorySetup.UseLegacyPosting() and (NoOfItemLines > 0) then begin
+            if SalesHeader.Ship or SalesHeader.Receive then
+                SequenceNoMgt.AllocateSeqNoBuffer(Database::"Item Ledger Entry", NoOfItemLines);
+            SequenceNoMgt.AllocateSeqNoBuffer(Database::"Value Entry", NoOfItemLines);
+        end;
     end;
 
     local procedure CheckTotalInvoiceAmount(SalesHeader: Record "Sales Header")
@@ -1014,6 +1042,7 @@ codeunit 80 "Sales-Post"
         IsHandled := false;
         OnPostSalesLineOnAfterSetEverythingInvoiced(SalesLine, EverythingInvoiced, IsHandled, SalesHeader);
         if not IsHandled then
+#if not CLEAN27
             if SalesLine.Quantity <> 0 then begin
                 if ReverseChargeApplies and SalesLine."Reverse Charge Item" then begin
                     SalesLine."Reverse Charge" :=
@@ -1023,8 +1052,12 @@ codeunit 80 "Sales-Post"
                     SalesLine.Validate("VAT Bus. Posting Group", SalesSetup."Reverse Charge VAT Posting Gr.");
                     FeatureTelemetry.LogUsage('0000OJO', ReverseChargeFeatureNameTok, ReverseChargeEventNameTok);
                 end;
-                DivideAmount(SalesHeader, SalesLine, 1, SalesLine."Qty. to Invoice", TempVATAmountLine, TempVATAmountLineRemainder);
+#endif
+                if SalesLine.Quantity <> 0 then
+                    DivideAmount(SalesHeader, SalesLine, 1, SalesLine."Qty. to Invoice", TempVATAmountLine, TempVATAmountLineRemainder);
+#if not CLEAN27
             end;
+#endif
 
         CheckItemReservDisruption(SalesLine);
         RoundAmount(SalesHeader, SalesLine, SalesLine."Qty. to Invoice");
@@ -1167,7 +1200,13 @@ codeunit 80 "Sales-Post"
     local procedure SetInvoiceOrderNo(SalesLine: Record "Sales Line"; var SalesInvLine: Record "Sales Invoice Line")
     var
         SalesShptLine: Record "Sales Shipment Line";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeSetInvoiceOrderNo(SalesLine, SalesInvLine, IsHandled);
+        if IsHandled then
+            exit;
+
         if SalesLine."Document Type" = SalesLine."Document Type"::Order then begin
             SalesInvLine."Order No." := SalesLine."Document No.";
             SalesInvLine."Order Line No." := SalesLine."Line No.";
@@ -1192,7 +1231,7 @@ codeunit 80 "Sales-Post"
             end;
     end;
 
-    local procedure UpdateInvoiceRounding(var SalesHeader: Record "Sales Header"; BiggestLineNo: Integer)
+    local procedure UpdateInvoiceRounding(var SalesHeader: Record "Sales Header"; var BiggestLineNo: Integer)
     begin
         if RoundingLineInserted then
             LastLineRetrieved := true
@@ -1293,7 +1332,7 @@ codeunit 80 "Sales-Post"
     /// <param name="SalesHeader">The sales header of the document that is being posted.</param>
     /// <param name="SalesLine">The sales line of the document line that is being posted. A line with Type "Item" is expected.</param>
     /// <param name="TempDropShptPostBuffer">Return Variable: A temp table Set that will get an additional entry with Drop Shipment information.</param>
-    /// <param name="TempPostedATOLink">A temp table Set containg Posted Assemble-to-Order Links. If a link exists, it posts an item journal line with assembled quantity</param>
+    /// <param name="TempPostedATOLink">A temp table Set containing Posted Assemble-to-Order Links. If a link exists, it posts an item journal line with assembled quantity</param>
     procedure PostItemLine(SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary; var TempPostedATOLink: Record "Posted Assemble-to-Order Link" temporary)
     var
         DummyTrackingSpecification: Record "Tracking Specification";
@@ -1363,12 +1402,12 @@ codeunit 80 "Sales-Post"
         OnAfterPostItemLine(SalesHeader, SalesLine, QtyToInvoice, QtyToInvoiceBase, SuppressCommit, ItemJnlPostLine);
     end;
 
-    local procedure ProcessAssocItemJnlLine(SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary)
+    procedure ProcessAssocItemJnlLine(SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary)
     var
         IsHandled: Boolean;
     begin
         IsHandled := false;
-        OnBeforeProcessAssocItemJnlLine(SalesLine, IsHandled);
+        OnBeforeProcessAssocItemJnlLine(SalesLine, IsHandled, SalesHeader, TempDropShptPostBuffer);
         if IsHandled then
             exit;
 
@@ -1534,7 +1573,7 @@ codeunit 80 "Sales-Post"
         end;
 
         ItemShptEntryNo := ItemJnlLine."Item Shpt. Entry No.";
-        OnAfterPostItemJnlLine(ItemJnlLine, SalesLine, SalesHeader, ItemJnlPostLine, WhseJnlPostLine, OriginalItemJnlLine, ItemShptEntryNo, IsATO, TempHandlingSpecification, TempATOTrackingSpecification, TempWhseJnlLine, ShouldPostItemJnlLine, WhseShip);
+        OnAfterPostItemJnlLine(ItemJnlLine, SalesLine, SalesHeader, ItemJnlPostLine, WhseJnlPostLine, OriginalItemJnlLine, ItemShptEntryNo, IsATO, TempHandlingSpecification, TempATOTrackingSpecification, TempWhseJnlLine, ShouldPostItemJnlLine, WhseShip, WhseRcptHeader);
 
         exit(ItemShptEntryNo);
     end;
@@ -1822,7 +1861,7 @@ codeunit 80 "Sales-Post"
     /// Adds Tracking Specification for a sales line to the global temp tables where it will later be posted from
     /// </summary>
     /// <remarks>
-    /// If line is being invoiced, it's additionally stored in TempTrackingSpecificationInv, 
+    /// If line is being invoiced, it's additionally stored in TempTrackingSpecificationInv,
     /// and if Warehouse Journal Lines are being posted, it's also stored in TempWhseTrackingSpecification
     /// </remarks>
     /// <param name="SalesLine">The sales line of the document line that is being posted.</param>
@@ -2268,7 +2307,7 @@ codeunit 80 "Sales-Post"
             Error(RelatedItemLedgEntriesNotFoundErr);
     end;
 
-    local procedure PostAssocItemJnlLine(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyToBeShipped: Decimal; QtyToBeShippedBase: Decimal): Integer
+    procedure PostAssocItemJnlLine(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyToBeShipped: Decimal; QtyToBeShippedBase: Decimal): Integer
     var
         ItemJnlLine: Record "Item Journal Line";
         TempHandlingSpecification2: Record "Tracking Specification" temporary;
@@ -2312,7 +2351,7 @@ codeunit 80 "Sales-Post"
         exit(ItemJnlLine."Item Shpt. Entry No.");
     end;
 
-    local procedure InitAssocItemJnlLine(var ItemJnlLine: Record "Item Journal Line"; PurchOrderHeader: Record "Purchase Header"; PurchOrderLine: Record "Purchase Line"; SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyToBeShipped: Decimal; QtyToBeShippedBase: Decimal)
+    procedure InitAssocItemJnlLine(var ItemJnlLine: Record "Item Journal Line"; PurchOrderHeader: Record "Purchase Header"; PurchOrderLine: Record "Purchase Line"; SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyToBeShipped: Decimal; QtyToBeShippedBase: Decimal)
     begin
         OnBeforeInitAssocItemJnlLine(ItemJnlLine, PurchOrderHeader, PurchOrderLine, SalesHeader, SalesLine);
 
@@ -2509,7 +2548,7 @@ codeunit 80 "Sales-Post"
         OnBeforeCheckItemTrackingQuantity(SalesLine, IsHandled);
         if IsHandled then
             exit;
-
+        SyncSurPlusItemTracking(SalesHeader, SalesLine);
         case SalesHeader."Document Type" of
             SalesHeader."Document Type"::Order, SalesHeader."Document Type"::Invoice:
                 TrackingSpecification.CheckItemTrackingQuantity(DATABASE::"Sales Line", SalesLine."Document Type".AsInteger(), SalesLine."Document No.", SalesLine."Line No.", SalesLine."Qty. to Ship (Base)", SalesLine."Qty. to Invoice (Base)", SalesHeader.Ship, SalesHeader.Invoice);
@@ -2659,53 +2698,25 @@ codeunit 80 "Sales-Post"
     end;
 
     local procedure UpdatePostingNos(var SalesHeader: Record "Sales Header") ModifyHeader: Boolean
-#if not CLEAN24
-#pragma warning disable AL0432
-    var
-        NoSeriesMgt: Codeunit NoSeriesManagement;
-#pragma warning restore AL0432
-#endif
     begin
-#if not CLEAN24
-        OnBeforeUpdatePostingNos(SalesHeader, NoSeriesMgt, SuppressCommit, ModifyHeader);
-#else
         OnBeforeUpdatePostingNos(SalesHeader, SuppressCommit, ModifyHeader);
-#endif
 
-#if not CLEAN24
-        UpdateShippingNo(SalesHeader, NoSeriesMgt, ModifyHeader);
-#else
         UpdateShippingNo(SalesHeader, ModifyHeader);
-#endif
 
         UpdateReturnReceiptNo(SalesHeader, ModifyHeader);
 
         UpdatePostingNo(SalesHeader, ModifyHeader);
 
-#if not CLEAN24
-        OnAfterUpdatePostingNos(SalesHeader, NoSeriesMgt, SuppressCommit);
-#else
         OnAfterUpdatePostingNos(SalesHeader, SuppressCommit);
-#endif        
     end;
 
-#if not CLEAN24
-#pragma warning disable AL0432
-    local procedure UpdateShippingNo(var SalesHeader: Record "Sales Header"; var NoSeriesMgt: Codeunit NoSeriesManagement; var ModifyHeader: Boolean)
-#pragma warning restore AL0432
-#else
     local procedure UpdateShippingNo(var SalesHeader: Record "Sales Header"; var ModifyHeader: Boolean)
-#endif
     var
         NoSeries: Codeunit "No. Series";
         IsHandled: Boolean;
     begin
         IsHandled := false;
-#if not CLEAN24
-        OnBeforeUpdateShippingNo(SalesHeader, WhseShip, WhseReceive, InvtPickPutaway, PreviewMode, ModifyHeader, IsHandled, NoSeriesMgt);
-#else
         OnBeforeUpdateShippingNo(SalesHeader, WhseShip, WhseReceive, InvtPickPutaway, PreviewMode, ModifyHeader, IsHandled);
-#endif
         UpdateShippingNoTelemetry(SalesHeader);
         if IsHandled then
             exit;
@@ -2724,9 +2735,6 @@ codeunit 80 "Sales-Post"
                     // Check for posting conflicts.
                     if SalesShptHeader.Get(SalesHeader."Shipping No.") then
                         Error(SalesShptHeaderConflictErr, SalesHeader."Shipping No.");
-                end else begin
-                    SalesHeader."Shipping No." := PostingPreviewNoTok;
-                    OnSetPostingPreviewDocumentNo(SalesHeader."Shipping No.", SalesHeader);
                 end;
 
         OnAfterUpdateShippingNo(SalesHeader, PreviewMode, ModifyHeader);
@@ -2734,40 +2742,36 @@ codeunit 80 "Sales-Post"
 
     local procedure UpdateShippingNoTelemetry(var SalesHeader: Record "Sales Header")
     var
-        PreviewDocNos: List of [Code[20]];
         TelemetryCustomDimensions: Dictionary of [Text, Text];
         PreviewTokenFoundLbl: Label 'Preview token %1 found on fields.', Locked = true;
         PreviewToken: Text;
     begin
-        OnGetPostingPreviewDocumentNos(PreviewDocNos);
-        if PreviewDocNos.Count() = 0 then
-            PreviewDocNos.Add(PostingPreviewNoTok);
+        if not Format(SalesHeader."Shipping No.").StartsWith(PostingPreviewNoTok) and
+           not Format(SalesHeader."Return Receipt No.").StartsWith(PostingPreviewNoTok) and
+           not Format(SalesHeader."Posting No.").StartsWith(PostingPreviewNoTok)
+        then
+            exit;
 
-        if PreviewDocNos.Contains(SalesHeader."Shipping No.") or
-            PreviewDocNos.Contains(SalesHeader."Return Receipt No.") or
-            PreviewDocNos.Contains(SalesHeader."Posting No.")
-        then begin
-            TelemetryCustomDimensions.Add(SalesHeader.FieldCaption(SystemId), SalesHeader.SystemId);
-            TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Document Type"), Format(SalesHeader."Document Type"));
+        TelemetryCustomDimensions.Add(SalesHeader.FieldCaption(SystemId), SalesHeader.SystemId);
+        TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Document Type"), Format(SalesHeader."Document Type"));
 
-            if PreviewDocNos.Contains(SalesHeader."Shipping No.") then begin
-                PreviewToken := SalesHeader."Shipping No.";
-                TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Shipping No."), SalesHeader."Shipping No.");
-                SalesHeader."Shipping No." := '';
-            end;
-            if PreviewDocNos.Contains(SalesHeader."Return Receipt No.") then begin
-                PreviewToken := SalesHeader."Return Receipt No.";
-                TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Return Receipt No."), SalesHeader."Return Receipt No.");
-                SalesHeader."Return Receipt No." := '';
-            end;
-            if PreviewDocNos.Contains(SalesHeader."Posting No.") then begin
-                PreviewToken := SalesHeader."Posting No.";
-                TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Posting No."), SalesHeader."Posting No.");
-                SalesHeader."Posting No." := '';
-            end;
-
-            Session.LogMessage('0000CUV', StrSubstNo(PreviewTokenFoundLbl, PreviewToken), Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, TelemetryCustomDimensions);
+        if Format(SalesHeader."Shipping No.").StartsWith(PostingPreviewNoTok) then begin
+            PreviewToken := SalesHeader."Shipping No.";
+            TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Shipping No."), SalesHeader."Shipping No.");
+            SalesHeader."Shipping No." := '';
         end;
+        if Format(SalesHeader."Return Receipt No.").StartsWith(PostingPreviewNoTok) then begin
+            PreviewToken := SalesHeader."Return Receipt No.";
+            TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Return Receipt No."), SalesHeader."Return Receipt No.");
+            SalesHeader."Return Receipt No." := '';
+        end;
+        if Format(SalesHeader."Posting No.").StartsWith(PostingPreviewNoTok) then begin
+            PreviewToken := SalesHeader."Posting No.";
+            TelemetryCustomDimensions.Add(SalesHeader.FieldCaption("Posting No."), SalesHeader."Posting No.");
+            SalesHeader."Posting No." := '';
+        end;
+
+        Session.LogMessage('0000CUV', StrSubstNo(PreviewTokenFoundLbl, PreviewToken), Verbosity::Error, DataClassification::SystemMetadata, TelemetryScope::All, TelemetryCustomDimensions);
     end;
 
     local procedure UpdatePostingNo(var SalesHeader: Record "Sales Header"; var ModifyHeader: Boolean)
@@ -2776,7 +2780,7 @@ codeunit 80 "Sales-Post"
         IsHandled: Boolean;
     begin
         IsHandled := false;
-        OnBeforeUpdatePostingNo(SalesHeader, PreviewMode, ModifyHeader, IsHandled);
+        OnBeforeUpdatePostingNo(SalesHeader, PreviewMode, ModifyHeader, IsHandled, DateOrderSeriesUsed);
         if IsHandled then
             exit;
 
@@ -2803,10 +2807,6 @@ codeunit 80 "Sales-Post"
                         DateOrderSeriesUsed := true;
                     ModifyHeader := true;
                 end;
-            if PreviewMode then begin
-                SalesHeader."Posting No." := PostingPreviewNoTok;
-                OnSetPostingPreviewDocumentNo(SalesHeader."Posting No.", SalesHeader);
-            end;
 
             // Check for posting conflicts.
             if not PreviewMode then
@@ -2843,9 +2843,6 @@ codeunit 80 "Sales-Post"
                     // Check for posting conflicts.
                     if ReturnRcptHeader.Get(SalesHeader."Return Receipt No.") then
                         Error(SalesReturnRcptHeaderConflictErr, SalesHeader."Return Receipt No.")
-                end else begin
-                    SalesHeader."Return Receipt No." := PostingPreviewNoTok;
-                    OnSetPostingPreviewDocumentNo(SalesHeader."Return Receipt No.", SalesHeader);
                 end;
 
         OnAfterUpdateReturnReceiptNo(SalesHeader);
@@ -3280,6 +3277,9 @@ codeunit 80 "Sales-Post"
             if not IsHandled then
                 GenJnlPostPreview.ThrowError();
         end;
+
+        ICInboxOutboxMgt.CheckPermissionToSendICTransaction(SalesHeader);
+
         if not (InvtPickPutaway or SuppressCommit or PreviewMode) then
             Commit();
 
@@ -3478,21 +3478,19 @@ codeunit 80 "Sales-Post"
         OnBeforeRoundAmount(SalesHeader, SalesLine, SalesLineQty, CurrExchRate);
 
         IncrAmount(SalesHeader, SalesLine, TotalSalesLine);
-        Increment(TotalSalesLine."Net Weight", Round(SalesLineQty * SalesLine."Net Weight", UOMMgt.WeightRndPrecision()));
-        Increment(TotalSalesLine."Gross Weight", Round(SalesLineQty * SalesLine."Gross Weight", UOMMgt.WeightRndPrecision()));
-        Increment(TotalSalesLine."Unit Volume", Round(SalesLineQty * SalesLine."Unit Volume", UOMMgt.CubageRndPrecision()));
-        Increment(TotalSalesLine.Quantity, SalesLineQty);
+        TotalSalesLine."Net Weight" += Round(SalesLineQty * SalesLine."Net Weight", UOMMgt.WeightRndPrecision());
+        TotalSalesLine."Gross Weight" += Round(SalesLineQty * SalesLine."Gross Weight", UOMMgt.WeightRndPrecision());
+        TotalSalesLine."Unit Volume" += Round(SalesLineQty * SalesLine."Unit Volume", UOMMgt.CubageRndPrecision());
+        TotalSalesLine.Quantity += SalesLineQty;
         if SalesLine."Units per Parcel" > 0 then
-            Increment(
-              TotalSalesLine."Units per Parcel",
-              Round(SalesLineQty / SalesLine."Units per Parcel", 1, '>'));
+            TotalSalesLine."Units per Parcel" += Round(SalesLineQty / SalesLine."Units per Parcel", 1, '>');
 
         xSalesLine := SalesLine;
         SalesLineACY := SalesLine;
         IsHandled := false;
         OnRoundAmountOnAfterAssignSalesLines(xSalesLine, SalesLineACY, SalesHeader, IsHandled, TotalSalesLine, TotalSalesLineLCY, SalesLine);
         if not IsHandled then
-            if SalesHeader."Currency Code" <> '' then begin
+            if (SalesHeader."Currency Code" <> '') and (SalesLine.Type <> SalesLine.Type::" ") then begin
                 NoVAT := SalesLine.Amount = SalesLine."Amount Including VAT";
                 SalesLine."Amount Including VAT" :=
                   Round(
@@ -3544,7 +3542,7 @@ codeunit 80 "Sales-Post"
         OnRoundAmountOnBeforeIncrAmount(SalesHeader, SalesLine, SalesLineQty, TotalSalesLine, TotalSalesLineLCY, xSalesLine, IsHandled);
         if not IsHandled then begin
             IncrAmount(SalesHeader, SalesLine, TotalSalesLineLCY);
-            Increment(TotalSalesLineLCY."Unit Cost (LCY)", Round(SalesLineQty * SalesLine."Unit Cost (LCY)"));
+            TotalSalesLineLCY."Unit Cost (LCY)" += Round(SalesLineQty * SalesLine."Unit Cost (LCY)");
         end;
 
         OnAfterRoundAmount(SalesHeader, SalesLine, SalesLineQty);
@@ -3646,28 +3644,23 @@ codeunit 80 "Sales-Post"
         if SalesHeader."Prices Including VAT" or
            (SalesLine."VAT Calculation Type" <> SalesLine."VAT Calculation Type"::"Full VAT")
         then
-            Increment(TotalSalesLine."Line Amount", SalesLine."Line Amount");
-        Increment(TotalSalesLine.Amount, SalesLine.Amount);
-        Increment(TotalSalesLine."VAT Base Amount", SalesLine."VAT Base Amount");
-        Increment(TotalSalesLine."VAT Difference", SalesLine."VAT Difference");
-        Increment(TotalSalesLine."Amount Including VAT", SalesLine."Amount Including VAT");
-        Increment(TotalSalesLine."Line Discount Amount", SalesLine."Line Discount Amount");
-        Increment(TotalSalesLine."Inv. Discount Amount", SalesLine."Inv. Discount Amount");
-        Increment(TotalSalesLine."Inv. Disc. Amount to Invoice", SalesLine."Inv. Disc. Amount to Invoice");
-        Increment(TotalSalesLine."Prepmt. Line Amount", SalesLine."Prepmt. Line Amount");
-        Increment(TotalSalesLine."Prepmt. Amt. Inv.", SalesLine."Prepmt. Amt. Inv.");
-        Increment(TotalSalesLine."Prepmt Amt to Deduct", SalesLine."Prepmt Amt to Deduct");
-        Increment(TotalSalesLine."Prepmt Amt Deducted", SalesLine."Prepmt Amt Deducted");
-        Increment(TotalSalesLine."Prepayment VAT Difference", SalesLine."Prepayment VAT Difference");
-        Increment(TotalSalesLine."Prepmt VAT Diff. to Deduct", SalesLine."Prepmt VAT Diff. to Deduct");
-        Increment(TotalSalesLine."Prepmt VAT Diff. Deducted", SalesLine."Prepmt VAT Diff. Deducted");
+            TotalSalesLine."Line Amount" += SalesLine."Line Amount";
+        TotalSalesLine.Amount += SalesLine.Amount;
+        TotalSalesLine."VAT Base Amount" += SalesLine."VAT Base Amount";
+        TotalSalesLine."VAT Difference" += SalesLine."VAT Difference";
+        TotalSalesLine."Amount Including VAT" += SalesLine."Amount Including VAT";
+        TotalSalesLine."Line Discount Amount" += SalesLine."Line Discount Amount";
+        TotalSalesLine."Inv. Discount Amount" += SalesLine."Inv. Discount Amount";
+        TotalSalesLine."Inv. Disc. Amount to Invoice" += SalesLine."Inv. Disc. Amount to Invoice";
+        TotalSalesLine."Prepmt. Line Amount" += SalesLine."Prepmt. Line Amount";
+        TotalSalesLine."Prepmt. Amt. Inv." += SalesLine."Prepmt. Amt. Inv.";
+        TotalSalesLine."Prepmt Amt to Deduct" += SalesLine."Prepmt Amt to Deduct";
+        TotalSalesLine."Prepmt Amt Deducted" += SalesLine."Prepmt Amt Deducted";
+        TotalSalesLine."Prepayment VAT Difference" += SalesLine."Prepayment VAT Difference";
+        TotalSalesLine."Prepmt VAT Diff. to Deduct" += SalesLine."Prepmt VAT Diff. to Deduct";
+        TotalSalesLine."Prepmt VAT Diff. Deducted" += SalesLine."Prepmt VAT Diff. Deducted";
 
         OnAfterIncrAmount(TotalSalesLine, SalesLine, SalesHeader);
-    end;
-
-    local procedure Increment(var Number: Decimal; Number2: Decimal)
-    begin
-        Number := Number + Number2;
     end;
 
     local procedure GetSalesHeader(var SalesHeader: Record "Sales Header")
@@ -3682,7 +3675,7 @@ codeunit 80 "Sales-Post"
 
     /// <summary>
     /// Collects the sales lines for the specified sales header and stores them in the NewSalesLine record set.
-    /// Collected lines will have the amounts divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.    
+    /// Collected lines will have the amounts divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.
     /// </summary>
     /// <remarks>
     /// An overload for GetSalesLines that always includes prepayments (if QtyType is set to Invoicing).
@@ -3712,7 +3705,30 @@ codeunit 80 "Sales-Post"
         OnGetSalesLinesOnAfterFillTempLines(SalesHeader, TempSalesLineGlobal);
         if (QtyType = QtyType::Invoicing) and IncludePrepayments then
             CreatePrepaymentLines(SalesHeader, false);
-        SumSalesLines2(SalesHeader, NewSalesLine, TempSalesLineGlobal, QtyType, true, false, TotalAdjCostLCY, IncludePrepayments);
+        SumSalesLines2(SalesHeader, NewSalesLine, TempSalesLineGlobal, QtyType, true, false, TotalAdjCostLCY, IncludePrepayments, false);
+
+        OnAfterGetSalesLines(SalesHeader, TempSalesLineGlobal, NewSalesLine);
+    end;
+
+    /// <summary>
+    /// Collects and divides amounts of the sales lines for the specified sales header and stores them in the NewSalesLine record set.
+    /// Collected lines will have the amounts divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.
+    /// </summary>
+    /// <param name="SalesHeader">The sales header of the document.</param>
+    /// <param name="NewSalesLine">Return Variable: The NewSalesLine record set to store the collected sales lines in. This should be a temporary variable as new records will be inserted.</param>
+    /// <param name="QtyType">The QtyType to use when dividing the amounts by quantity. General = Quantity, Invoicing = Qty. to Invoice, Shipping = Qty. to Ship.</param>
+    /// <param name="IncludePrepayments">A flag indicating whether prepayments should be included in the collected lines. Only applies if QtyType is set to Invoicing.</param>
+    /// <param name="CalledFromStatistics">A flag indicating whether the procedure is called from statistics.</param>
+    procedure GetSalesLines(var SalesHeader: Record "Sales Header"; var NewSalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; IncludePrepayments: Boolean; CalledFromStatistics: Boolean)
+    var
+        TotalAdjCostLCY: Decimal;
+    begin
+        OnBeforeGetSalesLines(SalesHeader, NewSalesLine, QtyType, IncludePrepayments);
+        FillTempLines(SalesHeader, TempSalesLineGlobal);
+        OnGetSalesLinesOnAfterFillTempLines(SalesHeader, TempSalesLineGlobal);
+        if (QtyType = QtyType::Invoicing) and IncludePrepayments then
+            CreatePrepaymentLines(SalesHeader, false);
+        SumSalesLines2(SalesHeader, NewSalesLine, TempSalesLineGlobal, QtyType, true, false, TotalAdjCostLCY, IncludePrepayments, CalledFromStatistics);
 
         OnAfterGetSalesLines(SalesHeader, TempSalesLineGlobal, NewSalesLine);
     end;
@@ -3722,7 +3738,7 @@ codeunit 80 "Sales-Post"
     /// Lines will have the amounts divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.
     /// </summary>
     /// <remarks>
-    /// Behaves similarly to GetSalesLines with the exception that GetSalesLines collects all the lines for the specified sales header, 
+    /// Behaves similarly to GetSalesLines with the exception that GetSalesLines collects all the lines for the specified sales header,
     /// while this method only divides the amounts of the lines passed as OldSalesLine parameter.
     /// </remarks>
     /// <param name="SalesHeader">The sales header of the document.</param>
@@ -3742,7 +3758,7 @@ codeunit 80 "Sales-Post"
     /// Sums the sales lines for the specified sales header (within the filters that are already set on OldSalesLine) and stores the results in the NewTotalSalesLine and NewTotalSalesLineLCY record variables.
     /// The amounts will be divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.
     /// </summary>
-    /// <remarks>    
+    /// <remarks>
     /// This is an overload for SumSalesLineTemp that always includes prepayments in amount calculations
     /// it always takes the lines for the specified sales header (doesn't support a parameter for filtered or temp sales lines).
     /// </remarks>
@@ -3810,7 +3826,47 @@ codeunit 80 "Sales-Post"
         SalesLine: Record "Sales Line";
     begin
         OnBeforeSumSalesLinesTemp(SalesHeader, OldSalesLine);
-        SumSalesLines2(SalesHeader, SalesLine, OldSalesLine, QtyType, false, true, TotalAdjCostLCY, IncludePrepayments);
+        SumSalesLines2(SalesHeader, SalesLine, OldSalesLine, QtyType, false, true, TotalAdjCostLCY, IncludePrepayments, false);
+        ProfitLCY := TotalSalesLineLCY.Amount - TotalSalesLineLCY."Unit Cost (LCY)";
+        if TotalSalesLineLCY.Amount = 0 then
+            ProfitPct := 0
+        else
+            ProfitPct := Round(ProfitLCY / TotalSalesLineLCY.Amount * 100, 0.1);
+        VATAmount := TotalSalesLine."Amount Including VAT" - TotalSalesLine.Amount;
+        OnSumSalesLinesTempOnAfterVatAmountSet(VATAmount, TotalSalesLine);
+        if TotalSalesLine."VAT %" = 0 then
+            VATAmountText := VATAmountTxt
+        else
+            VATAmountText := StrSubstNo(VATRateTxt, TotalSalesLine.GetVATPct());
+        NewTotalSalesLine := TotalSalesLine;
+        NewTotalSalesLineLCY := TotalSalesLineLCY;
+    end;
+
+    /// <summary>
+    /// Sums the sales lines for the specified sales header (within the filters that are already set on OldSalesLine) and stores the results in the NewTotalSalesLine and NewTotalSalesLineLCY record variables.
+    /// The amounts will be divided by quantity the same way as they are divided during the posting process, depending on the selected QtyType.
+    /// </summary>
+    /// <remarks>
+    /// OldSalesLine can be a temporary variable
+    /// </remarks>
+    /// <param name="SalesHeader">The sales header of the document.</param>
+    /// <param name="OldSalesLine">The sales lines to sum.</param>
+    /// <param name="QtyType">The QtyType to use when dividing the amounts by quantity. General = Quantity, Invoicing = Qty. to Invoice, Shipping = Qty. to Ship.</param>
+    /// <param name="NewTotalSalesLine">Return Variable: The NewTotalSalesLine record to store the summed amounts in.</param>
+    /// <param name="NewTotalSalesLineLCY">Return Variable: The NewTotalSalesLineLCY record to store the summed amounts in LCY in.</param>
+    /// <param name="VATAmount">Return Variable: The total VAT amount.</param>
+    /// <param name="VATAmountText">Return Variable: The text to display for the VAT amount. This will include the VAT rate if the VAT rate is the same for all lines.</param>
+    /// <param name="ProfitLCY">Return Variable: The total profit in LCY.</param>
+    /// <param name="ProfitPct">Return Variable: The total profit percentage.</param>
+    /// <param name="TotalAdjCostLCY">Return Variable: The total adjusted cost in LCY.</param>
+    /// <param name="IncludePrepayments">A flag indicating whether prepayments should be included when calculating Line Amounts.</param>
+    /// <param name="CalledFromStatistics">A flag indicating whether the procedure is called from statistics.</param>
+    procedure SumSalesLinesTemp(var SalesHeader: Record "Sales Header"; var OldSalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; var NewTotalSalesLine: Record "Sales Line"; var NewTotalSalesLineLCY: Record "Sales Line"; var VATAmount: Decimal; var VATAmountText: Text[30]; var ProfitLCY: Decimal; var ProfitPct: Decimal; var TotalAdjCostLCY: Decimal; IncludePrepayments: Boolean; CalledfromStatistics: Boolean)
+    var
+        SalesLine: Record "Sales Line";
+    begin
+        OnBeforeSumSalesLinesTemp(SalesHeader, OldSalesLine);
+        SumSalesLines2(SalesHeader, SalesLine, OldSalesLine, QtyType, false, true, TotalAdjCostLCY, IncludePrepayments, CalledfromStatistics);
         ProfitLCY := TotalSalesLineLCY.Amount - TotalSalesLineLCY."Unit Cost (LCY)";
         if TotalSalesLineLCY.Amount = 0 then
             ProfitPct := 0
@@ -3828,10 +3884,10 @@ codeunit 80 "Sales-Post"
 
     local procedure SumSalesLines2(SalesHeader: Record "Sales Header"; var NewSalesLine: Record "Sales Line"; var OldSalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; InsertSalesLine: Boolean; CalcAdCostLCY: Boolean; var TotalAdjCostLCY: Decimal)
     begin
-        SumSalesLines2(SalesHeader, NewSalesLine, OldSalesLine, QtyType, InsertSalesLine, CalcAdCostLCY, TotalAdjCostLCY, true);
+        SumSalesLines2(SalesHeader, NewSalesLine, OldSalesLine, QtyType, InsertSalesLine, CalcAdCostLCY, TotalAdjCostLCY, true, false);
     end;
 
-    local procedure SumSalesLines2(SalesHeader: Record "Sales Header"; var NewSalesLine: Record "Sales Line"; var OldSalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; InsertSalesLine: Boolean; CalcAdCostLCY: Boolean; var TotalAdjCostLCY: Decimal; IncludePrepayments: Boolean)
+    local procedure SumSalesLines2(SalesHeader: Record "Sales Header"; var NewSalesLine: Record "Sales Line"; var OldSalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; InsertSalesLine: Boolean; CalcAdCostLCY: Boolean; var TotalAdjCostLCY: Decimal; IncludePrepayments: Boolean; CalledfromStatistics: Boolean)
     var
         SalesLine: Record "Sales Line";
         TempVATAmountLine: Record "VAT Amount Line" temporary;
@@ -3863,7 +3919,7 @@ codeunit 80 "Sales-Post"
             repeat
                 if not RoundingLineInserted then
                     SalesLine := OldSalesLine;
-                SalesLineQty := GetSalesLineQty(SalesHeader, SalesLine, QtyType);
+                SalesLineQty := GetSalesLineQty(SalesHeader, SalesLine, QtyType, CalledfromStatistics);
                 IsHandled := false;
                 OnSumSalesLines2OnBeforeDivideAmount(
                     OldSalesLine, IsHandled, SalesHeader, SalesLine, QtyType, SalesLineQty, TempVATAmountLine, TempVATAmountLineRemainder,
@@ -3913,10 +3969,14 @@ codeunit 80 "Sales-Post"
         OnAfterSumSalesLines2(SalesHeader, OldSalesLine, NewSalesLine);
     end;
 
-    local procedure GetSalesLineQty(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping) SalesLineQty: Decimal;
+    local procedure GetSalesLineQty(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; CalledFromStatistics: Boolean) SalesLineQty: Decimal;
     var
         IsHandled: Boolean;
     begin
+
+        if CalledFromStatistics and IsInvoiceRoundingLine(SalesHeader, SalesLine) then
+            exit;
+
         IsHandled := false;
         OnBeforeGetSalesLineQty(SalesLine, QtyType, SalesLineQty, IsHandled);
         if IsHandled then
@@ -5086,7 +5146,7 @@ codeunit 80 "Sales-Post"
     ///     - Prepayment Amount to deduct is tested using information from Sales Shipment Lines.
     ///     - Validates Qty. to Invoice with Qty. Shipped Not Invoiced if the Qty. to Invoice is larger than shipped Qty.
     ///     - Checks that Prepayment Amount to deduct is not greater than the remaining amount to invoice for each line
-    ///     - Prepayment Line Type is Validated (otherwise it's only assigned).    
+    ///     - Prepayment Line Type is Validated (otherwise it's only assigned).
     /// If "Compress Prepayments" is enabled for the sales header, only one prepayment line is created.
     /// </remarks>
     /// <param name="SalesHeader">The sales header to create the prepayment lines for.</param>
@@ -5187,7 +5247,7 @@ codeunit 80 "Sales-Post"
                             TempPrepmtSalesLine.Validate(Type, TempPrepmtSalesLine.Type::"G/L Account")
                         else
                             TempPrepmtSalesLine.Type := TempPrepmtSalesLine.Type::"G/L Account";
-                        // deduct from prepayment 
+                        // deduct from prepayment
                         TempPrepmtSalesLine.Validate("No.", GLAcc."No.");
                         TempPrepmtSalesLine.Validate(Quantity, -1);
                         TempPrepmtSalesLine."Qty. to Ship" := TempPrepmtSalesLine.Quantity;
@@ -5591,9 +5651,7 @@ codeunit 80 "Sales-Post"
         if (PricesInclVATRoundingAmount[1] = 0) and (PricesInclVATRoundingAmount[2] = 0) or
            (PrepmtSalesLine."Currency Code" <> '') and FinalInvoice
         then
-            Increment(
-              TotalSalesLineLCY."Amount Including VAT",
-              PrepmtSalesLine."Amount Including VAT" - NewAmountIncludingVAT - Prepmt100PctVATRoundingAmt);
+            TotalSalesLineLCY."Amount Including VAT" += PrepmtSalesLine."Amount Including VAT" - NewAmountIncludingVAT - Prepmt100PctVATRoundingAmt;
         if PrepmtSalesLine."Currency Code" = '' then
             TotalSalesLine."Amount Including VAT" := TotalSalesLineLCY."Amount Including VAT";
         PrepmtSalesLine."Amount Including VAT" := NewAmountIncludingVAT;
@@ -5830,7 +5888,7 @@ codeunit 80 "Sales-Post"
 
     /// <summary>
     /// Checks if the prepayment amount for the sales lines is too big or too small using information from the related sales order lines.
-    /// It throws an error if it is.     
+    /// It throws an error if it is.
     /// </summary>
     /// <remarks>
     /// It is too big if the prepayment amount is bigger than the remaining prepayment amount on the sales order line.
@@ -6032,7 +6090,7 @@ codeunit 80 "Sales-Post"
         SalesLine: Record "Sales Line";
         PurchOrderHeader: Record "Purchase Header";
         PurchOrderLine: Record "Purchase Line";
-        InvSetup: Record "Inventory Setup";
+        InventorySetup: Record "Inventory Setup";
         IsHandled: Boolean;
     begin
         IsHandled := false;
@@ -6045,7 +6103,7 @@ codeunit 80 "Sales-Post"
         PurchOrderLine.LockTable();
         PurchOrderHeader.LockTable();
         GetGLSetup();
-        if InvSetup.UseLegacyPosting() and not InvSetup.OptimGLEntLockForMultiuserEnv() then begin
+        if InventorySetup.UseLegacyPosting() and not InventorySetup.OptimGLEntLockForMultiuserEnv() then begin
             GLEntry.LockTable();
             GLEntry.GetLastEntryNo();
         end;
@@ -6970,7 +7028,9 @@ codeunit 80 "Sales-Post"
                 ShouldInsertInvoiceHeader := SalesHeader."Document Type" in [SalesHeader."Document Type"::Order, SalesHeader."Document Type"::Invoice];
                 OnInsertPostedHeadersOnAfterCalcShouldInsertInvoiceHeader(SalesHeader, ShouldInsertInvoiceHeader);
                 if ShouldInsertInvoiceHeader then begin
+#if not CLEAN27
                     ReverseChargeApplies := CheckIfReverseChargeApplies(SalesHeader);
+#endif
                     InsertInvoiceHeader(SalesHeader, SalesInvHeader);
                     GenJnlLineDocType := GenJnlLine."Document Type"::Invoice;
                     GenJnlLineDocNo := SalesInvHeader."No.";
@@ -7001,7 +7061,7 @@ codeunit 80 "Sales-Post"
         SalesShptHeader.TransferFields(SalesHeader);
         OnInsertShipmentHeaderOnAfterTransferfieldsToSalesShptHeader(SalesHeader, SalesShptHeader);
 
-        SalesShptHeader."No." := SalesHeader."Shipping No.";
+        AssignPostedDocumentNo(SalesShptHeader."No.", SalesHeader."Shipping No.");
         if SalesHeader."Document Type" = SalesHeader."Document Type"::Order then begin
             SalesShptHeader."Order No. Series" := SalesHeader."No. Series";
             SalesShptHeader."Order No." := SalesHeader."No.";
@@ -7061,7 +7121,7 @@ codeunit 80 "Sales-Post"
             ReturnRcptHeader.Init();
             OnInsertReturnReceiptHeaderOnBeforeReturnReceiptHeaderTransferFields(SalesHeader);
             ReturnRcptHeader.TransferFields(SalesHeader);
-            ReturnRcptHeader."No." := SalesHeader."Return Receipt No.";
+            AssignPostedDocumentNo(ReturnRcptHeader."No.", SalesHeader."Return Receipt No.");
             if SalesHeader."Document Type" = SalesHeader."Document Type"::"Return Order" then begin
                 ReturnRcptHeader."Return Order No. Series" := SalesHeader."No. Series";
                 ReturnRcptHeader."Return Order No." := SalesHeader."No.";
@@ -7117,7 +7177,7 @@ codeunit 80 "Sales-Post"
         SalesInvHeader.TransferFields(SalesHeader);
         OnInsertInvoiceHeaderOnAfterSalesInvHeaderTransferFields(SalesHeader, SalesInvHeader);
 
-        SalesInvHeader."No." := SalesHeader."Posting No.";
+        AssignPostedDocumentNo(SalesInvHeader."No.", SalesHeader."Posting No.");
 
         IsHandled := false;
         OnInsertInvoiceHeaderOnBeforeCheckDocumentType(SalesHeader, SalesInvHeader, SalesSetup, IsHandled);
@@ -7130,7 +7190,7 @@ codeunit 80 "Sales-Post"
                 SalesInvHeader."Order No." := SalesHeader."No.";
             end else begin
                 if SalesHeader."Posting No." = '' then
-                    SalesInvHeader."No." := SalesHeader."No.";
+                    AssignPostedDocumentNo(SalesInvHeader."No.", SalesHeader."No.");
                 SalesInvHeader."Pre-Assigned No. Series" := SalesHeader."No. Series";
                 SalesInvHeader."Pre-Assigned No." := SalesHeader."No.";
             end;
@@ -7170,12 +7230,13 @@ codeunit 80 "Sales-Post"
         SalesHeader.CalcFields("Work Description");
         OnInsertCrMemoHeaderOnBeforeSalesCrMemoHeaderTransferFields(SalesHeader);
         SalesCrMemoHeader.TransferFields(SalesHeader);
+        AssignPostedDocumentNo(SalesCrMemoHeader."No.", SalesHeader."No.");
         OnInsertCrMemoHeaderOnAfterSalesCrMemoHeaderTransferFields(SalesHeader, SalesCrMemoHeader);
 
         ShouldProcessAsReturnOrder := SalesHeader."Document Type" = SalesHeader."Document Type"::"Return Order";
         OnInsertCrMemoHeaderOnAfterCalcShouldProcessAsReturnOrder(SalesHeader, ShouldProcessAsReturnOrder);
         if ShouldProcessAsReturnOrder then begin
-            SalesCrMemoHeader."No." := SalesHeader."Posting No.";
+            AssignPostedDocumentNo(SalesCrMemoHeader."No.", SalesHeader."Posting No.");
             if SalesSetup."Ext. Doc. No. Mandatory" then
                 SalesHeader.TestField("External Document No.");
             SalesCrMemoHeader."Pre-Assigned No. Series" := '';
@@ -7187,7 +7248,7 @@ codeunit 80 "Sales-Post"
             SalesCrMemoHeader."Pre-Assigned No. Series" := SalesHeader."No. Series";
             SalesCrMemoHeader."Pre-Assigned No." := SalesHeader."No.";
             if SalesHeader."Posting No." <> '' then begin
-                SalesCrMemoHeader."No." := SalesHeader."Posting No.";
+                AssignPostedDocumentNo(SalesCrMemoHeader."No.", SalesHeader."Posting No.");
                 if GuiAllowed() and not HideProgressWindow then
                     Window.Update(1, StrSubstNo(CreditMemoNoMsg, SalesHeader."Document Type", SalesHeader."No.", SalesCrMemoHeader."No."));
             end;
@@ -7215,7 +7276,7 @@ codeunit 80 "Sales-Post"
     begin
         PurchRcptHeader.Init();
         PurchRcptHeader.TransferFields(PurchaseHeader);
-        PurchRcptHeader."No." := PurchaseHeader."Receiving No.";
+        AssignPostedDocumentNo(PurchRcptHeader."No.", PurchaseHeader."Receiving No.");
         PurchRcptHeader."Order No." := PurchaseHeader."No.";
         PurchRcptHeader."Posting Date" := SalesHeader."Posting Date";
         PurchRcptHeader."Document Date" := SalesHeader."Document Date";
@@ -7651,6 +7712,8 @@ codeunit 80 "Sales-Post"
         OnAfterFindNotShippedLines(SalesHeader, TempSalesLine);
     end;
 
+#if not CLEAN27
+    [Obsolete('Moved to Reverse Charge VAT GB app', '27.0')]
     [Scope('OnPrem')]
     procedure CheckIfReverseChargeApplies(SalesHeader: Record "Sales Header"): Boolean
     var
@@ -7681,6 +7744,7 @@ codeunit 80 "Sales-Post"
             until SalesLine2.Next() = 0;
         exit(false);
     end;
+#endif
 
     local procedure CheckTrackingAndWarehouseForShip(SalesHeader: Record "Sales Header") Ship: Boolean
     var
@@ -7782,7 +7846,7 @@ codeunit 80 "Sales-Post"
     end;
 
     /// <summary>
-    /// Sets the CalledBy global variable.        
+    /// Sets the CalledBy global variable.
     /// </summary>
     /// <param name="NewCalledBy"></param>
     procedure SetCalledBy(NewCalledBy: Integer)
@@ -8235,7 +8299,7 @@ codeunit 80 "Sales-Post"
         exit(Condition);
     end;
 
-    local procedure PostUpdateOrderLine(SalesHeader: Record "Sales Header")
+    procedure PostUpdateOrderLine(SalesHeader: Record "Sales Header")
     var
         TempSalesLine: Record "Sales Line" temporary;
         SetDefaultQtyBlank: Boolean;
@@ -8411,12 +8475,18 @@ codeunit 80 "Sales-Post"
     local procedure PostUpdateOrderNo(var SalesInvoiceHeader: Record "Sales Invoice Header")
     var
         SalesInvoiceLine: Record "Sales Invoice Line";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforePostUpdateOrderNo(SalesInvoiceHeader, IsHandled);
+        if IsHandled then
+            exit;
+
         if SalesInvoiceHeader."No." = '' then
             exit;
 
 
-        // Do not change 'Order No.' if already set 
+        // Do not change 'Order No.' if already set
         if SalesInvoiceHeader."Order No." <> '' then
             exit;
 
@@ -8504,7 +8574,7 @@ codeunit 80 "Sales-Post"
         NoOfLinesWithOrderNo: Integer;
         NoOfLinesWithParticularOrderNo: Integer;
     begin
-        // Do not change 'Return Order No.' if already set 
+        // Do not change 'Return Order No.' if already set
         if SalesCrMemoHeader."Return Order No." <> '' then
             exit;
 
@@ -8791,7 +8861,13 @@ codeunit 80 "Sales-Post"
         Job: Record Job;
         SalesLine: Record "Sales Line";
         JobArchiveManagement: Codeunit "Job Archive Management";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeArchiveRelatedJob(SalesHeader, IsHandled);
+        if IsHandled then
+            exit;
+
         SalesLine.SetRange("Document Type", SalesHeader."Document Type");
         SalesLine.SetRange("Document No.", SalesHeader."No.");
         SalesLine.SetFilter("Job No.", '<>%1', '');
@@ -8802,6 +8878,20 @@ codeunit 80 "Sales-Post"
             JobArchiveManagement.AutoArchiveJob(Job);
     end;
 
+    local procedure IsInvoiceRoundingLine(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"): Boolean
+    var
+        CustomerPostingGroup: Record "Customer Posting Group";
+    begin
+        if SalesLine.Type <> SalesLine.Type::"G/L Account" then
+            exit(false);
+
+        CustomerPostingGroup.Get(SalesHeader."Customer Posting Group");
+        if SalesLine."No." = CustomerPostingGroup."Invoice Rounding Account" then
+            exit(true);
+
+        exit(false);
+    end;
+    
     [IntegrationEvent(false, false)]
     local procedure OnBeforePostLines(var SalesLine: Record "Sales Line"; SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean; PreviewMode: Boolean; var TempWhseShptHeader: Record "Warehouse Shipment Header" temporary; var ItemJnlPostLine: Codeunit "Item Jnl.-Post Line")
     begin
@@ -8867,13 +8957,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnAfterCreatePostedDeferralSchedule in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterCreatePostedDeferralScheduleFromSalesDoc(var SalesLine: Record "Sales Line"; var PostedDeferralHeader: Record "Posted Deferral Header")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterCreateWhseJnlLine(var SalesLine: Record "Sales Line"; var TempWhseJnlLine: Record "Warehouse Journal Line" temporary)
@@ -8905,19 +8988,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnAfterGetSalesAccount in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterGetSalesAccount(SalesLine: Record "Sales Line"; GenPostingSetup: Record "General Posting Setup"; var SalesAccountNo: Code[20])
-    begin
-    end;
-
-    [Obsolete('Moved to Sales Invoice Posting implementation.', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeGetSalesAccount(SalesLine: Record "Sales Line"; GenPostingSetup: Record "General Posting Setup"; var SalesAccountNo: Code[20]; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterGetSalesSetup(var SalesSetup: Record "Sales & Receivables Setup")
@@ -8934,31 +9004,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterFillInvoicePostingBuffer in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterFillInvoicePostBuffer(var InvoicePostBuffer: Record "Invoice Post. Buffer"; SalesLine: Record "Sales Line"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; CommitIsSuppressed: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterPrepareDeferralLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterFillDeferralPostingBuffer(var SalesLine: Record "Sales Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; UseDate: Date; InvDefLineNo: Integer; DeferralLineNo: Integer; CommitIsSuppressed: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnAfterInitTotalAmounts in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterInvoicePostingBufferAssignAmounts(SalesLine: Record "Sales Line"; var TotalAmount: Decimal; var TotalAmountLCY: Decimal; SalesLineACY: Record "Sales Line"; var TotalVAT: Decimal; var TotalVATACY: Decimal; var TotalVATBase: Decimal; var TotalVATBaseACY: Decimal; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterSetAmounts in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterInvoicePostingBufferSetAmounts(var InvoicePostBuffer: Record "Invoice Post. Buffer"; SalesLine: Record "Sales Line"; SalesLineACY: Record "Sales Line")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterIncrAmount(var TotalSalesLine: Record "Sales Line"; SalesLine: Record "Sales Line"; SalesHeader: Record "Sales Header")
@@ -9035,28 +9080,9 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostLedgerEntryOnAfterGenJnlPostLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterPostCustomerEntry(var GenJnlLine: Record "Gen. Journal Line"; var SalesHeader: Record "Sales Header"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; CommitIsSuppressed: Boolean; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostBalancingEntryOnAfterGenJnlPostLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterPostBalancingEntry(var GenJnlLine: Record "Gen. Journal Line"; var SalesHeader: Record "Sales Header"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; CommitIsSuppressed: Boolean; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostLinesOnAfterGenJnlLinePost in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterPostInvPostBuffer(var GenJnlLine: Record "Gen. Journal Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var SalesHeader: Record "Sales Header"; GLEntryNo: Integer; CommitIsSuppressed: Boolean; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; xSalesLine: Record "Sales Line"; GenJnlLineDocNo: Code[20]; GenJnlLineExtDocNo: Code[35]; var GenJnlLineDocType: Enum "Gen. Journal Document Type")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(true, false)]
-    local procedure OnAfterPostItemJnlLine(var ItemJournalLine: Record "Item Journal Line"; SalesLine: Record "Sales Line"; SalesHeader: Record "Sales Header"; var ItemJnlPostLine: Codeunit "Item Jnl.-Post Line"; var WhseJnlPostLine: Codeunit "Whse. Jnl.-Register Line"; OriginalItemJnlLine: Record "Item Journal Line"; var ItemShptEntryNo: Integer; IsATO: Boolean; var TempHandlingSpecification: Record "Tracking Specification"; var TempATOTrackingSpecification: Record "Tracking Specification"; TempWarehouseJournalLine: Record "Warehouse Journal Line" temporary; ShouldPostItemJnlLine: Boolean; WhseShip: Boolean)
+    local procedure OnAfterPostItemJnlLine(var ItemJournalLine: Record "Item Journal Line"; SalesLine: Record "Sales Line"; SalesHeader: Record "Sales Header"; var ItemJnlPostLine: Codeunit "Item Jnl.-Post Line"; var WhseJnlPostLine: Codeunit "Whse. Jnl.-Register Line"; OriginalItemJnlLine: Record "Item Journal Line"; var ItemShptEntryNo: Integer; IsATO: Boolean; var TempHandlingSpecification: Record "Tracking Specification"; var TempATOTrackingSpecification: Record "Tracking Specification"; TempWarehouseJournalLine: Record "Warehouse Journal Line" temporary; ShouldPostItemJnlLine: Boolean; WhseShip: Boolean; WhseRcptHeader: Record "Warehouse Receipt Header")
     begin
     end;
 
@@ -9085,18 +9111,10 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [IntegrationEvent(false, false)]
-    [Obsolete('Parameter NoSeriesMgt is obsolete and will be removed, update your subscriber accordingly.', '24.0')]
-    local procedure OnAfterUpdatePostingNos(var SalesHeader: Record "Sales Header"; var NoSeriesMgt: Codeunit NoSeriesManagement; CommitIsSuppressed: Boolean)
-    begin
-    end;
-#else
     [IntegrationEvent(false, false)]
     local procedure OnAfterUpdatePostingNos(var SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean)
     begin
     end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterUpdateReturnReceiptNo(var SalesHeader: Record "Sales Header")
@@ -9276,13 +9294,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeInitGenJnlLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeInitNewLineFromInvoicePostBuffer(var GenJnlLine: Record "Gen. Journal Line"; SalesHeader: Record "Sales Header"; InvoicePostBuffer: Record "Invoice Post. Buffer"; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeInsertICGenJnlLine(var ICGenJournalLine: Record "Gen. Journal Line"; SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; CommitIsSuppressed: Boolean)
@@ -9360,7 +9371,7 @@ codeunit 80 "Sales-Post"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnBeforeProcessAssocItemJnlLine(var SalesLine: Record "Sales Line"; var IsHandled: Boolean)
+    local procedure OnBeforeProcessAssocItemJnlLine(var SalesLine: Record "Sales Line"; var IsHandled: Boolean; var SalesHeader: Record "Sales Header"; var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary)
     begin
     end;
 
@@ -9424,43 +9435,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostLedgerEntryOnBeforeGenJnlPostLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforePostCustomerEntry(var GenJnlLine: Record "Gen. Journal Line"; var SalesHeader: Record "Sales Header"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; CommitIsSuppressed: Boolean; PreviewMode: Boolean; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforePostLedgerEntry in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeRunPostCustomerEntry(var SalesHeader: Record "Sales Header"; var TotalSalesLine2: Record "Sales Line"; var TotalSalesLineLCY2: Record "Sales Line"; CommitIsSuppressed: Boolean; PreviewMode: Boolean; DocType: Enum "Gen. Journal Document Type"; DocNo: Code[20]; ExtDocNo: Code[35]; SourceCode: Code[10]; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; var IsHandled: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeRunGenJnlPostLine in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeRunGenJnlPostLine(var GenJnlLine: Record "Gen. Journal Line"; SalesInvHeader: Record "Sales Invoice Header")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostBalancingEntryOnBeforeGenJnlPostLine in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforePostBalancingEntry(var GenJnlLine: Record "Gen. Journal Line"; SalesHeader: Record "Sales Header"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; CommitIsSuppressed: Boolean; PreviewMode: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostLinesOnBeforeGenJnlLinePost in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforePostInvPostBuffer(var GenJnlLine: Record "Gen. Journal Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; PreviewMode: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforePostLines in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforePostInvoicePostBuffer(SalesHeader: Record "Sales Header"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforePostJobContractLine(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var IsHandled: Boolean; var JobContractLine: Boolean; var InvoicePostingInterface: Interface "Invoice Posting"; SalesLineACY: Record "Sales Line"; SalesInvHeader: Record "Sales Invoice Header"; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -9487,18 +9461,10 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [IntegrationEvent(false, false)]
-    [Obsolete('Parameter NoSeriesMgt is obsolete and will be removed, update your subscriber accordingly.', '24.0')]
-    local procedure OnBeforeUpdatePostingNos(var SalesHeader: Record "Sales Header"; var NoSeriesMgt: Codeunit NoSeriesManagement; CommitIsSuppressed: Boolean; var ModifyHeader: Boolean)
-    begin
-    end;
-#else
     [IntegrationEvent(false, false)]
     local procedure OnBeforeUpdatePostingNos(var SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean; var ModifyHeader: Boolean)
     begin
     end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterPostItemJnlLineBeforePost(var ItemJournalLine: Record "Item Journal Line"; SalesLine: Record "Sales Line"; QtyToBeShippedBase: Decimal; var ItemJnlPostLine: Codeunit "Item Jnl.-Post Line"; var CheckApplFromItemEntry: Boolean; var TrackingSpecification: Record "Tracking Specification")
@@ -9557,13 +9523,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnAfterSetApplyToDocNo in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnAfterSetApplyToDocNo(var GenJournalLine: Record "Gen. Journal Line"; SalesHeader: Record "Sales Header")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnAfterDivideAmount(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; QtyType: Option General,Invoicing,Shipping; SalesLineQty: Decimal; var TempVATAmountLine: Record "VAT Amount Line" temporary; var TempVATAmountLineRemainder: Record "VAT Amount Line" temporary)
@@ -9605,25 +9564,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeCalcInvoiceDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeCalcInvoiceDiscountPosting(var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer"; SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; TotalVAT: Decimal; TotalVATACY: Decimal; TotalAmount: Decimal; TotalAmountACY: Decimal; var IsHandled: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeCalcInvoiceDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeCalcInvoiceDiscountPostingProcedure(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; SalesLineACY: Record "Sales Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var IsHandled: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeCalcLineDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnCalcLineDiscountPostingProcedure(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; SalesLineACY: Record "Sales Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCalcInvoice(SalesHeader: Record "Sales Header"; var TempSalesLineGlobal: Record "Sales Line" temporary; var NewInvoice: Boolean; var IsHandled: Boolean)
@@ -9635,13 +9575,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeCalcLineDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeCalcLineDiscountPosting(var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer"; SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; TotalVAT: Decimal; TotalVATACY: Decimal; TotalAmount: Decimal; TotalAmountACY: Decimal; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCheckAssosOrderLines(SalesHeader: Record "Sales Header"; var IsHandled: Boolean)
@@ -9748,13 +9681,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeSetAmounts in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeInvoicePostingBufferSetAmounts(SalesLine: Record "Sales Line"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var TotalVAT: Decimal; var TotalVATACY: Decimal; var TotalAmount: Decimal; var TotalAmountACY: Decimal; var TotalVATBase: Decimal; var TotalVATBaseACY: Decimal)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeRoundAmount(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var SalesLineQty: Decimal; var CurrExchRate: Record "Currency Exchange Rate")
@@ -9827,7 +9753,7 @@ codeunit 80 "Sales-Post"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnBeforeValidatePostingAndDocumentDate(var SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean)
+    local procedure OnBeforeValidatePostingAndDocumentDate(var SalesHeader: Record "Sales Header"; CommitIsSuppressed: Boolean; var IsHandled: Boolean)
     begin
     end;
 
@@ -9846,13 +9772,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeSetAmountsForBalancingEntry in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeSetAmountsForBalancingEntry(var CustLedgEntry: Record "Cust. Ledger Entry"; var GenJnlLine: Record "Gen. Journal Line"; var IsHandled: Boolean; var TotalSalesLineLCY2: Record "Sales Line")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeSetPostingFlags(var SalesHeader: Record "Sales Header"; var IsHandled: Boolean)
@@ -9899,13 +9818,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforeTempDeferralLineInsert in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeTempDeferralLineInsert(var TempDeferralLine: Record "Deferral Line" temporary; DeferralLine: Record "Deferral Line"; SalesLine: Record "Sales Line"; var DeferralCount: Integer; var TotalDeferralCount: Integer)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeTempPrepmtSalesLineInsert(var TempPrepmtSalesLine: Record "Sales Line" temporary; var TempSalesLine: Record "Sales Line" temporary; SalesHeader: Record "Sales Header"; CompleteFunctionality: Boolean)
@@ -9948,7 +9860,7 @@ codeunit 80 "Sales-Post"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnBeforeUpdatePostingNo(var SalesHeader: Record "Sales Header"; PreviewMode: Boolean; var ModifyHeader: Boolean; var IsHandled: Boolean)
+    local procedure OnBeforeUpdatePostingNo(var SalesHeader: Record "Sales Header"; PreviewMode: Boolean; var ModifyHeader: Boolean; var IsHandled: Boolean; var DateOrderSeriesUsed: Boolean)
     begin
     end;
 
@@ -9982,18 +9894,10 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [IntegrationEvent(false, false)]
-    [Obsolete('Parameter NoSeriesMgt is obsolete and will be removed, update your subscriber accordingly.', '24.0')]
-    local procedure OnBeforeUpdateShippingNo(var SalesHeader: Record "Sales Header"; WhseShip: Boolean; WhseReceive: Boolean; InvtPickPutaway: Boolean; PreviewMode: Boolean; var ModifyHeader: Boolean; var IsHandled: Boolean; var NoSeriesMgt: Codeunit NoSeriesManagement)
-    begin
-    end;
-#else
     [IntegrationEvent(false, false)]
     local procedure OnBeforeUpdateShippingNo(var SalesHeader: Record "Sales Header"; WhseShip: Boolean; WhseReceive: Boolean; InvtPickPutaway: Boolean; PreviewMode: Boolean; var ModifyHeader: Boolean; var IsHandled: Boolean)
     begin
     end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeUpdateWhseDocuments(var SalesHeader: Record "Sales Header"; var IsHandled: Boolean; WhseReceive: Boolean; WhseShip: Boolean; WhseRcptHeader: Record "Warehouse Receipt Header"; WhseShptHeader: Record "Warehouse Shipment Header"; var TempWhseRcptHeader: Record "Warehouse Receipt Header" temporary; var TempWhseShptHeader: Record "Warehouse Shipment Header" temporary)
@@ -10010,14 +9914,14 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-    local procedure PostResJnlLine(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var JobTaskSalesLine: Record "Sales Line")
+    local procedure PostResJnlLine(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var JobTaskSalesLine2: Record "Sales Line")
     var
         ResJnlLine: Record "Res. Journal Line";
         IsHandled: Boolean;
         ShouldExit: Boolean;
     begin
         IsHandled := false;
-        OnBeforePostResJnlLine(SalesHeader, SalesLine, JobTaskSalesLine, IsHandled, GenJnlLineDocNo, GenJnlLineExtDocNo, SrcCode, SalesShptHeader, ReturnRcptHeader, ResJnlPostLine);
+        OnBeforePostResJnlLine(SalesHeader, SalesLine, JobTaskSalesLine2, IsHandled, GenJnlLineDocNo, GenJnlLineExtDocNo, SrcCode, SalesShptHeader, ReturnRcptHeader, ResJnlPostLine);
         if IsHandled then
             exit;
 
@@ -10033,10 +9937,10 @@ codeunit 80 "Sales-Post"
         OnPostResJnlLineOnAfterInit(ResJnlLine, SalesLine);
 
         ResJnlPostLine.RunWithCheck(ResJnlLine);
-        if JobTaskSalesLine."Job Contract Entry No." > 0 then
-            PostJobContractLine(SalesHeader, JobTaskSalesLine);
+        if JobTaskSalesLine2."Job Contract Entry No." > 0 then
+            PostJobContractLine(SalesHeader, JobTaskSalesLine2);
 
-        OnAfterPostResJnlLine(SalesHeader, SalesLine, JobTaskSalesLine, ResJnlLine);
+        OnAfterPostResJnlLine(SalesHeader, SalesLine, JobTaskSalesLine2, ResJnlLine);
     end;
 
     local procedure ValidatePostingAndDocumentDate(var SalesHeader: Record "Sales Header")
@@ -10048,9 +9952,13 @@ codeunit 80 "Sales-Post"
         ReplacePostingDate: Boolean;
         ReplaceDocumentDate: Boolean;
         ReplaceVATDate: Boolean;
-        SkipTestPostingDate: Boolean;
+        SkipTestPostingDate: Boolean;	
+        IsHandled: Boolean;
     begin
-        OnBeforeValidatePostingAndDocumentDate(SalesHeader, SuppressCommit);
+        IsHandled := false;
+        OnBeforeValidatePostingAndDocumentDate(SalesHeader, SuppressCommit, IsHandled);
+        if IsHandled then
+            exit;
 
         PostingDateExists :=
           BatchProcessingMgt.GetBooleanParameter(SalesHeader.RecordId, Enum::"Batch Posting Parameter Type"::"Replace Posting Date", ReplacePostingDate) and
@@ -10133,7 +10041,13 @@ codeunit 80 "Sales-Post"
     var
         FindEmailParameter: Record "Email Parameter";
         RenameEmailParameter: Record "Email Parameter";
+        IsHandled: Boolean;
     begin
+        IsHandled := false;
+        OnBeforeUpdateEmailParameters(SalesHeader, IsHandled);
+        if IsHandled then
+            exit;
+
         if SalesHeader."Last Posting No." = '' then
             exit;
         FindEmailParameter.SetRange("Document No", SalesHeader."No.");
@@ -10398,6 +10312,60 @@ codeunit 80 "Sales-Post"
             exit(true);
     end;
 
+    local procedure AssignPostedDocumentNo(var PostedDocumentNo: Code[20]; DocumentNo: Code[20])
+    begin
+        if PreviewMode then
+            PostedDocumentNo := PostingPreviewNoTok + Format(Random(999999), 0, PostingPreviewNoFormatTxt)
+        else
+            PostedDocumentNo := DocumentNo;
+    end;
+
+    local procedure SyncSurPlusItemTracking(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line")
+    var
+        Location2: Record Location;
+        ReservEntry: Record "Reservation Entry";
+        TempTrackingSpecification2: Record "Tracking Specification" temporary;
+        TempWarehouseActivityLine: Record "Warehouse Activity Line" temporary;
+        WarehouseAvailabilityMgt: Codeunit "Warehouse Availability Mgt.";
+        QtyReservedForCurrLine: Decimal;
+        SurplusQtyToHandle: Decimal;
+    begin
+        if not SalesHeader.Ship then
+            exit;
+        if not (SalesHeader."Document Type" in [SalesHeader."Document Type"::Invoice, SalesHeader."Document Type"::Order]) then
+            exit;
+
+        if (SalesLine."Location Code" = '') or
+           not Location2.Get(SalesLine."Location Code") or
+           not Location2."Require Shipment"
+        then
+            exit;
+
+        TempTrackingSpecification2.SetSourceFromSalesLine(SalesLine);
+        QtyReservedForCurrLine := Abs(WarehouseAvailabilityMgt.CalcLineReservedQtyOnInvt(
+            TempTrackingSpecification2."Source Type", TempTrackingSpecification2."Source Subtype", TempTrackingSpecification2."Source ID", TempTrackingSpecification2."Source Ref. No.",
+            0, false, TempWarehouseActivityLine));
+
+        if QtyReservedForCurrLine = 0 then
+            exit;
+
+        ReservEntry.SetSourceFilter(
+                                 TempTrackingSpecification2."Source Type", TempTrackingSpecification2."Source Subtype",
+                                 TempTrackingSpecification2."Source ID", TempTrackingSpecification2."Source Ref. No.", true);
+        ReservEntry.SetSourceFilter('', TempTrackingSpecification2."Source Prod. Order Line");
+        ReservEntry.SetRange("Reservation Status", ReservEntry."Reservation Status"::Surplus);
+        if not ReservEntry.FindSet() then
+            exit;
+
+        ReservEntry.CalcSums("Qty. to Handle (Base)");
+        SurplusQtyToHandle := Abs(ReservEntry."Qty. to Handle (Base)");
+        if (QtyReservedForCurrLine + SurplusQtyToHandle) < SalesLine."Qty. to Ship (Base)" then
+            exit;
+
+        ReservEntry.ModifyAll("Qty. to Handle (Base)", 0);
+        ReservEntry.ModifyAll("Qty. to Invoice (Base)", 0);
+    end;
+
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Item Jnl.-Post Line", 'OnBeforePostValueEntryToGL', '', false, false)]
     local procedure OnBeforePostValueEntryToGL(var ValueEntry: Record "Value Entry"; var IsHandled: Boolean)
     var
@@ -10446,25 +10414,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnFillInvoicePostingBufferOnBeforeDeferrals in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnBeforeDeferrals(var SalesLine: Record "Sales Line"; var TotalAmount: Decimal; var TotalAmountACY: Decimal; UseDate: Date)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforePrepareDeferralLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeFillDeferralPostingBuffer(var SalesLine: Record "Sales Line"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer"; UseDate: Date; InvDefLineNo: Integer; DeferralLineNo: Integer; CommitIsSuppressed: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnBeforePrepareLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnBeforeFillInvoicePostingBuffer(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; SalesLineACY: Record "Sales Line"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeGetCountryCode(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var CountryRegionCode: Code[10]; var IsHandled: Boolean)
@@ -10851,57 +10800,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeSetAccount in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnBeforeSetAccount(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var SalesAccount: Code[20])
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterSetLineDiscAccount in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnAfterSetLineDiscAccount(var SalesLine: Record "Sales Line"; var GenPostingSetup: Record "General Posting Setup"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer"; SalesHeader: Record "Sales Header")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterSetInvoiceDiscAccount in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnAfterSetInvDiscAccount(var SalesLine: Record "Sales Line"; var GenPostingSetup: Record "General Posting Setup"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer"; SalesHeader: Record "Sales Header")
-    begin
-    end;
-
-#pragma warning disable AS0072
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterUpdateInvoicePostingBuffer in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnAfterUpdateInvoicePostBuffer(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer" temporary; var GenJnlLineDocNo: Code[20]; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
-    begin
-    end;
-#pragma warning restore AS0072
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterSetInvoiceDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnAfterCalcInvoiceDiscountPosting(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var InvoiceDiscountPosting: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnAfterSetLineDiscountPosting in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnAfterCalcLineDiscountPosting(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var LineDiscountPosting: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeSetInvoiceDiscAccount in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnBeforeSetInvDiscAccount(SalesLine: Record "Sales Line"; GenPostingSetup: Record "General Posting Setup"; var InvDiscAccount: Code[20]; var IsHandled: Boolean)
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareLineOnBeforeSetLineDiscAccount in codeunit 825 "Sales Post Invoice Events".', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnFillInvoicePostingBufferOnBeforeSetLineDiscAccount(SalesLine: Record "Sales Line"; GenPostingSetup: Record "General Posting Setup"; var LineDiscAccount: Code[20]; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnFinalizePostingOnAfterUpdateItemChargeAssgnt(var SalesHeader: Record "Sales Header"; var TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
@@ -10938,25 +10836,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Event is currently missing. Check out GitHub Issue: https://github.com/microsoft/ALAppExtensions/issues/21198.', '20.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostBalancingEntryOnAfterInitNewLine(SalesHeader: Record "Sales Header"; var GenJnlLine: Record "Gen. Journal Line")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostBalancingEntryOnAfterFindCustLedgEntry in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostBalancingEntryOnAfterFindCustLedgEntry(var CustLedgEntry: Record "Cust. Ledger Entry")
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostBalancingEntryOnBeforeFindCustLedgEntry in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostBalancingEntryOnBeforeFindCustLedgEntry(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; DocType: Option; DocNo: Code[20]; ExtDocNo: Code[35]; var CustLedgerEntry: Record "Cust. Ledger Entry"; var EntryFound: Boolean; var IsHandled: Boolean)
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnPostDropOrderShipmentOnAfterUpdateBlanketOrderLine(PurchOrderHeader: Record "Purchase Header"; PurchOrderLine: Record "Purchase Line"; TempDropShptPostBuffer: Record "Drop Shpt. Post. Buffer" temporary; SalesShptHeader: Record "Sales Shipment Header"; SalesHeader: Record "Sales Header"; PurchRcptHeader: Record "Purch. Rcpt. Header"; var TempTrackingSpecification: Record "Tracking Specification" temporary; SrcCode: Code[10])
@@ -11108,25 +10987,6 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
-#if not CLEAN24
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Event is currently missing. Please request it for the new Sales Invoice Posting.', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostInvoicePostBufferOnAfterPostSalesGLAccounts(var SalesHeader: Record "Sales Header"; var TempInvoicePostBuffer: Record "Invoice Post. Buffer"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; DocumentNo: Code[20]; var GLEntryNo: Integer; SourceCode: Code[10])
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPostLinesOnBeforeTempInvoicePostingBufferDeleteAll in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostInvoicePostBufferOnBeforeTempInvoicePostBufferDeleteAll(var SalesHeader: Record "Sales Header"; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; var TotalSalesLine: Record "Sales Line"; var TotalSalesLineLCY: Record "Sales Line"; GenJnlLineDocType: Enum "Gen. Journal Document Type"; GenJnlLineDocNo: Code[20]; GenJnlLineExtDocNo: Code[35]; SrcCode: Code[10])
-    begin
-    end;
-
-    [Obsolete('This integration event is no longer invoked. Moved to Sales Invoice Posting implementation. Use the new event OnPrepareGenJnlLineOnAfterCopyToGenJnlLine in codeunit 825 "Sales Post Invoice Events".', '19.0')]
-    [IntegrationEvent(false, false)]
-    local procedure OnPostInvoicePostBufferLineOnAfterCopyFromInvoicePostBuffer(var SalesHeader: Record "Sales Header"; var InvoicePostBuffer: Record "Invoice Post. Buffer"; var GenJnlLine: Record "Gen. Journal Line")
-    begin
-    end;
-#endif
 
     [IntegrationEvent(false, false)]
     local procedure OnPostSalesLineOnBeforeInsertCrMemoLine(SalesHeader: Record "Sales Header"; SalesLine: Record "Sales Line"; var IsHandled: Boolean; xSalesLine: Record "Sales Line"; SalesCrMemoHeader: Record "Sales Cr.Memo Header")
@@ -11583,11 +11443,13 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
+#if not CLEAN27
+    [Obsolete('This event is never raised.', '27.0')]
     [IntegrationEvent(false, false)]
     local procedure OnAfterGetAmountsForDeferral(SalesLine: Record "Sales Line"; var AmtToDefer: Decimal; var AmtToDeferACY: Decimal; var DeferralAccount: Code[20])
     begin
     end;
-
+#endif
     [IntegrationEvent(false, false)]
     local procedure OnPostJobContractLineBeforeTestFields(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; var IsHandled: Boolean)
     begin
@@ -11793,16 +11655,19 @@ codeunit 80 "Sales-Post"
     begin
     end;
 
+#if not CLEAN27
     [IntegrationEvent(false, false)]
+    [Obsolete('This event is no longer used.', '27.0')]
     local procedure OnSetPostingPreviewDocumentNo(var PreviewDocumentNo: Code[20]; var SalesHeader: Record "Sales Header")
     begin
     end;
 
     [IntegrationEvent(false, false)]
+    [Obsolete('This event is no longer used.', '27.0')]
     local procedure OnGetPostingPreviewDocumentNos(var PreviewDocumentNos: List of [Code[20]])
     begin
     end;
-
+#endif
     [IntegrationEvent(false, false)]
     local procedure OnPostInvoiceOnAfterPostLines(var SalesHeader: Record "Sales Header"; SrcCode: Code[10]; GenJnlLineDocType: Enum "Gen. Journal Document Type"; GenJnlLineDocNo: Code[20]; GenJnlLineExtDocNo: Code[35]; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line")
     begin
@@ -12130,6 +11995,26 @@ codeunit 80 "Sales-Post"
 
     [IntegrationEvent(false, false)]
     local procedure OnCreatePrepaymentLineForCreditMemoOnBeforeGetSalesPrepmtAccount(var GLAccount: Record "G/L Account"; var SalesInvoiceLine: Record "Sales Invoice Line"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeUpdateEmailParameters(SalesHeader: Record "Sales Header"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforePostUpdateOrderNo(var SalesInvoiceHeader: Record "Sales Invoice Header"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeSetInvoiceOrderNo(SalesLine: Record "Sales Line"; var SalesInvLine: Record "Sales Invoice Line"; var IsHandled: Boolean)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeArchiveRelatedJob(SalesHeader: Record "Sales Header"; var IsHandled: Boolean)
     begin
     end;
 }

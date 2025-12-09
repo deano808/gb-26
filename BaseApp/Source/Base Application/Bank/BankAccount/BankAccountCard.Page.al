@@ -22,6 +22,14 @@ using Microsoft.Foundation.Comment;
 using Microsoft.Utilities;
 using System.Email;
 
+/// <summary>
+/// Primary interface for managing bank account master data and configuration.
+/// Provides comprehensive bank account setup including contact information, posting groups, and payment settings.
+/// </summary>
+/// <remarks>
+/// Source Table: Bank Account (270). Includes actions for bank reconciliation, statement import, and balance display.
+/// Key features: Multi-currency support, dimension setup, payment export configuration.
+/// </remarks>
 page 370 "Bank Account Card"
 {
     Caption = 'Bank Account Card';
@@ -59,6 +67,7 @@ page 370 "Bank Account Card"
                     ApplicationArea = Basic, Suite;
                     Caption = 'Bank Branch No.';
                     ToolTip = 'Specifies a number of the bank branch.';
+                    MaskType = Concealed;
                 }
                 field("Bank Account No."; Rec."Bank Account No.")
                 {
@@ -66,6 +75,7 @@ page 370 "Bank Account Card"
                     Caption = 'Bank Account No.';
                     Importance = Promoted;
                     ToolTip = 'Specifies the number used by the bank for the bank account.';
+                    MaskType = Concealed;
                 }
                 field("Search Name"; Rec."Search Name")
                 {
@@ -215,14 +225,22 @@ page 370 "Bank Account Card"
             group(Communication)
             {
                 Caption = 'Communication';
+#if not CLEAN27                
                 group(Control1040007)
                 {
                     ShowCaption = false;
                     Visible = IsAddressLookupTextEnabled;
+                    ObsoleteState = Pending;
+                    ObsoleteReason = 'Functionality has been moved to the GetAddress.io UK Postcodes.';
+                    ObsoleteTag = '27.0';
+
                     field(LookupAddress; LookupAddressLbl)
                     {
                         ApplicationArea = Basic, Suite;
                         Editable = false;
+                        ObsoleteState = Pending;
+                        ObsoleteReason = 'Field has been moved to the GetAddress.io UK Postcodes.';
+                        ObsoleteTag = '27.0';
                         ShowCaption = false;
 
                         trigger OnDrillDown()
@@ -231,17 +249,19 @@ page 370 "Bank Account Card"
                         end;
                     }
                 }
+#endif 
                 field(Address; Rec.Address)
                 {
                     ApplicationArea = Basic, Suite;
                     ToolTip = 'Specifies the customer''s address. This address will appear on all sales documents for the customer.';
-
+#if not CLEAN27
                     trigger OnValidate()
                     var
                         PostcodeBusinessLogic: Codeunit "Postcode Business Logic";
                     begin
                         PostcodeBusinessLogic.ShowDiscoverabilityNotificationIfNeccessary();
                     end;
+#endif                    
                 }
                 field("Address 2"; Rec."Address 2")
                 {
@@ -268,7 +288,7 @@ page 370 "Bank Account Card"
                     ApplicationArea = Basic, Suite;
                     Importance = Promoted;
                     ToolTip = 'Specifies the postal code.';
-
+#if not CLEAN27
                     trigger OnValidate()
                     var
                         PostcodeBusinessLogic: Codeunit "Postcode Business Logic";
@@ -276,16 +296,18 @@ page 370 "Bank Account Card"
                         PostcodeBusinessLogic.ShowDiscoverabilityNotificationIfNeccessary();
                         ShowPostcodeLookup(false);
                     end;
+#endif 
                 }
                 field("Country/Region Code"; Rec."Country/Region Code")
                 {
                     ApplicationArea = Basic, Suite;
                     ToolTip = 'Specifies the country/region of the address.';
-
                     trigger OnValidate()
                     begin
+#if not CLEAN27                        
                         HandleAddressLookupVisibility();
-			IsCountyVisible := FormatAddress.UseCounty(Rec."Country/Region Code");
+#endif                        
+                        IsCountyVisible := FormatAddress.UseCounty(Rec."Country/Region Code");
                     end;
                 }
                 field("Phone No."; Rec."Phone No.")
@@ -351,6 +373,7 @@ page 370 "Bank Account Card"
                 {
                     ApplicationArea = Basic, Suite;
                     ToolTip = 'Specifies a bank identification number of your own choice.';
+                    MaskType = Concealed;
                 }
                 field("Last Statement No."; Rec."Last Statement No.")
                 {
@@ -377,8 +400,8 @@ page 370 "Bank Account Card"
                     trigger OnValidate()
                     begin
                         if Rec."Balance Last Statement" <> xRec."Balance Last Statement" then
-                            if not Confirm(Text001, false, Rec."No.") then
-                                Error(Text002);
+                            if not Confirm(ChangeBalanceLastStatementQst, false, Rec."No.") then
+                                Error(CanceledErr);
                     end;
                 }
                 field("Bank Acc. Posting Group"; Rec."Bank Acc. Posting Group")
@@ -442,6 +465,7 @@ page 370 "Bank Account Card"
                     ApplicationArea = Basic, Suite;
                     Importance = Promoted;
                     ToolTip = 'Specifies the bank account''s international bank account number.';
+                    MaskType = Concealed;
                 }
                 field("Bank Statement Import Format"; Rec."Bank Statement Import Format")
                 {
@@ -916,7 +940,9 @@ page 370 "Bank Account Card"
     begin
         Rec.GetOnlineFeedStatementStatus(OnlineFeedStatementStatus, Linked);
         ShowBankLinkingActions := Rec.StatementProvidersExist();
+#if not CLEAN27
         HandleAddressLookupVisibility();
+#endif
     end;
 
     trigger OnAfterGetRecord()
@@ -937,24 +963,28 @@ page 370 "Bank Account Card"
 
     var
         FormatAddress: Codeunit "Format Address";
-#pragma warning disable AA0074
 #pragma warning disable AA0470
-        Text001: Label 'There may be a statement using the %1.\\Do you want to change Balance Last Statement?';
+        ChangeBalanceLastStatementQst: Label 'There may be a statement using the %1.\\Do you want to change Balance Last Statement?';
 #pragma warning restore AA0470
-        Text002: Label 'Canceled.';
-#pragma warning restore AA0074
+        CanceledErr: Label 'Canceled.';
         ContactActionVisible: Boolean;
         Linked: Boolean;
         OnlineBankAccountLinkingErr: Label 'You must link the bank account to an online bank account.\\Choose the Link to Online Bank Account action.';
         IsCountyVisible: Boolean;
         ShowBankLinkingActions: Boolean;
+#if not CLEAN27
         IsAddressLookupTextEnabled: Boolean;
+#endif        
         NoFieldVisible: Boolean;
         OnlineFeedStatementStatus: Option "Not Linked",Linked,"Linked and Auto. Bank Statement Enabled";
+#if not CLEAN27        
         LookupAddressLbl: Label 'Lookup address from postcode';
+#endif
         RisksOfDirectPostingOnGLAccountsLbl: Label 'The selected bank account posting group is linked to a general ledger account that allows direct posting. The bank account reconciliation process might become problematic if the instructions in the documentation are not followed. Do you want to know more?';
         RisksOfDirectPostingOnGLAccountsForwardLinkLbl: Label 'https://go.microsoft.com/fwlink/?linkid=2197950';
 
+#if not CLEAN27
+    [Obsolete('Functionality has been moved to the GetAddress.io UK Postcodes.', '27.0')]
     local procedure ShowPostcodeLookup(ShowInputFields: Boolean)
     var
         TempEnteredAutocompleteAddress: Record "Autocomplete Address" temporary;
@@ -996,6 +1026,7 @@ page 370 "Bank Account Card"
         else
             IsAddressLookupTextEnabled := PostcodeBusinessLogic.SupportedCountryOrRegionCode(Rec."Country/Region Code");
     end;
+#endif
 
     local procedure SetNoFieldVisible()
     var
@@ -1012,6 +1043,13 @@ page 370 "Bank Account Card"
         REPORT.RunModal(ReportNumber, true, true, BankAccount);
     end;
 
+    /// <summary>
+    /// Integration event raised before opening the Bank Account Card page.
+    /// Enables custom initialization or setup before page display.
+    /// </summary>
+    /// <remarks>
+    /// Raised during page OnOpenPage trigger before standard page initialization.
+    /// </remarks>
     [IntegrationEvent(true, false)]
     local procedure OnBeforeOnOpenPage()
     begin

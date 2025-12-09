@@ -1,3 +1,13 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
+namespace Microsoft.DemoData.Finance;
+
+using Microsoft.DemoData.Foundation;
+using Microsoft.Finance.GeneralLedger.Setup;
+
 codeunit 5230 "Create General Ledger Setup"
 {
     InherentEntitlements = X;
@@ -23,6 +33,7 @@ codeunit 5230 "Create General Ledger Setup"
         GeneralLedgerSetup.Validate("Inv. Rounding Precision (LCY)", InvoiceRoundingPrecisionLCY);
         GeneralLedgerSetup.Validate("Local Cont. Addr. Format", LocalContAddrFormat);
         GeneralLedgerSetup.Validate("Bank Account Nos.", BankAccountNo);
+        GeneralLedgerSetup."LCY Code" := '';        // to avoid error on updating LCY Code
         GeneralLedgerSetup.Validate("LCY Code", LCYCode);
         GeneralLedgerSetup.Validate("Enable Data Check", DataCheck);
         GeneralLedgerSetup.Validate("Acc. Receivables Category", AccReceivablesCategory);

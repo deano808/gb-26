@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Vendor;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Vendor;
 
 using Microsoft.EServices.OnlineMap;
 using Microsoft.Foundation.Address;
@@ -32,12 +36,10 @@ table 224 "Order Address"
         {
             Caption = 'Name 2';
         }
-#pragma warning disable AS0086
         field(5; Address; Text[100])
         {
             Caption = 'Address';
         }
-#pragma warning restore AS0086
         field(6; "Address 2"; Text[50])
         {
             Caption = 'Address 2';
@@ -52,6 +54,7 @@ table 224 "Order Address"
 
             trigger OnLookup()
             begin
+                OnBeforeLookupCity(Rec, PostCode);
                 LookupPostCode(Rec.FieldNo(City));
             end;
 
@@ -63,6 +66,7 @@ table 224 "Order Address"
                 OnBeforeValidateCity(Rec, PostCode, CurrFieldNo, IsHandled);
                 if not IsHandled then
                     PostCode.ValidateCity(City, "Post Code", County, "Country/Region Code", (CurrFieldNo <> 0) and GuiAllowed);
+                OnAfterValidateCity(Rec, PostCode);
             end;
         }
         field(8; Contact; Text[100])
@@ -111,6 +115,7 @@ table 224 "Order Address"
 
             trigger OnLookup()
             begin
+                OnBeforeLookupPostCode(Rec, PostCode);
                 LookupPostCode(Rec.FieldNo("Post Code"));
             end;
 
@@ -122,6 +127,7 @@ table 224 "Order Address"
                 OnBeforeValidatePostCode(Rec, PostCode, CurrFieldNo, IsHandled);
                 if not IsHandled then
                     PostCode.ValidatePostCode(City, "Post Code", County, "Country/Region Code", (CurrFieldNo <> 0) and GuiAllowed);
+                OnAfterValidatePostCode(Rec, PostCode);
             end;
         }
         field(92; County; Text[30])
@@ -141,24 +147,17 @@ table 224 "Order Address"
                 MailManagement.ValidateEmailAddressField("E-Mail");
             end;
         }
-#if not CLEAN24
-        field(103; "Home Page"; Text[80])
-        {
-            Caption = 'Home Page';
-            ExtendedDatatype = URL;
-            ObsoleteReason = 'Field length will be increased to 255.';
-            ObsoleteState = Pending;
-            ObsoleteTag = '24.0';
-        }
-#else
+#if not CLEAN27
 #pragma warning disable AS0086
+#endif
         field(103; "Home Page"; Text[255])
-        {
-            Caption = 'Home Page';
-            ExtendedDatatype = URL;
-        }
+#if not CLEAN27
 #pragma warning restore AS0086
 #endif
+        {
+            Caption = 'Home Page';
+            ExtendedDatatype = URL;
+        }
     }
 
     keys
@@ -234,5 +233,24 @@ table 224 "Order Address"
     local procedure OnBeforeValidatePostCode(var OrderAddress: Record "Order Address"; var PostCode: Record "Post Code"; CurrentFieldNo: Integer; var IsHandled: Boolean)
     begin
     end;
-}
 
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeLookupCity(var OrderAddress: Record "Order Address"; var PostCode: Record "Post Code");
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnAfterValidateCity(var OrderAddress: Record "Order Address"; var PostCode: Record "Post Code");
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeLookupPostCode(var OrderAddress: Record "Order Address"; var PostCode: Record "Post Code");
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnAfterValidatePostCode(var OrderAddress: Record "Order Address"; var PostCode: Record "Post Code");
+    begin
+    end;
+}

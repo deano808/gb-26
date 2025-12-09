@@ -68,11 +68,6 @@ table 6103 "E-Document Service"
         field(6; "Update Order"; Boolean)
         {
             Caption = 'Update Order';
-#if not CLEAN24
-            ObsoleteState = Pending;
-            ObsoleteReason = 'Replaced by "Receive E-Document To" on Vendor table';
-            ObsoleteTag = '24.0';
-#endif
         }
         field(7; "Create Journal Lines"; Boolean)
         {
@@ -257,9 +252,6 @@ table 6103 "E-Document Service"
                 end;
             end;
         }
-#pragma warning disable AS0004
-#pragma warning disable AS0115
-#pragma warning disable AS0072
 #if not CLEANSCHEMA26
         field(29; "E-Document Structured Format"; Integer)
         {
@@ -271,10 +263,6 @@ table 6103 "E-Document Service"
             ObsoleteTag = '26.0';
         }
 #endif
-#pragma warning restore AS0115
-#pragma warning restore AS0004
-#pragma warning restore AS0072
-
         field(31; "Import Process"; Enum "E-Document Import Process")
         {
             Caption = 'Import Process';
@@ -308,8 +296,13 @@ table 6103 "E-Document Service"
             InitValue = true;
             DataClassification = SystemMetadata;
         }
+        field(61; "Processing Customizations"; Enum "E-Doc. Proc. Customizations")
+        {
+            Caption = 'Processing customizations';
+            ToolTip = 'Specifies the customizations for the processing of e-documents processed the service.';
+            DataClassification = SystemMetadata;
+        }
         #endregion [60-80] are reserved for purchase draft document settings.
-
     }
     keys
     {
@@ -384,6 +377,8 @@ table 6103 "E-Document Service"
                 EDocImportParameters."Step to Run / Desired Status" := EDocImportParameters."Step to Run / Desired Status"::"Desired E-Document Status";
                 EDocImportParameters."Desired E-Document Status" := EDocImportParameters."Desired E-Document Status"::Unprocessed;
             end;
+
+        EDocImportParameters."Processing Customizations" := Rec."Processing Customizations";
     end;
 
     internal procedure ToString(): Text

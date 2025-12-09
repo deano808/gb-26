@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.Pricing;
 
 using Microsoft.Pricing.Asset;
@@ -13,6 +17,8 @@ page 7017 "Purchase Price Lists"
     CardPageID = "Purchase Price List";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Purchase Price Lists';
+    AboutText = 'Set up and manage special purchase prices and discounts for vendors by creating, editing, and activating purchase price lists, including assigning items, specifying validity dates, and controlling pricing details.';
     QueryCategory = 'Purchase Price Lists';
     RefreshOnActivate = true;
     SourceTable = "Price List Header";

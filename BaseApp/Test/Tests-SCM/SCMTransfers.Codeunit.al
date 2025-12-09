@@ -31,7 +31,7 @@
         SourceDocument: Option ,"S. Order","S. Invoice","S. Credit Memo","S. Return Order","P. Order","P. Invoice","P. Credit Memo","P. Return Order","Inb. Transfer","Outb. Transfer","Prod. Consumption","Item Jnl.","Phys. Invt. Jnl.","Reclass. Jnl.","Consumption Jnl.","Output Jnl.","BOM Jnl.","Serv. Order","Job Jnl.","Assembly Consumption","Assembly Order";
         TrackingOption: Option AssignLotNo,AssignSerialNo,SelectEntries,ShowEntries,VerifyEntries,AssignManualLotNos;
         isInitialized: Boolean;
-        ErrNoOfLinesMustBeEqual: Label 'No. of Line Must Be Equal.';
+        NoOfLinesMustBeEqualErr: Label 'No. of Line Must Be Equal.';
         TransferOrderCountErr: Label 'Wrong Transfer Order''s count';
         ItemIsNotOnInventoryErr: Label 'Item %1 is not in inventory.', Locked = true;
         UpdateFromHeaderLinesQst: Label 'You may have changed a dimension.\\Do you want to update the lines?';
@@ -49,6 +49,7 @@
         DerivedTransLineErr: Label 'Expected no Derived Transfer Line i.e. line with "Derived From Line No." equal to original transfer line.';
         IncorrectSNUndoneErr: Label 'The Serial No. of the item on the transfer shipment line that was undone was different from the SN on the corresponding transfer line.';
         ApplToItemEntryErr: Label '%1 must be %2 in %3.', Comment = '%1 is Appl-to Item Entry, %2 is Item Ledger Entry No. and %3 is Transfer Line';
+        VariantCodeMandatoryErr: Label '%1 must have a value in %2: Document No.=%3, Line No.=%4. It cannot be zero or empty.', Comment = '%1:Field Caption, %2: TableCaption, %3:Document No, %4: Line No.';
 
     [Test]
     [HandlerFunctions('MessageHandler')]
@@ -996,10 +997,12 @@
         TransferHeader: Record "Transfer Header";
         TransferLine: Record "Transfer Line";
         WarehouseShipmentLine: Record "Warehouse Shipment Line";
+        WarehouseShipmentHeader: Record "Warehouse Shipment Header";
         Qty: Decimal;
+        ExpectedErrorLbl: Label 'Qty. to Ship must be equal to ''%1''', Comment = '%1: Expected quantity';
     begin
         // [FEATURE] [Transfer]
-        // [SCENARIO 377487] "Qty. to Ship" in transfer order cannot be changed on warehouse shipment lines for direct transfer
+        // [SCENARIO 377487] Warehouse shipment for direct transfer cannot be posted if "Qty. to Ship" has been changed manually
         Initialize();
 
         // [GIVEN] Location "L1" with warehouse shipment requirement
@@ -1016,14 +1019,22 @@
         TransferHeader.Validate("Direct Transfer", true);
         TransferHeader.Modify();
 
-        // [GIVEN] Create warehouse shipment from transfer order, set "Qty. to Ship" = "Q" / 2 and post shipment
+        // [GIVEN] Create warehouse shipment from transfer order, set "Qty. to Ship" = "Q" / 2
         LibraryWarehouse.ReleaseTransferOrder(TransferHeader);
         LibraryWarehouse.CreateWhseShipmentFromTO(TransferHeader);
 
         WarehouseShipmentLine.SetRange("Source Type", DATABASE::"Transfer Line");
         WarehouseShipmentLine.SetRange("Source No.", TransferHeader."No.");
         WarehouseShipmentLine.FindFirst();
-        asserterror WarehouseShipmentLine.Validate("Qty. to Ship", Qty);
+        WarehouseShipmentLine.Validate("Qty. to Ship", Qty);
+        WarehouseShipmentLine.Modify(true);
+
+        // [WHEN] Try to post warehouse shipment
+        WarehouseShipmentHeader.Get(WarehouseShipmentLine."No.");
+        asserterror LibraryWarehouse.PostWhseShipment(WarehouseShipmentHeader, false);
+
+        // [THEN] Error is thrown informing that the quantity must be equal to "Q"
+        Assert.ExpectedError(StrSubstNo(ExpectedErrorLbl, Qty * 2));
     end;
 
     [Test]
@@ -1240,7 +1251,7 @@
         // The reply is inside the handler ConfirmHandlerForTransferHeaderDimUpdate
 
         // [THEN] Transfer Line dimension set contains "NewDimValue"
-        TransferLine.Find();
+        TransferLine.GetBySystemId(TransferLine.SystemId);
         VerifyDimensionOnDimSet(TransferLine."Dimension Set ID", DimensionValue);
     end;
 
@@ -1307,7 +1318,7 @@
         // The reply is inside the handler ConfirmHandlerForTransferHeaderDimUpdate
 
         // [THEN] Transfer Line dimension set contains "NewDimValue"
-        TransferLine.Find();
+        TransferLine.GetBySystemId(TransferLine.SystemId);
         VerifyDimensionOnDimSet(TransferLine."Dimension Set ID", DimensionValue);
     end;
 
@@ -1433,7 +1444,7 @@
         // [WHEN] Answer Yes on shipped line update confirmation
 
         // [THEN] Transfer Line dimension set contains "NewDimValue"
-        TransferLine.Find();
+        TransferLine.GetBySystemId(TransferLine.SystemId);
         VerifyDimensionOnDimSet(TransferLine."Dimension Set ID", DimensionValue);
     end;
 
@@ -1629,8 +1640,9 @@
     [Scope('OnPrem')]
     procedure TransferOrderSubpageUpdatedAfterShippingTimeUpdatedOnHeader()
     var
-        TransferOrder: TestPage "Transfer Order";
         ShippingTime: DateFormula;
+        TransferOrder: TestPage "Transfer Order";
+        DateFormulaTok: Label '<%1D>', Comment = '%1 = Number of days';
     begin
         // [SCENARIO 380067] Receipt Date on Transfer Order subpage is updated after Receipt Date on the header page is updated through new Shipping Time.
         Initialize();
@@ -1640,7 +1652,7 @@
         CreateTransferOrderAndInitializeNewTransferLine(TransferOrder, '');
 
         // [WHEN] Update Shipping Time on Transfer Order header page.
-        Evaluate(ShippingTime, StrSubstNo('<%1D>', LibraryRandom.RandInt(10)));
+        Evaluate(ShippingTime, StrSubstNo(DateFormulaTok, LibraryRandom.RandInt(10)));
         TransferOrder."Shipping Time".SetValue(ShippingTime);
 
         // [THEN] Receipt Date on the subpage is updated and becomes equal to Receipt Date on the header page.
@@ -1671,8 +1683,9 @@
     [Scope('OnPrem')]
     procedure TransferOrderSubpageUpdatedAfterOutboundWhseTimeUpdatedOnHeader()
     var
-        TransferOrder: TestPage "Transfer Order";
         OutboundWhseHandlingTime: DateFormula;
+        TransferOrder: TestPage "Transfer Order";
+        DateFormulaTok: Label '<%1D>', Comment = '%1 = Number of days';
     begin
         // [SCENARIO 380067] Receipt Date on Transfer Order subpage is updated after Receipt Date on the header page is updated through new Outbound Whse. Handling Time.
         Initialize();
@@ -1682,7 +1695,7 @@
         CreateTransferOrderAndInitializeNewTransferLine(TransferOrder, '');
 
         // [WHEN] Update Outbound Whse. Handling Time on Transfer Order header page.
-        Evaluate(OutboundWhseHandlingTime, StrSubstNo('<%1D>', LibraryRandom.RandInt(10)));
+        Evaluate(OutboundWhseHandlingTime, StrSubstNo(DateFormulaTok, LibraryRandom.RandInt(10)));
         TransferOrder."Outbound Whse. Handling Time".SetValue(OutboundWhseHandlingTime);
 
         // [THEN] Receipt Date on the subpage is updated and becomes equal to Receipt Date on the header page.
@@ -1693,8 +1706,9 @@
     [Scope('OnPrem')]
     procedure TransferOrderSubpageUpdatedAfterInboundWhseTimeUpdatedOnHeader()
     var
-        TransferOrder: TestPage "Transfer Order";
         InboundWhseHandlingTime: DateFormula;
+        TransferOrder: TestPage "Transfer Order";
+        DateFormulaTok: Label '<%1D>', Comment = '%1 = Number of days';
     begin
         // [SCENARIO 380067] Receipt Date on Transfer Order subpage is updated after Receipt Date on the header page is updated through new Inbound Whse. Handling Time.
         Initialize();
@@ -1704,7 +1718,7 @@
         CreateTransferOrderAndInitializeNewTransferLine(TransferOrder, '');
 
         // [WHEN] Update Inbound Whse. Handling Time on Transfer Order header page.
-        Evaluate(InboundWhseHandlingTime, StrSubstNo('<%1D>', LibraryRandom.RandInt(10)));
+        Evaluate(InboundWhseHandlingTime, StrSubstNo(DateFormulaTok, LibraryRandom.RandInt(10)));
         TransferOrder."Inbound Whse. Handling Time".SetValue(InboundWhseHandlingTime);
 
         // [THEN] Receipt Date on the subpage is updated and becomes equal to Receipt Date on the header page.
@@ -3190,8 +3204,10 @@
         // [FEATURE] [Intrastat] [Partner VAT ID]
         // [SCENARIO 417835] Post Transfer Order with typed header field "Partner VAT ID"
         Initialize();
+#pragma warning disable AA0139  // Code below still raises warning AA0139, although the overflow can never happen
         Length := MaxStrLen(TransferHeader."Partner VAT ID");
         PartnerVATID := CopyStr(LibraryUtility.GenerateRandomText(Length), 1, Length);
+#pragma warning restore
 
         // [GIVEN] Item "I" on Location "A"
         CreateLocations(FromLocationCode, ToLocationCode);
@@ -3986,6 +4002,141 @@
 
         // [THEN] Error is shown and the Transfer Order is not released.
         asserterror LibraryWarehouse.ReleaseTransferOrder(TransferHeader);
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandlerYes')]
+    procedure ForwardingCostToUndoTransferShipment()
+    var
+        Item: Record Item;
+        ItemCharge: Record "Item Charge";
+        LocationA, LocationB, InTransitLocation : Record Location;
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        ItemChargePurchaseLine: Record "Purchase Line";
+        ItemChargeAssignmentPurch: Record "Item Charge Assignment (Purch)";
+        TransferHeader: Record "Transfer Header";
+        TransferLine: Record "Transfer Line";
+        ItemLedgerEntry, OriginalTransferShipmentILE, UndoTransferShipmentILE : Record "Item Ledger Entry";
+        Qty: Decimal;
+        ItemUnitCost, ItemChargeUnitCost : Decimal;
+    begin
+        // [SCENARIO 592047] Cost forwarding to undo transfer shipment - verify that item ledger entry for undo has the same cost as original transfer shipment.
+        Initialize();
+        Qty := LibraryRandom.RandIntInRange(5, 10);
+        ItemUnitCost := LibraryRandom.RandDecInRange(10, 100, 2);
+        ItemChargeUnitCost := LibraryRandom.RandDecInRange(100, 500, 2);
+
+        // [GIVEN] Locations A, B, and In-Transit are set up
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(LocationA);
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(LocationB);
+        LibraryWarehouse.CreateInTransitLocation(InTransitLocation);
+
+        // [GIVEN] An item and item charge are created
+        LibraryInventory.CreateItem(Item);
+        LibraryInventory.CreateItemCharge(ItemCharge);
+
+        // [GIVEN] Purchase order for item and item charge to location A
+        LibraryPurchase.CreatePurchHeader(PurchaseHeader, PurchaseHeader."Document Type"::Order, LibraryPurchase.CreateVendorNo());
+        PurchaseHeader.Validate("Location Code", LocationA.Code);
+        PurchaseHeader.Modify(true);
+        LibraryPurchase.CreatePurchaseLineWithUnitCost(PurchaseLine, PurchaseHeader, Item."No.", Qty, ItemUnitCost);
+        LibraryPurchase.CreatePurchaseLine(ItemChargePurchaseLine, PurchaseHeader, ItemChargePurchaseLine.Type::"Charge (Item)", ItemCharge."No.", 1);
+        ItemChargePurchaseLine.Validate("Direct Unit Cost", ItemChargeUnitCost);
+        ItemChargePurchaseLine.Modify(true);
+        LibraryInventory.CreateItemChargeAssignPurchase(
+          ItemChargeAssignmentPurch, ItemChargePurchaseLine, ItemChargeAssignmentPurch."Applies-to Doc. Type"::Order, PurchaseLine."Document No.",
+          PurchaseLine."Line No.", PurchaseLine."No.");
+
+        // [GIVEN] Purchase order is posted
+        LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, true);
+
+        // [GIVEN] First cost adjustment is run
+        LibraryCosting.AdjustCostItemEntries(Item."No.", '');
+
+        // [GIVEN] Transfer order is created from location A to location B
+        LibraryInventory.CreateTransferHeader(TransferHeader, LocationA.Code, LocationB.Code, InTransitLocation.Code);
+        LibraryInventory.CreateTransferLine(TransferHeader, TransferLine, Item."No.", Qty);
+
+        // [GIVEN] Transfer shipment is posted
+        LibraryInventory.PostTransferHeader(TransferHeader, true, false);
+
+        // [GIVEN] Second cost adjustment is run after transfer shipment
+        LibraryCosting.AdjustCostItemEntries(Item."No.", '');
+
+        // [GIVEN] Find and store the original transfer shipment item ledger entry for cost comparison
+        ItemLedgerEntry.SetRange("Item No.", Item."No.");
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Transfer);
+        ItemLedgerEntry.SetRange("Location Code", LocationA.Code);
+        ItemLedgerEntry.SetRange(Positive, false);
+        ItemLedgerEntry.FindFirst();
+        OriginalTransferShipmentILE := ItemLedgerEntry;
+
+        // [WHEN] Transfer shipment is undone.
+        LibraryInventory.UndoTransferShipments(TransferHeader."No.");
+
+        // [THEN] Final cost adjustment is run after undo.
+        LibraryCosting.AdjustCostItemEntries(Item."No.", '');
+
+        // [THEN] Find the undo transfer shipment item ledger entry.
+        ItemLedgerEntry.Reset();
+        ItemLedgerEntry.SetRange("Item No.", Item."No.");
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Transfer);
+        ItemLedgerEntry.SetRange("Location Code", LocationA.Code);
+        ItemLedgerEntry.SetRange(Positive, true);
+        ItemLedgerEntry.SetRange(Correction, true);
+        ItemLedgerEntry.FindFirst();
+        UndoTransferShipmentILE := ItemLedgerEntry;
+
+        // [THEN] Verify that the undo transfer shipment has the same cost as the original transfer shipment
+        OriginalTransferShipmentILE.CalcFields("Cost Amount (Actual)");
+        UndoTransferShipmentILE.CalcFields("Cost Amount (Actual)");
+        Assert.AreEqual(
+            -OriginalTransferShipmentILE."Cost Amount (Actual)",
+            UndoTransferShipmentILE."Cost Amount (Actual)",
+            'The cost amount of the undo transfer shipment entry should match the original transfer shipment entry (with opposite sign)');
+    end;
+
+    [Test]
+    procedure ReleaseTransferOrderWhenVariantMandatory()
+    var
+        InTransitLocation: Record Location;
+        Item: Record Item;
+        ItemVariant: array[2] of Record "Item Variant";
+        FromLocation: Record Location;
+        ToLocation: Record Location;
+        TransferHeader: Record "Transfer Header";
+        TransferLine: Record "Transfer Line";
+    begin
+        // [SCENARIO 601487] Release Transfer Order when Variant Mandatory in Inventory Setup.
+        Initialize();
+
+        // [GIVEN] Create From/To Locations and InTransit Location
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(FromLocation);
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(ToLocation);
+        LibraryWarehouse.CreateInTransitLocation(InTransitLocation);
+
+        // [GIVEN] Create Item and two Variants
+        LibraryInventory.CreateItem(Item);
+        LibraryInventory.CreateItemVariant(ItemVariant[1], Item."No.");
+        LibraryInventory.CreateItemVariant(ItemVariant[2], Item."No.");
+
+        // [GIVEN] Set Inventory Setup to require variant if exists
+        SetVariantMandatoryInInventorySetup();
+
+        // [GIVEN] Create Transfer Order and Line.
+        LibraryInventory.CreateTransferHeader(TransferHeader, FromLocation.Code, ToLocation.Code, InTransitLocation.Code);
+        LibraryInventory.CreateTransferLine(TransferHeader, TransferLine, Item."No.", LibraryRandom.RandIntInRange(10, 100));
+
+        // [WHEN] Try to release the transfer order
+        asserterror LibraryWarehouse.ReleaseTransferOrder(TransferHeader);
+
+        // [THEN] Assert error matches expected label
+        Assert.ExpectedError(
+            StrSubstNo(
+                VariantCodeMandatoryErr,
+                TransferLine.FieldCaption("Variant Code"), TransferLine.TableCaption(),
+                TransferLine."Document No.", TransferLine."Line No."));
     end;
 
     local procedure Initialize()
@@ -4952,7 +5103,7 @@
 
         RequisitionLine.SetRange("Worksheet Template Name", RequisitionWkshName."Worksheet Template Name");
         RequisitionLine.SetRange("No.", ItemNo[1], ItemNo[4]);
-        Assert.AreEqual(NoOfLines, RequisitionLine.Count, ErrNoOfLinesMustBeEqual);
+        Assert.AreEqual(NoOfLines, RequisitionLine.Count, NoOfLinesMustBeEqualErr);
     end;
 
     local procedure VerifyItemNoExistInReqLine(ItemNo: Code[20])
@@ -5410,7 +5561,7 @@
         TransferShipmentLine.SetRange("Document No.", TransferShptNo);
         TransferShipmentLine.SetFilter(Quantity, '<>0');
         Assert.AreEqual(0, TransferShipmentLine.Count mod 2, 'Expected an even no. of Transfer Shipment Lines for undone Transfer Shipment');
-        TransferShipmentLine.FindFirst();
+        TransferShipmentLine.FindSet();
         repeat
             QtySum := QtySum + TransferShipmentLine."Quantity (Base)";
             Assert.IsTrue(TransferShipmentLine."Correction Line", TransShptLineNotCorrectionErr);
@@ -5427,7 +5578,7 @@
     begin
         ItemLedgerEntry.SetFilter("Document No.", TransShptNo);
         ItemLedgerEntry.SetFilter("Location Code", LocationCode);
-        ItemLedgerEntry.FindFirst();
+        ItemLedgerEntry.FindSet();
         QtySum := 0;
         repeat
             QtySum := QtySum + ItemLedgerEntry."Quantity";
@@ -5560,6 +5711,15 @@
                 WarehouseActivityLine.Validate("Qty. to Handle", LibraryRandom.RandInt(0));
                 WarehouseActivityLine.Modify(true);
             until WarehouseActivityLine.Next() = 0;
+    end;
+
+    local procedure SetVariantMandatoryInInventorySetup()
+    var
+        InventorySetup: Record "Inventory Setup";
+    begin
+        InventorySetup.Get();
+        InventorySetup.Validate("Variant Mandatory if Exists", true);
+        InventorySetup.Modify(true);
     end;
 
     [MessageHandler]

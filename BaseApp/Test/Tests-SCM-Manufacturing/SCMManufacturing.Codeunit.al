@@ -126,7 +126,6 @@ codeunit 137404 "SCM Manufacturing"
         PreviousSetLbl: Label 'Previous Set';
         NextSetLbl: Label 'Next Set';
         FieldMustNotBeVisibleErr: Label '%1 must not be visible in %2', Comment = ' %1 = Field Name , %2 = Page Name';
-        StandardTaskFieldErr: Label 'Standard task code not match with relesed Production Order standard Task code Field.';
 
     [Test]
     [HandlerFunctions('ConfirmHandlerTrue,OutputJournalItemtrackingPageHandler,MessageHandler')]
@@ -1882,7 +1881,7 @@ codeunit 137404 "SCM Manufacturing"
         ProductionOrder: Record "Production Order";
         RoutingLine: Record "Routing Line";
         ProdOrderLine: Record "Prod. Order Line";
-        ManufacturingSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
         DueDate: Date;
         StartingTime: Time;
         EndingTime: Time;
@@ -1904,7 +1903,7 @@ codeunit 137404 "SCM Manufacturing"
         ShopCalendarCode := CreateShopCalendar(StartingTime, EndingTime);
 
         // Create working days in weekend so that after Forward refreshing Prod. Order, the Starting Date on Prod. Orde Line plus
-        // ManufacturingSetup."Default Safety Lead Time" will equal the original Due Date of Prod. Order
+        // InventorySetup."Default Safety Lead Time" will equal the original Due Date of Prod. Order
         CreateShopCalendarWeekendWorkingDays(ShopCalendarCode, StartingTime, EndingTime);
         CreateWorkCenterWithCalendarCodeAndRoundingPrecision(WorkCenter, ShopCalendarCode, Precision);
 
@@ -1924,11 +1923,11 @@ codeunit 137404 "SCM Manufacturing"
 
         // Find the Prod. Order Line calculated by refreshing the production order
         FindProductionOrderLine(ProdOrderLine, ProductionOrder.Status::Released, ProductionOrder."No.", Item."No.");
-        ManufacturingSetup.Get();
+        InventorySetup.Get();
 
         // Verify: The Starting Date on Prod. Orde Line should be ahead of the original Due Date of Prod. Order by Default Safety Lead Time
         Assert.AreEqual(
-          DueDate, CalcDate(ManufacturingSetup."Default Safety Lead Time", ProdOrderLine."Starting Date"),
+          DueDate, CalcDate(InventorySetup."Default Safety Lead Time", ProdOrderLine."Starting Date"),
           ProdOrderStartingDateErr);
     end;
 
@@ -2501,7 +2500,7 @@ codeunit 137404 "SCM Manufacturing"
     var
         ProductionOrder: Record "Production Order";
         ProdOrderComponent: Record "Prod. Order Component";
-        ReservationCheckDateConfl: Codeunit "Reservation-Check Date Confl.";
+        MfgReservCheckDateConfl: Codeunit "Mfg. ReservCheckDateConfl";
     begin
         // [FEATURE] [Manufacturing] [Production Order]
         // [SCENARIO 361467] Error is raised when Ending Date on Prod. Order Component is explicitly set earlier than the date on which it is reserved for a parent Prod. Order Line.
@@ -2515,7 +2514,7 @@ codeunit 137404 "SCM Manufacturing"
         // [WHEN] Due Date for the component item is shifted one day earlier.
         FindProdOrderComponent(ProdOrderComponent, ProductionOrder.Status, ProductionOrder."No.");
         ProdOrderComponent."Due Date" := CalcDate('<-1D>', ProdOrderComponent."Due Date");
-        asserterror ReservationCheckDateConfl.ProdOrderComponentCheck(ProdOrderComponent, true, true);
+        asserterror MfgReservCheckDateConfl.ProdOrderComponentCheck(ProdOrderComponent, true, true);
 
         // [THEN] Error message is raised.
         Assert.ExpectedError(ReservDateConflictErr);
@@ -4682,6 +4681,111 @@ codeunit 137404 "SCM Manufacturing"
         ProductionBOMList.Close();
     end;
 
+    [Test]
+    procedure RoutingLineDescRemainSameWithStandardCodeWhenChangeWorkCenter()
+    var
+        RoutingHeader: Record "Routing Header";
+        RoutingLine: Record "Routing Line";
+        StandardTask: Record "Standard Task";
+        WorkCenter: array[2] of Record "Work Center";
+    begin
+        // [SCENARIO 335050] Verify that Routing Line desc don't change when update Work Center if Standard Code is not blank.
+        Initialize();
+
+        // [GIVEN] Create Standard Task.
+        CreateStandardTasks(StandardTask);
+
+        // [GIVEN] Create Work Center.
+        LibraryManufacturing.CreateWorkCenter(WorkCenter[1]);
+        LibraryManufacturing.CreateWorkCenter(WorkCenter[2]);
+
+        // [GIVEN] Create Routing Header.
+        LibraryManufacturing.CreateRoutingHeader(RoutingHeader, RoutingHeader.Type::Serial);
+
+        // [GIVEN] Create Routing Line.
+        LibraryManufacturing.CreateRoutingLine(RoutingHeader, RoutingLine, '', Format(LibraryRandom.RandInt(100)), RoutingLine.Type::"Work Center", WorkCenter[1]."No.");
+
+        // [GIVEN] Update Standard Task on Routing Line.
+        UpdateRoutingLineWithStandardTask(RoutingLine, StandardTask);
+
+        //[WHEN] Change Work Center on Routing Line.
+        ModifyRoutingLineWorkCenter(RoutingLine, WorkCenter[2]."No.");
+
+        // [THEN] Verify that Routing Line desc same as Standard Code desciption.
+        Assert.IsTrue((StandardTask.Description = RoutingLine.Description), '');
+    end;
+
+    [Test]
+    procedure RoutingLineDescRemainSameWithStandardCodeWhenChangeWorkCenterOnProductionOrder()
+    var
+        Item, CompItem : Record Item;
+        productionBomHeader: Record "Production BOM Header";
+        ProductionOrder: Record "Production Order";
+        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
+        RoutingHeader: Record "Routing Header";
+        RoutingLine: Record "Routing Line";
+        ShopCalendarWorkingDays: Record "Shop Calendar Working Days";
+        StandardTask: Record "Standard Task";
+        WorkCenter: array[2] of Record "Work Center";
+    begin
+        // [SCENARIO 335050] Verify that Routing Line desc don't change when update Work Center if Standard Code is not blank on Released Production Order.
+        Initialize();
+
+        // [GIVEN] Create Standard Task.   
+        CreateStandardTasks(StandardTask);
+
+        // [GIVEN] Create Work Center and Work Center Calendar.
+        LibraryManufacturing.CreateWorkCenter(WorkCenter[1]);
+        LibraryManufacturing.CalculateWorkCenterCalendar(WorkCenter[1], CalcDate('<-1Y>', WorkDate()), CalcDate('<1Y>', WorkDate()));
+        CreateWorkCenterWithWorkCenterGroup(WorkCenter[2], CreateShopCalendarCodeWithAllDaysWorking(ShopCalendarWorkingDays));
+
+        // // [GIVEN] Production BOM with 1 component "I1"
+        LibraryInventory.CreateItem(CompItem);
+        LibraryManufacturing.CreateCertifiedProductionBOM(productionBOmHeader, CompItem."No.", 1);
+
+        // [GIVEN] Create Routing Header and Line.
+        LibraryManufacturing.CreateRoutingHeader(RoutingHeader, RoutingHeader.Type::Serial);
+        LibraryManufacturing.CreateRoutingLineSetup(
+            RoutingLine, RoutingHeader,
+            WorkCenter[1]."No.", LibraryUtility.GenerateRandomCode(RoutingLine.FieldNo("Operation No."), DATABASE::"Routing Line"),
+            1, 1);
+
+        // [GIVEN] Update Standard Task on Routing Line.
+        UpdateRoutingLineWithStandardTask(RoutingLine, StandardTask);
+
+        // [GIVEN] Certify Routing.
+        ChangeRoutingStatus(RoutingHeader, RoutingHeader.Status::Certified);
+
+        // [GIVEN] Create Item with Production BOM and Routing.
+        LibraryManufacturing.CreateItemManufacturing(
+            Item,
+            Item."Costing Method"::Standard,
+            LibraryRandom.RandDec(100, 2),
+            Item."Reordering Policy"::Order,
+            Item."Flushing Method"::Backward,
+            RoutingHeader."No.",
+            productionBomHeader."No.");
+
+        // [GIVEN] Create and Refresh Production Order.
+        LibraryManufacturing.CreateProductionOrder(
+            ProductionOrder,
+            ProductionOrder.Status::Released,
+            ProductionOrder."Source Type"::Item,
+            Item."No.",
+            LibraryRandom.RandInt(5));
+        LibraryManufacturing.RefreshProdOrder(ProductionOrder, false, true, true, true, false);
+
+        // [GIVEN] Find Production Order Routing Line.
+        FindProdOrderRoutingLine(ProdOrderRoutingLine, RoutingLine."Work Center No.", RoutingLine."Operation No.");
+
+        //[WHEN] Change Work Center on Production Order Routing Line.
+        ModifyWorkCenterOnProdOrderRtngLn(ProdOrderRoutingLine, WorkCenter[2]."No.");
+
+        //[THEN] Verify that Routing Line desc same as Standard Code desciption.
+        Assert.IsTrue((StandardTask.Description = ProdOrderRoutingLine.Description), '');
+    end;
+
+    [Test]
     [HandlerFunctions('ExchangeProductionBOMRequestPageDefaultValueCheckHandler')]
     procedure ExchangeProductionBOMRequestPageDefaultValueCheck()
     begin
@@ -4693,36 +4797,52 @@ codeunit 137404 "SCM Manufacturing"
     end;
 
     [Test]
-    procedure CheckingStandardCodeFieldOnProductionOrderLine()
+    [HandlerFunctions('RunExchangeProdBOMItemReportWithStartDateParameter')]
+    procedure ExchangeProductionBOMItemShouldSetEndingDate()
     var
-        ProdBOMHeader: Record "Production BOM Header";
-        ProdChild, ProdParent : Record Item;
-        ProdOrderLine: Record "Prod. Order Line";
-        ProductionOrder: Record "Production Order";
-        StandardTask: Record "Standard Task";
+        Item: array[5] of Record Item;
+        MainItem: Record Item;
+        ProductionBOMHeader: Record "Production BOM Header";
+        ProductionBOMLine: Record "Production BOM Line";
+        i: Integer;
     begin
-        // [SCENARIO 572823] Standard code field Check on the Production Order line.
+        // [SCENARIO 592157] Replacing a component in a Production BOM should set the Ending Date of the replaced component.
         Initialize();
 
-        // [GIVEN] Create Standard Task.   
-        CreateStandardTasks(StandardTask);
+        LibraryInventory.CreateItem(MainItem);
+        MainItem.Validate("Replenishment System", MainItem."Replenishment System"::"Prod. Order");
+        MainItem.Modify(true);
 
-        // [GIVEN] Create Item with Production BOM.
-        LibraryInventory.CreateItem(ProdChild);
-        LibraryManufacturing.CreateCertifiedProductionBOM(ProdBOMHeader, ProdChild."No.", LibraryRandom.RandInt(2));
-        LibraryManufacturing.CreateItemManufacturing(ProdParent, Enum::"Costing Method"::Standard, 1000, Enum::"Reordering Policy"::" ", Enum::"Flushing Method"::"Pick + Manual", '', ProdBOMHeader."No.");
+        // [GIVEN] Create a Production BOM Header
+        LibraryManufacturing.CreateProductionBOMHeader(ProductionBOMHeader, MainItem."Base Unit of Measure");
 
-        // [WHEN] Create Released production order and Modify "Standard Task Code" on Prod. Order Line.
-        LibraryManufacturing.CreateAndRefreshProductionOrder(ProductionOrder, Enum::"Production Order Status"::Released, Enum::"Prod. Order Source Type"::Item, ProdParent."No.", 1);
-        ProdOrderLine.SetRange(Status, Enum::"Production Order Status"::Released);
-        ProdOrderLine.SetRange("Prod. Order No.", ProductionOrder."No.");
-        ProdOrderLine.FindFirst();
-        ProdOrderLine.Validate("Standard Task Code", StandardTask.Code);
-        ProdOrderLine.Modify();
+        // [GIVEN] Create Items
+        for i := 1 to 5 do
+            LibraryInventory.CreateItem(Item[i]);
 
-        // [THEN] Verify that Standard Task Code value on Prod. Order Line.
-        Assert.AreEqual(StandardTask.Code, ProdOrderLine."Standard Task Code", StandardTaskFieldErr);
+        // [GIVEN] Add only Items[1..4] to the BOM
+        for i := 1 to 4 do
+            LibraryManufacturing.CreateProductionBOMLine(
+                ProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, Item[i]."No.", LibraryRandom.RandIntInRange(10, 20));
+
+        // [GIVEN] Certify BOM and assign to Main Item
+        ModifyStatusInProductionBOM(ProductionBOMHeader, ProductionBOMHeader.Status::Certified);
+        MainItem.Validate("Production BOM No.", ProductionBOMHeader."No.");
+        MainItem.Modify(true);
+
+        // [GIVEN] Enqueue parameter values for report
+        EnqueueExchProdBOMItemReportParameter(Item[1]."No.", Item[5]."No.", Today);
+
+        // [WHEN] Run the Exchange Production BOM Item report
+        RunExchangeProductionBOMItemReport();
+
+        // [THEN] Validate that the replaced item has an Ending Date of (StartDate - 1)
+        ValidateEndingDateSet(ProductionBOMHeader."No.", Item[1]."No.", Today);
+
+        // [AND] Ensure no test artifacts are left behind
+        LibraryVariableStorage.AssertEmpty();
     end;
+
 
     local procedure Initialize()
     var
@@ -4753,6 +4873,7 @@ codeunit 137404 "SCM Manufacturing"
         LibraryERMCountryData.CreateVATData();
         LibraryERMCountryData.UpdateGeneralPostingSetup();
 
+        LibrarySetupStorage.SaveInventorySetup();
         LibrarySetupStorage.SaveManufacturingSetup();
 
         isInitialized := true;
@@ -6457,7 +6578,7 @@ codeunit 137404 "SCM Manufacturing"
         RoutingLine: Record "Routing Line";
         RoutingLine2: Record "Routing Line";
         CapacityUnitOfMeasure: Record "Capacity Unit of Measure";
-        MfgSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
         StartingDate: Date;
     begin
         // Create Work Center with all days working Calender
@@ -6501,8 +6622,8 @@ codeunit 137404 "SCM Manufacturing"
         // Calculate the due date of prod. order, since the ending date - starting date = WaitTime + 1 for the last routing line,
         // the ending date of the last routing line + Default Safety Lead Time = the prod. order due date
         // so use below formula to calculate prod. due date
-        MfgSetup.Get();
-        exit(CalcDate(MfgSetup."Default Safety Lead Time", CalcDate('<+' + Format(WaitTime + 1) + 'D>', StartingDate)));
+        InventorySetup.Get();
+        exit(CalcDate(InventorySetup."Default Safety Lead Time", CalcDate('<+' + Format(WaitTime + 1) + 'D>', StartingDate)));
     end;
 
     local procedure SetupWaitTimeOnProdOrderRtngLnWithoutCapactityConstrained(var RoutingLine: Record "Routing Line"; var RoutingLine2: Record "Routing Line")
@@ -7562,6 +7683,30 @@ codeunit 137404 "SCM Manufacturing"
         LibraryManufacturing.RefreshProdOrder(ProductionOrder, false, true, true, true, false);
     end;
 
+    local procedure ModifyWorkCenterOnProdOrderRtngLn(var ProdOrderRoutingLine: Record "Prod. Order Routing Line"; WorkCenterNo: Code[20])
+    begin
+        ProdOrderRoutingLine.Validate("Work Center No.", WorkCenterNo);
+        ProdOrderRoutingLine.Modify(true);
+    end;
+
+    local procedure ChangeRoutingStatus(var RoutingHeader: Record "Routing Header"; NewStatus: Enum "Routing Status")
+    begin
+        RoutingHeader.Validate(Status, NewStatus);
+        RoutingHeader.Modify(true);
+    end;
+
+    local procedure UpdateRoutingLineWithStandardTask(var RoutingLine: Record "Routing Line"; StandardTask: Record "Standard Task")
+    begin
+        RoutingLine.Validate("Standard Task Code", StandardTask."Code");
+        RoutingLine.Modify(true);
+    end;
+
+    local procedure ModifyRoutingLineWorkCenter(var RoutingLine: Record "Routing Line"; WorkCenterNo: Code[20])
+    begin
+        RoutingLine.Validate("Work Center No.", WorkCenterNo);
+        RoutingLine.Modify(true);
+    end;
+
     local procedure CreateStandardTasks(var StandardTask: Record "Standard Task")
     begin
         LibraryManufacturing.CreateStandardTask(StandardTask);
@@ -7572,6 +7717,23 @@ codeunit 137404 "SCM Manufacturing"
     begin
         standardTask.Validate("Description", Format(LibraryRandom.RandText(50)));
         standardTask.Modify(true);
+    end;
+
+    local procedure EnqueueExchProdBOMItemReportParameter(ExchangeItemNo: Code[20]; ReplaceItemNo: Code[20]; StartDate: Date)
+    begin
+        LibraryVariableStorage.Enqueue(ExchangeItemNo);
+        LibraryVariableStorage.Enqueue(ReplaceItemNo);
+        LibraryVariableStorage.Enqueue(StartDate);
+    end;
+
+    local procedure ValidateEndingDateSet(ProdBOMHeaderNo: Code[20]; ItemNo: Code[20]; StartingDate: Date)
+    var
+        ProductionBOMLine: Record "Production BOM Line";
+    begin
+        ProductionBOMLine.SetRange("Production BOM No.", ProdBOMHeaderNo);
+        ProductionBOMLine.SetRange("No.", ItemNo);
+        ProductionBOMLine.FindFirst();
+        Assert.AreEqual(StartingDate - 1, ProductionBOMLine."Ending Date", 'Ending Date is not correctly set on the Production BOM line.')
     end;
 
     [ModalPageHandler]
@@ -7661,6 +7823,29 @@ codeunit 137404 "SCM Manufacturing"
         if Item.FindFirst() then;
         ExchangeProductionBOMItem.ExchangeNo.SetValue(Item."No.");
         ExchangeProductionBOMItem.WithType.AssertEquals(ProductionBOMLineType::Item);// [THEN] Verify WithType Default Type is ITEM
+        ExchangeProductionBOMItem.OK().Invoke();
+    end;
+
+    [RequestPageHandler]
+    procedure RunExchangeProdBOMItemReportWithStartDateParameter(var ExchangeProductionBOMItem: TestRequestPage "Exchange Production BOM Item")
+    var
+        FromProductionBOMLineType: Enum "Production BOM Line Type";
+        ExchangeItemNo: Variant;
+        ReplaceItemNo: Variant;
+        StartDate: Variant;
+    begin
+        ExchangeItemNo := LibraryVariableStorage.DequeueText();
+        ReplaceItemNo := LibraryVariableStorage.DequeueText();
+        StartDate := LibraryVariableStorage.DequeueDate();
+        ExchangeProductionBOMItem.ExchangeType.SetValue(FromProductionBOMLineType::Item);
+        ExchangeProductionBOMItem.ExchangeNo.SetValue(ExchangeItemNo);
+        ExchangeProductionBOMItem.WithType.SetValue(FromProductionBOMLineType::Item);
+        ExchangeProductionBOMItem.WithNo.SetValue(ReplaceItemNo);
+        ExchangeProductionBOMItem."Create New Version".SetValue(false);
+        ExchangeProductionBOMItem."Delete Exchanged Component".SetValue(false);
+        ExchangeProductionBOMItem.Recertify.SetValue(true);
+        ExchangeProductionBOMItem.CopyRoutingLink.SetValue(true);
+        ExchangeProductionBOMItem.StartingDate.SetValue(StartDate);
         ExchangeProductionBOMItem.OK().Invoke();
     end;
 }

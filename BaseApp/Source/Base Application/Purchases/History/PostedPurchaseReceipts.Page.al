@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.History;
 
 using Microsoft.CRM.Outlook;
@@ -11,6 +15,8 @@ page 145 "Posted Purchase Receipts"
     CardPageID = "Posted Purchase Receipt";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Purchase Receipts';
+    AboutText = 'Review posted purchase receipts to track received goods, verify vendor and shipment details, and access historical records of completed purchase deliveries.';
     QueryCategory = 'Posted Purchase Receipts';
     RefreshOnActivate = true;
     SourceTable = "Purch. Rcpt. Header";

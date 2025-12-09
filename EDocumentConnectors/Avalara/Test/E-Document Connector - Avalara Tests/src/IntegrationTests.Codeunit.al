@@ -9,22 +9,25 @@ using Microsoft.Sales.Customer;
 using Microsoft.Purchases.Document;
 using Microsoft.Foundation.Company;
 using Microsoft.Purchases.Vendor;
+using Microsoft.Finance.GeneralLedger.Setup;
+using Microsoft.Finance.VAT.Setup;
 using System.Threading;
 using Microsoft.eServices.EDocument.Integration;
 using Microsoft.eServices.EDocument.Service;
 using Microsoft.Finance.Currency;
+using System.Utilities;
 
 codeunit 148191 "Integration Tests"
 {
 
     Subtype = Test;
+    TestType = Uncategorized;
     Permissions = tabledata "Connection Setup" = rimd,
-                    tabledata "E-Document" = r;
+                  tabledata "E-Document" = r;
+    TestHttpRequestPolicy = AllowOutboundFromHandler;
 
-    /// <summary>
-    /// Test needs MockService running to work. 
-    /// </summary>
     [Test]
+    [HandlerFunctions('HttpSubmitHandler')]
     procedure SubmitDocument()
     var
         EDocument: Record "E-Document";
@@ -48,7 +51,7 @@ codeunit 148191 "Integration Tests"
         EDocument.FindLast();
 
         // [Then] Document Id has been correctly set on E-Document, parsed from Integration response.
-        Assert.AreEqual(MockServiceDocumentId(), EDocument."Document Id", 'Avalara integration failed to set Document Id on E-Document');
+        Assert.AreEqual(MockServiceDocumentId(), EDocument."Avalara Document Id", 'Avalara integration failed to set Document Id on E-Document');
         Assert.AreEqual(Enum::"E-Document Status"::"In Progress", EDocument.Status, 'E-Document should be set to in progress');
 
         // [THEN] Open E-Document page
@@ -71,7 +74,7 @@ codeunit 148191 "Integration Tests"
         EDocumentPage.Close();
 
         // [WHEN] Executing Get Response succesfully
-        SetAvalaraConnectionBaseUrl('/avalara/response-complete');
+        SetDocumentStatus(DocumentStatus::Completed);
         JobQueueEntry.FindJobQueueEntry(JobQueueEntry."Object Type to Run"::Codeunit, Codeunit::"E-Document Get Response");
         LibraryJobQueue.RunJobQueueDispatcher(JobQueueEntry);
 
@@ -100,12 +103,12 @@ codeunit 148191 "Integration Tests"
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart."Message Type".Value(), IncorrectValueErr);
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart.Description.Value(), IncorrectValueErr);
         EDocumentPage.Close();
+
+        TearDown();
     end;
 
-    /// <summary>
-    /// Test needs MockService running to work. 
-    /// </summary>
     [Test]
+    [HandlerFunctions('HttpSubmitHandler')]
     procedure SubmitDocument_Pending_Sent()
     var
         EDocument: Record "E-Document";
@@ -116,7 +119,6 @@ codeunit 148191 "Integration Tests"
         // Steps:
         // Pending response -> Pending response -> Sent 
         Initialize();
-        SetAPIWith200Code();
 
         // [Given] Team member 
         LibraryPermission.SetTeamMember();
@@ -130,7 +132,7 @@ codeunit 148191 "Integration Tests"
         EDocument.FindLast();
 
         // [Then] Document Id has been correctly set on E-Document, parsed from Integration response
-        Assert.AreEqual(MockServiceDocumentId(), EDocument."Document Id", 'Avalara integration failed to set Document Id on E-Document');
+        Assert.AreEqual(MockServiceDocumentId(), EDocument."Avalara Document Id", 'Avalara integration failed to set Document Id on E-Document');
 
         // [Then] E-Document is pending response as Avalara is async
         Assert.AreEqual(Enum::"E-Document Status"::"In Progress", EDocument.Status, 'E-Document should be set to in progress');
@@ -156,7 +158,7 @@ codeunit 148191 "Integration Tests"
 
 
         // [WHEN] Executing Get Response succesfully
-        SetAvalaraConnectionBaseUrl('/avalara/response-pending');
+        SetDocumentStatus(DocumentStatus::Pending);
         JobQueueEntry.FindJobQueueEntry(JobQueueEntry."Object Type to Run"::Codeunit, Codeunit::"E-Document Get Response");
         LibraryJobQueue.RunJobQueueDispatcher(JobQueueEntry);
 
@@ -187,7 +189,7 @@ codeunit 148191 "Integration Tests"
         EDocumentPage.Close();
 
         // [WHEN] Executing Get Response succesfully
-        SetAvalaraConnectionBaseUrl('/avalara/response-complete');
+        SetDocumentStatus(DocumentStatus::Completed);
         JobQueueEntry.FindJobQueueEntry(JobQueueEntry."Object Type to Run"::Codeunit, Codeunit::"E-Document Get Response");
         LibraryJobQueue.RunJobQueueDispatcher(JobQueueEntry);
 
@@ -217,13 +219,12 @@ codeunit 148191 "Integration Tests"
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart."Message Type".Value(), IncorrectValueErr);
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart.Description.Value(), IncorrectValueErr);
         EDocumentPage.Close();
+
+        TearDown();
     end;
 
-    /// <summary>
-    /// Test needs MockService running to work. 
-    /// </summary>
     [Test]
-    [HandlerFunctions('EDocServicesPageHandler')]
+    [HandlerFunctions('EDocServicesPageHandler,HttpSubmitHandler')]
     procedure SubmitDocument_Error_Sent()
     var
         EDocument: Record "E-Document";
@@ -234,7 +235,6 @@ codeunit 148191 "Integration Tests"
         // Steps:
         // Pending response -> Error -> Pending response -> Sent 
         Initialize();
-        SetAPIWith200Code();
 
         // [Given] Team member 
         LibraryPermission.SetTeamMember();
@@ -248,7 +248,7 @@ codeunit 148191 "Integration Tests"
         EDocument.FindLast();
 
         // [Then] Document Id has been correctly set on E-Document, parsed from Integration response
-        Assert.AreEqual(MockServiceDocumentId(), EDocument."Document Id", 'Avalara integration failed to set Document Id on E-Document');
+        Assert.AreEqual(MockServiceDocumentId(), EDocument."Avalara Document Id", 'Avalara integration failed to set Document Id on E-Document');
 
         // [Then] E-Document is pending response as Avalara is async
         Assert.AreEqual(Enum::"E-Document Status"::"In Progress", EDocument.Status, 'E-Document should be set to in progress');
@@ -273,7 +273,7 @@ codeunit 148191 "Integration Tests"
         EDocumentPage.Close();
 
         // [WHEN] Executing Get Response succesfully
-        SetAvalaraConnectionBaseUrl('/avalara/response-error');
+        SetDocumentStatus(DocumentStatus::Error);
         JobQueueEntry.FindJobQueueEntry(JobQueueEntry."Object Type to Run"::Codeunit, Codeunit::"E-Document Get Response");
         LibraryJobQueue.RunJobQueueDispatcher(JobQueueEntry);
 
@@ -317,7 +317,6 @@ codeunit 148191 "Integration Tests"
 
         // Then user manually send 
 
-        SetAvalaraConnectionBaseUrl('/avalara/avalara/200');
         EDocument.FindLast();
 
         // [THEN] Open E-Document page and resend
@@ -351,7 +350,7 @@ codeunit 148191 "Integration Tests"
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart.Description.Value(), IncorrectValueErr);
         EDocumentPage.Close();
 
-        SetAvalaraConnectionBaseUrl('/avalara/response-complete');
+        SetDocumentStatus(DocumentStatus::Completed);
 
         JobQueueEntry.FindJobQueueEntry(JobQueueEntry."Object Type to Run"::Codeunit, Codeunit::"E-Document Get Response");
         LibraryJobQueue.RunJobQueueDispatcher(JobQueueEntry);
@@ -384,12 +383,12 @@ codeunit 148191 "Integration Tests"
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart."Message Type".Value(), IncorrectValueErr);
         Assert.AreEqual('', EDocumentPage.ErrorMessagesPart.Description.Value(), IncorrectValueErr);
         EDocumentPage.Close();
+
+        TearDown();
     end;
 
-    /// <summary>
-    /// Test needs MockService running to work. 
-    /// </summary>
     [Test]
+    [HandlerFunctions('ServiceDownHandler')]
     procedure SubmitDocumentAvalaraServiceDown()
     var
         EDocument: Record "E-Document";
@@ -397,7 +396,6 @@ codeunit 148191 "Integration Tests"
         EDocLogList: List of [Enum "E-Document Service Status"];
     begin
         Initialize();
-        SetAPIWith500Code();
 
         // [Given] Team member 
         LibraryPermission.SetTeamMember();
@@ -411,7 +409,7 @@ codeunit 148191 "Integration Tests"
         EDocument.FindLast();
 
         Assert.AreEqual(Enum::"E-Document Status"::Error, EDocument.Status, 'E-Document should be set to error state when service is down.');
-        Assert.AreEqual('', EDocument."Document Id", 'Document Id on E-Document should not be set.');
+        Assert.AreEqual('', EDocument."Avalara Document Id", 'Document Id on E-Document should not be set.');
 
         EDocumentPage.OpenView();
         EDocumentPage.GoToRecord(EDocument);
@@ -432,12 +430,12 @@ codeunit 148191 "Integration Tests"
         // [THEN] E-Document Errors and Warnings has correct status
         Assert.AreEqual('Error', EDocumentPage.ErrorMessagesPart."Message Type".Value(), IncorrectValueErr);
         Assert.AreEqual('Error Code: 500, Error Message: The HTTP request is not successful. An internal server error occurred.', EDocumentPage.ErrorMessagesPart.Description.Value(), IncorrectValueErr);
+
+        TearDown();
     end;
 
-    /// <summary>
-    /// Test needs MockService running to work. 
-    /// </summary>
     [Test]
+    [HandlerFunctions('HttpSubmitHandler')]
     procedure SubmitGetDocuments()
     var
         EDocument: Record "E-Document";
@@ -446,7 +444,6 @@ codeunit 148191 "Integration Tests"
         EDocServicePage: TestPage "E-Document Service";
     begin
         Initialize();
-        SetAPIWithReceiveCode();
         SetCompanyIdInConnectionSetup(MockCompanyId(), 'Mock Name');
 
         // Use date and currency exchange rate in document that is loaded
@@ -480,10 +477,12 @@ codeunit 148191 "Integration Tests"
         EDocument.FindLast();
         PurchaseHeader.Get(EDocument."Document Record ID");
         Assert.AreEqual(Vendor."No.", PurchaseHeader."Buy-from Vendor No.", 'Wrong Vendor');
+
+        TearDown();
     end;
 
     [Test]
-    [HandlerFunctions('SelectCompany')]
+    [HandlerFunctions('SelectCompany,HttpSubmitHandler')]
     procedure OpenCompanyList()
     var
         ConnectionSetup: Record "Connection Setup";
@@ -509,6 +508,8 @@ codeunit 148191 "Integration Tests"
         ConnectionSetup.Get();
         Assert.AreEqual('610f55f3-76b6-42eb-a697-2b0b2e02a5bf', ConnectionSetup."Company Id", 'Has to be empty before selecting company');
         Assert.AreEqual('MS Business Central Ltd - ELR SBX', ConnectionSetup."Company Name", 'Has to be empty before selecting company');
+
+        TearDown();
     end;
 
     local procedure VerifyOutboundFactboxValuesForSingleService(EDocument: Record "E-Document"; Status: Enum "E-Document Service Status"; Logs: Integer);
@@ -533,17 +534,23 @@ codeunit 148191 "Integration Tests"
     var
         ConnectionSetup: Record "Connection Setup";
         CompanyInformation: Record "Company Information";
+        GeneralLedgerSetup: Record "General Ledger Setup";
         AvalaraAuth: Codeunit Authenticator;
         KeyGuid: Guid;
     begin
         LibraryPermission.SetOutsideO365Scope();
+
+        GeneralLedgerSetup.Get();
+        PrevVATReportingDateValue := GeneralLedgerSetup."VAT Reporting Date Usage";
+        GeneralLedgerSetup."VAT Reporting Date Usage" := Enum::"VAT Reporting Date Usage"::Disabled;
+        GeneralLedgerSetup.Modify();
+
         // Clean up token between runs
         if ConnectionSetup.Get() then
             if IsolatedStorage.Delete(ConnectionSetup."Token - Key", DataScope::Company) then;
 
         ConnectionSetup.DeleteAll();
         AvalaraAuth.CreateConnectionSetupRecord();
-        SetAPIWith200Code();
 
         ConnectionSetup.Get();
         AvalaraAuth.SetClientId(KeyGuid, MockServiceGuid());
@@ -551,6 +558,11 @@ codeunit 148191 "Integration Tests"
         AvalaraAuth.SetClientSecret(KeyGuid, MockServiceGuid());
         ConnectionSetup."Client Secret - Key" := KeyGuid;
         ConnectionSetup.Modify(true);
+
+        CompanyInformation.Get();
+        OriginalVATNumber := CompanyInformation."VAT Registration No.";
+        CompanyInformation."VAT Registration No." := 'GB777777771';
+        CompanyInformation.Modify();
 
         if IsInitialized then
             exit;
@@ -569,21 +581,7 @@ codeunit 148191 "Integration Tests"
         Vendor."Receive E-Document To" := Enum::"E-Document Type"::"Purchase Invoice";
         Vendor.Modify();
 
-        CompanyInformation.Get();
-        CompanyInformation."VAT Registration No." := 'GB777777771';
-        CompanyInformation.Modify();
-
         IsInitialized := true;
-    end;
-
-    local procedure SetAvalaraConnectionBaseUrl(Base: Text)
-    var
-        ConnectionSetup: Record "Connection Setup";
-    begin
-        ConnectionSetup.Get();
-        ConnectionSetup."API URL" := SetMockServiceUrl(Base);
-        ConnectionSetup."Sandbox API URL" := ConnectionSetup."API URL";
-        ConnectionSetup.Modify(true);
     end;
 
     local procedure SetCompanyIdInConnectionSetup(Id: Text[100]; Name: Text[100])
@@ -594,42 +592,6 @@ codeunit 148191 "Integration Tests"
         ConnectionSetup."Company Id" := Id;
         ConnectionSetup."Company Name" := Name;
         ConnectionSetup.Modify(true);
-    end;
-
-    local procedure SetAPIWithReceiveCode()
-    begin
-        SetAPICode('/avalara/200/receive');
-    end;
-
-    local procedure SetAPIWith200Code()
-    begin
-        SetAPICode('/avalara/200');
-    end;
-
-    local procedure SetAPIWith500Code()
-    begin
-        SetAPICode('/avalara/500');
-    end;
-
-    local procedure SetAPICode(Path: Text)
-    var
-        ConnectionSetup: Record "Connection Setup";
-    begin
-        ConnectionSetup.Get();
-        ConnectionSetup."API URL" := SetMockServiceUrl(Path);
-        ConnectionSetup."Authentication URL" := SetMockServiceUrl(Path);
-        ConnectionSetup."Sandbox API URL" := ConnectionSetup."API URL";
-        ConnectionSetup."Sandbox Authentication URL" := ConnectionSetup."Authentication URL";
-        ConnectionSetup."Send Mode" := ConnectionSetup."Send Mode"::Test;
-        ConnectionSetup.Modify(true);
-    end;
-
-    // Mock values used in mock response files. 
-    // Do not change without fixing MockService files
-
-    local procedure SetMockServiceUrl(Path: Text): Text[200]
-    begin
-        exit('https://localhost:8080' + Path);
     end;
 
     local procedure MockServiceGuid(): Text
@@ -661,6 +623,96 @@ codeunit 148191 "Integration Tests"
         EDocServicesPage.OK().Invoke();
     end;
 
+    [HttpClientHandler]
+    internal procedure HttpSubmitHandler(Request: TestHttpRequestMessage; var Response: TestHttpResponseMessage): Boolean
+    var
+        Regex: Codeunit Regex;
+        ConnectTokenFileTok: Label 'ConnectToken.txt', Locked = true;
+        DownloadDocumentFileTok: Label 'DownloadDocument.txt', Locked = true;
+        SubmitDocumentFileTok: Label 'SubmitDocument.txt', Locked = true;
+        GetDocumentsFileTok: Label 'GetDocuments.txt', Locked = true;
+        CompaniesFileTok: Label 'Companies.txt', Locked = true;
+    begin
+        case true of
+            Regex.IsMatch(Request.Path, 'https?://.+/connect/token'):
+                LoadResourceIntoHttpResponse(ConnectTokenFileTok, Response);
+
+            Regex.IsMatch(Request.Path, 'https?://.+/einvoicing/documents/.+/status'):
+                GetStatusResponse(Response);
+
+            Regex.IsMatch(Request.Path, 'https?://.+/einvoicing/documents/.+/\$download'):
+                LoadResourceIntoHttpResponse(DownloadDocumentFileTok, Response);
+
+            Regex.IsMatch(Request.Path, 'https?://.+/einvoicing/documents'):
+                case Request.RequestType of
+                    HttpRequestType::POST:
+                        LoadResourceIntoHttpResponse(SubmitDocumentFileTok, Response);
+                    HttpRequestType::GET:
+                        begin
+                            LoadResourceIntoHttpResponse(GetDocumentsFileTok, Response);
+                            Response.HttpStatusCode := 200;
+                        end;
+                end;
+
+            Regex.IsMatch(Request.Path, 'https?://.+/scs/companies'):
+                begin
+                    LoadResourceIntoHttpResponse(CompaniesFileTok, Response);
+                    Response.HttpStatusCode := 200;
+                end;
+        end;
+    end;
+
+    local procedure TearDown()
+    var
+        CompanyInformation: Record "Company Information";
+        GeneralLedgerSetup: Record "General Ledger Setup";
+    begin
+        CompanyInformation.Get();
+        CompanyInformation."VAT Registration No." := OriginalVATNumber;
+        CompanyInformation.Modify();
+
+        GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."VAT Reporting Date Usage" := PrevVATReportingDateValue;
+        GeneralLedgerSetup.Modify();
+    end;
+
+    [HttpClientHandler]
+    internal procedure ServiceDownHandler(Request: TestHttpRequestMessage; var Response: TestHttpResponseMessage): Boolean
+    var
+        Http500FileTok: Label 'Http500.txt', Locked = true;
+    begin
+        LoadResourceIntoHttpResponse(Http500FileTok, Response);
+        Response.HttpStatusCode := 500;
+    end;
+
+    local procedure LoadResourceIntoHttpResponse(ResourceText: Text; var Response: TestHttpResponseMessage)
+    begin
+        Response.Content.WriteFrom(NavApp.GetResourceAsText(ResourceText, TextEncoding::UTF8));
+    end;
+
+    local procedure SetDocumentStatus(NewDocumentStatus: Option Completed,Pending,Error)
+    begin
+        this.DocumentStatus := NewDocumentStatus;
+    end;
+
+    local procedure GetStatusResponse(var Response: TestHttpResponseMessage)
+    var
+        GetResponseCompleteFileTok: Label 'GetResponseComplete.txt', Locked = true;
+        GetResponsePendingFileTok: Label 'GetResponsePending.txt', Locked = true;
+        GetResponseErrorFileTok: Label 'GetResponseError.txt', Locked = true;
+    begin
+        case DocumentStatus of
+            DocumentStatus::Completed:
+                LoadResourceIntoHttpResponse(GetResponseCompleteFileTok, Response);
+
+            DocumentStatus::Pending:
+                LoadResourceIntoHttpResponse(GetResponsePendingFileTok, Response);
+
+            DocumentStatus::Error:
+                LoadResourceIntoHttpResponse(GetResponseErrorFileTok, Response);
+        end;
+    end;
+
     var
         Customer: Record Customer;
         Vendor: Record Vendor;
@@ -671,6 +723,8 @@ codeunit 148191 "Integration Tests"
         LibraryERM: Codeunit "Library - ERM";
         Assert: Codeunit Assert;
         IsInitialized: Boolean;
+        PrevVATReportingDateValue: Enum "VAT Reporting Date Usage";
+        OriginalVATNumber: Text[20];
         IncorrectValueErr: Label 'Wrong value';
-
+        DocumentStatus: Option Completed,Pending,Error;
 }

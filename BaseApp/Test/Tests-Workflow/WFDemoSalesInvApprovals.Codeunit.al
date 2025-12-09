@@ -27,7 +27,7 @@ codeunit 134170 "WF Demo Sales Inv. Approvals"
         PostRestrictionErr: Label 'You cannot use %1 for this action.', Comment = 'You cannot use Sales Header 10000 for this action.';
         RecordIsRestrictedErr: Label 'You cannot use %1 for this action.', Comment = '%1=Record Id';
         ApprovalShouldBeHandledErr: Label 'The approval process must be cancelled or completed to reopen this document.';
-        InvoiceDiscExpectedErr: Label 'Validation error for THE Field: Invoice Disc. Pct., Message = Status must be equal to Open in Sales Header: Document Type=Invoice, No.=%1. Current value is Pending Approval';
+        InvoiceDiscExpectedErr: Label 'Validation error for Field: Invoice Disc. Pct.,  Message = Status must be equal to Open  in Sales Header: Document Type=Invoice, No.=%1. Current value is Pending Approval';
         LibraryJobQueue: Codeunit "Library - Job Queue";
         WorkflowSetup: Codeunit "Workflow Setup";
         IsInitialized: Boolean;

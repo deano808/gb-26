@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Projects.Project.Job;
 
 using Microsoft.Finance.Currency;
@@ -152,7 +156,7 @@ codeunit 1006 "Copy Job"
             exit;
         NextPlanningLineNo := 0;
         SourceJobPlanningLine.SetRange("Line No.", 0, SourceJobPlanningLine."Line No.");
-        OnCopyJobPlanningLinesOnAfterSourceJobPlanningLineSetFilters(SourceJobPlanningLine);
+        OnCopyJobPlanningLinesOnAfterSourceJobPlanningLineSetFilters(SourceJobPlanningLine, CopyPrices);
         if SourceJobPlanningLine.FindSet() then
             repeat
                 IsHandled := false;
@@ -398,6 +402,12 @@ codeunit 1006 "Copy Job"
         JobTaskDateRangeTo := JobTaskDateRangeTo2;
     end;
 
+    procedure GetJobTaskDateRange(var JobTaskDateRangeFrom2: Date; var JobTaskDateRangeTo2: Date)
+    begin
+        JobTaskDateRangeFrom2 := JobTaskDateRangeFrom;
+        JobTaskDateRangeTo2 := JobTaskDateRangeTo;
+    end;
+
     local procedure FindLastJobPlanningLine(JobPlanningLine: Record "Job Planning Line"): Integer
     begin
         JobPlanningLine.SetRange("Job No.", JobPlanningLine."Job No.");
@@ -458,7 +468,7 @@ codeunit 1006 "Copy Job"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnCopyJobPlanningLinesOnAfterSourceJobPlanningLineSetFilters(var SourceJobPlanningLine: Record "Job Planning Line")
+    local procedure OnCopyJobPlanningLinesOnAfterSourceJobPlanningLineSetFilters(var SourceJobPlanningLine: Record "Job Planning Line"; CopyPrices: Boolean)
     begin
     end;
 

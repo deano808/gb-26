@@ -7,14 +7,15 @@ namespace Microsoft.Manufacturing.Capacity;
 using Microsoft.Finance.Dimension;
 using Microsoft.Foundation.Navigate;
 using Microsoft.Inventory.Ledger;
-using Microsoft.Manufacturing.Journal;
 
 page 5832 "Capacity Ledger Entries"
 {
-    ApplicationArea = Assembly, Manufacturing;
+    ApplicationArea = Suite;
     Caption = 'Capacity Ledger Entries';
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Capacity Ledger Entries';
+    AboutText = 'Track and analyze posted capacity usage for work centers and machine centers, including labor and machine time, quantities, output, scrap, run time, setup time, and costs, to monitor activities such as maintenance and non-production tasks.';
     SourceTable = "Capacity Ledger Entry";
     SourceTableView = sorting("Entry No.")
                       order(descending);
@@ -29,7 +30,7 @@ page 5832 "Capacity Ledger Entries"
                 ShowCaption = false;
                 field("Posting Date"; Rec."Posting Date")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the posting date of the entry.';
                 }
                 field("Order Type"; Rec."Order Type")
@@ -50,23 +51,23 @@ page 5832 "Capacity Ledger Entries"
                 }
                 field(Type; Rec.Type)
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the type of capacity entry.';
                 }
                 field("No."; Rec."No.")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the number of the involved entry or record, according to the specified number series.';
                 }
                 field("Document No."; Rec."Document No.")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the document number of the entry.';
                     Visible = false;
                 }
                 field("Item No."; Rec."Item No.")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the item number.';
                 }
                 field("Variant Code"; Rec."Variant Code")
@@ -77,34 +78,55 @@ page 5832 "Capacity Ledger Entries"
                 }
                 field(Description; Rec.Description)
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies a description of the entry.';
                 }
                 field(Quantity; Rec.Quantity)
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the quantity of this entry, in base units of measure.';
                 }
                 field("Direct Cost"; Rec."Direct Cost")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the direct cost in LCY of the quantity posting.';
                 }
                 field("Overhead Cost"; Rec."Overhead Cost")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the overhead cost in LCY of the quantity posting.';
                 }
                 field("Direct Cost (ACY)"; Rec."Direct Cost (ACY)")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the direct cost in the additional reporting currency.';
                     Visible = false;
                 }
                 field("Overhead Cost (ACY)"; Rec."Overhead Cost (ACY)")
                 {
-                    ApplicationArea = Assembly, Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the overhead cost in the additional reporting currency.';
+                    Visible = false;
+                }
+                field(Reversed; Rec.Reversed)
+                {
+                    ApplicationArea = Basic, Suite;
+                    Editable = false;
+                    ToolTip = 'Specifies if the entry has been part of a reverse transaction.';
+                    Visible = false;
+                }
+                field("Reversed by Entry No."; Rec."Reversed by Entry No.")
+                {
+                    ApplicationArea = Basic, Suite;
+                    Editable = false;
+                    ToolTip = 'Specifies the number of the correcting entry that replaced the original entry in the reverse transaction.';
+                    Visible = false;
+                }
+                field("Reversed Entry No."; Rec."Reversed Entry No.")
+                {
+                    ApplicationArea = Basic, Suite;
+                    Editable = false;
+                    ToolTip = 'Specifies the number of the original entry that was undone by the reverse transaction.';
                     Visible = false;
                 }
                 field("Global Dimension 1 Code"; Rec."Global Dimension 1 Code")
@@ -180,7 +202,7 @@ page 5832 "Capacity Ledger Entries"
                 }
                 field("Cap. Unit of Measure Code"; Rec."Cap. Unit of Measure Code")
                 {
-                    ApplicationArea = Manufacturing;
+                    ApplicationArea = Suite;
                     ToolTip = 'Specifies the unit of measure code for the capacity usage.';
                     Visible = false;
                 }
@@ -268,23 +290,6 @@ page 5832 "Capacity Ledger Entries"
                     else
                         Navigate.SetDoc(Rec."Posting Date", '');
                     Navigate.Run();
-                end;
-            }
-            action("Reverse")
-            {
-                ApplicationArea = Manufacturing;
-                Caption = 'Reverse Production Entry';
-                Image = ReverseLines;
-                ToolTip = 'Reverse a production capacity ledger entry for the selected lines.';
-                Ellipsis = true;
-
-                trigger OnAction()
-                var
-                    CapacityLedgEntry: Record "Capacity Ledger Entry";
-                    UndoProdPostingMgmt: Codeunit "Undo Prod. Posting Mgmt.";
-                begin
-                    CurrPage.SetSelectionFilter(CapacityLedgEntry);
-                    UndoProdPostingMgmt.ReverseCapacityLedgerEntry(CapacityLedgEntry);
                 end;
             }
         }

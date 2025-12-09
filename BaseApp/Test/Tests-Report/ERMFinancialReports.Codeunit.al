@@ -31,9 +31,6 @@ codeunit 134982 "ERM Financial Reports"
         Assert: Codeunit Assert;
         IsInitialized: Boolean;
         ReportErr: Label '%1 must be %2 in Report.', Locked = true;
-#if not CLEAN24
-        RelatedNoSeriesTok: Label 'Related No. Series', Locked = true;
-#endif
         RowNotFoundErr: Label 'There is no dataset row corresponding to Element Name %1 with value %2.', Comment = '%1=Field Caption,%2=Field Value;';
         RowMustNotExistErr: Label 'Row Must Not Exist';
         FiscalYearStartingDateErr: Label 'Enter the starting date for the fiscal year.';
@@ -44,7 +41,21 @@ codeunit 134982 "ERM Financial Reports"
         BlankLinesQtyErr: Label 'Wrong blank lines quantity in dataset.';
         SourceBalanceErr: Label 'Source Currency Balance Must be 0';
         JournalLineCreatedMsg: Label 'The journal lines have successfully been created.';
+        SourceCurrencyCodeErr: Label 'Source Currency Amount should not be zero after reversing and closing income statement.';
         CurrentSaveValuesId: Integer;
+        G_L_Register_NoLbl: Label 'G_L_Register_No';
+        G_L_Entry_Document_NoLbl: Label 'G_L_Entry_Document_No';
+        G_L_Entry_G_L_Account_NoLbl: Label 'G_L_Entry_G_L_Account_No';
+        G_L_Register_From_Entry_NoLbl: Label 'G_L_Register_From_Entry_No';
+        G_L_Register_To_Entry_NoLbl: Label 'G_L_Register_To_Entry_No';
+        G_L_Entry_Document_TypeLbl: Label 'G_L_Entry_Document_Type';
+        G_L_Entry_AmountLbl: Label 'G_L_Entry_Amount';
+        G_L_Entry_Entry_NoLbl: Label 'G_L_Entry_Entry_No';
+        G_L_Entry_Source_CodeLbl: Label 'G_L_Entry_Source_Code';
+        G_L_Entry_Source_NoLbl: Label 'G_L_Entry_Source_No';
+        G_L_Entry_System_Created_EntryLbl: Label 'G_L_Entry_System_Created_Entry';
+        G_L_Entry_Posting_DateLbl: Label 'G_L_Entry_Posting_Date';
+        G_L_Entry_Document_DateLbl: Label 'G_L_Entry_Document_Date';
 
     [Test]
     [HandlerFunctions('RHDetailTrialBalance')]
@@ -543,33 +554,6 @@ codeunit 134982 "ERM Financial Reports"
         VerifyChartOfAccountReport(GLAccount);
     end;
 
-#if not CLEAN24
-    [Test]
-    [HandlerFunctions('RHNoSeriesCheck')]
-    [Scope('OnPrem')]
-    procedure NoSeriesCheck()
-    var
-        NoSeriesLine: Record "No. Series Line";
-        NoSeriesCode: Code[20];
-    begin
-        // Verify No. Series Check Report.
-
-        // Setup: Create No. Series.
-        Initialize();
-        NoSeriesCode := LibraryUtility.GetGlobalNoSeriesCode();
-        FindNoSeriesLine(NoSeriesLine, NoSeriesCode);
-
-        // Exercise. Save No. Series Check Report.
-        NoSeriesCodeReport(NoSeriesCode);
-
-        // Verify: Verify No. Series Check Report.
-        LibraryReportDataset.LoadDataSetFile();
-        LibraryReportDataset.SetRange('No__Series_Line__Series_Code_', NoSeriesLine."Series Code");
-        if not LibraryReportDataset.GetNextRow() then
-            Error(RowNotFoundErr, 'No__Series_Line__Series_Code_', NoSeriesLine."Series Code");
-        LibraryReportDataset.AssertCurrentRowValueEquals('No__Series_Line__Starting_No__', NoSeriesLine."Starting No.");
-    end;
-#endif
 
     [Test]
     [HandlerFunctions('RHGLDocumentNos')]
@@ -696,62 +680,6 @@ codeunit 134982 "ERM Financial Reports"
         VerifyTrialBalanceBudgetReport(GenJournalLine, BudgetAtDate);
     end;
 
-#if not CLEAN24
-    [Test]
-    [HandlerFunctions('RHNoSeriesReport')]
-    [Scope('OnPrem')]
-    procedure NoSeries()
-    var
-        NoSeriesLine: Record "No. Series Line";
-        NoSeriesCode: Code[20];
-    begin
-        // Check No. Series Report.
-
-        // Setup.
-        Initialize();
-        NoSeriesCode := CreateNoSeries();
-
-        // Exercise.
-        SaveNoSeriesReport(NoSeriesCode);
-
-        // Verify: Verify Report Data.
-        LibraryReportDataset.LoadDataSetFile();
-        FindNoSeriesLine(NoSeriesLine, NoSeriesCode);
-        LibraryReportDataset.SetRange('No__Series_Line_Series_Code', NoSeriesLine."Series Code");
-        if not LibraryReportDataset.GetNextRow() then
-            Error(RowNotFoundErr, 'No__Series_Line_Series_Code', NoSeriesLine."Series Code");
-        LibraryReportDataset.AssertCurrentRowValueEquals('No__Series_Line__Starting_No__', NoSeriesLine."Starting No.");
-        LibraryReportDataset.AssertCurrentRowValueEquals('No__Series_Line__Ending_No__', NoSeriesLine."Ending No.");
-    end;
-
-    [Test]
-    [HandlerFunctions('RHNoSeriesReport')]
-    [Scope('OnPrem')]
-    procedure NoSeriesWithRelationship()
-    var
-        LibraryNoSeries: Codeunit "Library - No. Series";
-        NoSeriesCode: Code[20];
-        RelatedNoSeriesCode: Code[20];
-    begin
-        // Check No. Series Report with Related No. Series.
-
-        // Setup: Create Two new No. Series and create relation in them.
-        Initialize();
-        NoSeriesCode := CreateNoSeries();
-        RelatedNoSeriesCode := CreateNoSeries();
-        LibraryNoSeries.CreateNoSeriesRelationship(NoSeriesCode, RelatedNoSeriesCode);
-
-        // Exercise.
-        SaveNoSeriesReport(NoSeriesCode);
-
-        // Verify: Verify Related No. Series Code in Report.
-        LibraryReportDataset.LoadDataSetFile();
-        LibraryReportDataset.SetRange('Related_No__SeriesCaption', RelatedNoSeriesTok);
-        if not LibraryReportDataset.GetNextRow() then
-            Error(RowNotFoundErr, 'Related_No__SeriesCaption', RelatedNoSeriesTok);
-        LibraryReportDataset.AssertCurrentRowValueEquals('NoSeriesLine2_Series_Code', RelatedNoSeriesCode);
-    end;
-#endif
 
     [Test]
     [HandlerFunctions('RHClosingTrialBalance')]
@@ -1241,7 +1169,7 @@ codeunit 134982 "ERM Financial Reports"
         Commit();
         REPORT.Run(REPORT::"Detail Trial Balance");
 
-        // [THEN] There should be only 1 worksheet in excel 
+        // [THEN] There should be only 1 worksheet in excel
         LibraryReportValidation.OpenExcelFile();
         Assert.AreEqual(1, LibraryReportValidation.CountWorksheets(), '');
         LibraryVariableStorage.AssertEmpty();
@@ -1481,11 +1409,219 @@ codeunit 134982 "ERM Financial Reports"
         FindGenJournalLine(GenJournalLine2, GenJournalBatch, DocNo);
         LibraryERM.PostGeneralJnlLine(GenJournalLine2);
 
-        // [THEN] New Created Both GL Account "Source Currency Balance" Should be Zero 
+        // [THEN] New Created Both GL Account "Source Currency Balance" Should be Zero
         GLAccount.CalcFields("Source Currency Balance");
         GLAccount2.CalcFields("Source Currency Balance");
         Assert.AreEqual(0, GLAccount."Source Currency Balance", SourceBalanceErr);
         Assert.AreEqual(0, GLAccount2."Source Currency Balance", SourceBalanceErr);
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandler')]
+    procedure SourceCurrencyAmountHasValueWhenClosingIncomeStatementAfterReversal()
+    var
+        AccountingPeriod: Record "Accounting Period";
+        Currency: array[3] of Record Currency;
+        Customer: Record Customer;
+        GLAccount: Record "G/L Account";
+        GLEntry: Record "G/L Entry";
+        GLRegister: Record "G/L Register";
+        GenJournalLine: Record "Gen. Journal Line";
+        GeneralLedgerSetup: Record "General Ledger Setup";
+        GeneralPostingSetup: Record "General Posting Setup";
+        Item: Record Item;
+        ReversalEntry: Record "Reversal Entry";
+        CloseIncomeStatement: Report "Close Income Statement";
+    begin
+        // [SCENARIO 580078] G/L Currency revaluation is not closing of source currency amounts.
+        Initialize();
+
+        // [GIVEN] Create three Currencies with Exchange Rates.
+        Currency[1].Get(LibraryERM.CreateCurrencyWithExchangeRate(WorkDate(), LibraryRandom.RandDecInDecimalRange(0.85, 0.85, 2), LibraryRandom.RandDecInDecimalRange(0.85, 0.85, 2)));
+        Currency[2].Get(LibraryERM.CreateCurrencyWithExchangeRate(WorkDate(), LibraryRandom.RandDecInDecimalRange(0.75, 0.75, 2), LibraryRandom.RandDecInDecimalRange(0.75, 0.75, 2)));
+        Currency[3].Get(LibraryERM.CreateCurrencyWithExchangeRate(WorkDate(), LibraryRandom.RandDecInDecimalRange(0.95, 0.95, 2), LibraryRandom.RandDecInDecimalRange(0.95, 0.95, 2)));
+
+        // [GIVEN] Create LCY Code.
+        LibraryERM.SetLCYCode(Currency[1].Code);
+
+        // [GIVEN] Additional Reporting Currency is set in General Ledger Setup.
+        GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."Additional Reporting Currency" := Currency[2].Code;
+        GeneralLedgerSetup.Modify(true);
+
+        // [GIVEN] Create a Customer.
+        LibrarySales.CreateCustomer(Customer);
+
+        // [GIVEN] Create an Item with Unit Price.]
+        LibraryInventory.CreateItem(Item);
+        Item.Validate("Unit Price", LibraryRandom.RandDecInRange(1000, 2000, 2));
+        Item.Modify(true);
+
+        // [GIVEN] Create and Post Sales Invoices for Customer in different Currencies.
+        CreateAndPostSalesInvoice(Customer."No.", Item."No.", Currency[1].Code);
+        CreateAndPostSalesInvoice(Customer."No.", Item."No.", Currency[2].Code);
+        CreateAndPostSalesInvoice(Customer."No.", Item."No.", Currency[3].Code);
+
+        // [GIVEN] Find Genral Posting Setup for Customer and Item.
+        GeneralPostingSetup.Get(Customer."Gen. Bus. Posting Group", Item."Gen. Prod. Posting Group");
+
+        // [GIVEN] Close Fiscal Year.
+        LibraryFiscalYear.CloseFiscalYear();
+
+        // [GIVEN] Create a G/L Account for Income Statement.
+        LibraryCostAccounting.CreateIncomeStmtGLAccount(GLAccount);
+
+        // [GIVEN] Create General Journal Line for G/L Account.
+        CreateGeneralJournalLine(
+            GenJournalLine,
+            GenJournalLine."Account Type"::"G/L Account",
+            GLAccount."No.",
+            LibraryRandom.RandDec(100, 2));
+        GenJournalLine.Validate("Posting Date", WorkDate());
+        GenJournalLine.Modify(true);
+
+        // [GIVEN] Run "Close Income Statement" for G/L Account.
+        LibraryERM.FindGLAccount(GLAccount);
+        CloseIncomeStatement.InitializeRequestTest(AccountingPeriod.GetFiscalYearEndDate(WorkDate()), GenJournalLine, GLAccount, true);
+        CloseIncomeStatement.UseRequestPage(false);
+        CloseIncomeStatement.Run();
+
+        // [GIVEN] Find the Last GL Register Entry and reverse it.
+        GLRegister.FindLast();
+        ReversalEntry.SetHideDialog(true);
+        ReversalEntry.ReverseRegister(GLRegister."No.");
+
+        // [GIVEN] Remove the Additional Reporting Currency in General Ledger Setup.
+        GeneralLedgerSetup.Validate("Additional Reporting Currency", '');
+        GeneralLedgerSetup.Modify(true);
+
+        // [GIVEN] Close Income Statement again for G/L Account.
+        CloseIncomeStatement.InitializeRequestTest(AccountingPeriod.GetFiscalYearEndDate(WorkDate()), GenJournalLine, GLAccount, true);
+        CloseIncomeStatement.UseRequestPage(false);
+        CloseIncomeStatement.Run();
+
+        // [WHEN] Post General Journal Line created by Close Income Statement.
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+
+        // [THEN] Source Currency Amount in G/L Entry is not zero.
+        GLEntry.SetRange("Document No.", GenJournalLine."Document No.");
+        GLEntry.SetRange("Source Currency Code", Currency[2].Code);
+        GLEntry.SetRange("G/L Account No.", GeneralPostingSetup."Sales Account");
+        GLEntry.FindLast();
+        Assert.AreNotEqual(0, GLEntry."Source Currency Amount", SourceCurrencyCodeErr);
+    end;
+
+    [Test]
+    [HandlerFunctions('RHReconcileCustandVendAccs')]
+    procedure ReconcileCustVendAccounts_MultiplePostingGroups()
+    var
+        SalesReceivablesSetup: Record "Sales & Receivables Setup";
+        CustomerPostingGroup: array[2] of Record "Customer Posting Group";
+        Customer: Record Customer;
+        GenJournalBatch: Record "Gen. Journal Batch";
+        GenJournalLine: Record "Gen. Journal Line";
+        GLAccount: array[3] of Record "G/L Account";
+        ReconcileCustAndVendAccs: Report "Reconcile Cust. and Vend. Accs";
+        Amount1, Amount2 : Decimal;
+        WorkdateTxt: Text[30];
+    begin
+        // [SCENARIO 601857] Report Reconcile Customer and Vendor Accounts shows wrong amounts when multiple posting groups are used
+        Initialize();
+
+        // [GIVEN] Enable Allow Multiple Posting Groups
+        SalesReceivablesSetup.Get();
+        SalesReceivablesSetup.Validate("Allow Multiple Posting Groups", true);
+        SalesReceivablesSetup.Modify(true);
+
+        // [GIVEN] Create two Customer Posting Groups with different Receivables Accounts
+        LibrarySales.CreateCustomerPostingGroup(CustomerPostingGroup[1]);
+        LibrarySales.CreateCustomerPostingGroup(CustomerPostingGroup[2]);
+        LibrarySales.CreateAltCustomerPostingGroup(CustomerPostingGroup[1].Code, CustomerPostingGroup[2].Code);
+
+        // [GIVEN] Create a customer with one of the posting groups and enable multiple posting groups
+        LibrarySales.CreateCustomer(Customer);
+        Customer.Validate("Customer Posting Group", CustomerPostingGroup[1].Code);
+        Customer.Validate("Allow Multiple Posting Groups", true);
+        Customer.Modify(true);
+
+        // [GIVEN] Create General Journal Batch
+        LibraryJournals.CreateGenJournalBatch(GenJournalBatch);
+
+        // [GIVEN] Post payment 1 with first posting group
+        Amount1 := -1 * LibraryRandom.RandDec(1000, 2);
+        LibraryERM.CreateGLAccount(GLAccount[1]);
+        LibraryJournals.CreateGenJournalLine(
+            GenJournalLine,
+            GenJournalBatch."Journal Template Name",
+            GenJournalBatch.Name,
+            GenJournalLine."Document Type"::Payment,
+            GenJournalLine."Account Type"::Customer,
+            Customer."No.",
+            GenJournalLine."Bal. Account Type"::"G/L Account",
+            GLAccount[1]."No.",
+            Amount1);
+        GenJournalLine.Validate("Posting Group", CustomerPostingGroup[1].Code);
+        GenJournalLine.Modify(true);
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+
+        // [GIVEN] Post payment 2 with second posting group
+        Amount2 := -1 * LibraryRandom.RandDec(2000, 2);
+        LibraryERM.CreateGLAccount(GLAccount[2]);
+        LibraryJournals.CreateGenJournalLine(
+            GenJournalLine,
+            GenJournalBatch."Journal Template Name",
+            GenJournalBatch.Name,
+            GenJournalLine."Document Type"::Payment,
+            GenJournalLine."Account Type"::Customer,
+            Customer."No.",
+            GenJournalLine."Bal. Account Type"::"G/L Account",
+            GLAccount[2]."No.",
+            Amount2);
+        GenJournalLine.Validate("Posting Group", CustomerPostingGroup[2].Code);
+        GenJournalLine.Modify(true);
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+
+        // [WHEN] Run the Reconcile Cust. And Vend. Accounts report with DateFilter as Workdate
+        WorkdateTxt := Format(WorkDate());
+        Clear(ReconcileCustAndVendAccs);
+        GLAccount[3].SetRange("Date Filter", WorkDate());
+        GLAccount[3].FindFirst();
+        ReconcileCustAndVendAccs.SetTableView(GLAccount[3]);
+        Commit();
+        ReconcileCustAndVendAccs.Run();
+
+        // [THEN] Verify: Amounts are distributed to correct G/L accounts
+        LibraryReportDataset.LoadDataSetFile();
+        LibraryReportDataset.AssertElementWithValueExists('No_GLAccount', CustomerPostingGroup[1]."Receivables Account");
+        LibraryReportDataset.AssertElementWithValueExists('No_GLAccount', CustomerPostingGroup[2]."Receivables Account");
+        LibraryReportDataset.AssertElementWithValueExists('Amount', Amount1);
+        LibraryReportDataset.AssertElementWithValueExists('Amount', Amount2);
+    end;
+
+    [Test]
+    [HandlerFunctions('AuditTrailReportRequestPageHandler')]
+    procedure VerifyAuditTrailReportShowsGLEntries()
+    var
+        GenJournalLine: Record "Gen. Journal Line";
+        GLRegister: Record "G/L Register";
+    begin
+        // [SCENARIO 565665] Verify Audit Trail report dataset contains G/L Entries.
+        Initialize();
+
+        // [GIVEN] Create and Post General Journal Line.
+        CreateAndPostGenLine(GenJournalLine);
+
+        // [GIVEN] Find "G/L Register".
+        GLRegister.FindLast();
+
+        // [GIVEN] Save the transaction.
+        Commit();
+
+        // [WHEN] Run Audit Trail report.
+        RunAuditTrailReport(GLRegister."No.");
+
+        // [THEN] Verify Audit Trail report dataset contains  G/L Entry.
+        VerifyAuditTrailReport(GenJournalLine, GLRegister);
     end;
 
     local procedure Initialize()
@@ -1873,19 +2009,6 @@ codeunit 134982 "ERM Financial Reports"
         exit(CustAccAmount);
     end;
 
-#if not CLEAN24
-    local procedure NoSeriesCodeReport(SeriesCode: Code[20])
-    var
-        NoSeries: Record "No. Series";
-        NoSeriesCheck: Report "No. Series Check";
-    begin
-        Clear(NoSeriesCheck);
-        NoSeries.SetRange(Code, SeriesCode);
-        NoSeriesCheck.SetTableView(NoSeries);
-        Commit();
-        NoSeriesCheck.Run();
-    end;
-#endif
 
     local procedure GLDocumentNosReport(DocumentNo: Code[20])
     var
@@ -1958,16 +2081,6 @@ codeunit 134982 "ERM Financial Reports"
         GLAccount.Modify(true);
     end;
 
-    local procedure CreateNoSeries(): Code[20]
-    var
-        NoSeries: Record "No. Series";
-        NoSeriesLine: Record "No. Series Line";
-    begin
-        LibraryUtility.CreateNoSeries(NoSeries, true, true, true);
-        LibraryUtility.CreateNoSeriesLine(NoSeriesLine, NoSeries.Code, '', '');
-        exit(NoSeries.Code);
-    end;
-
     local procedure MockVATEntryForCustomer(Customer: Record Customer)
     var
         VATEntry: Record "VAT Entry";
@@ -1991,12 +2104,6 @@ codeunit 134982 "ERM Financial Reports"
         GLEntry.SetRange("Document No.", DocumentNo);
         GLEntry.FindLast();
         exit(GLEntry."Transaction No.");
-    end;
-
-    local procedure FindNoSeriesLine(var NoSeriesLine: Record "No. Series Line"; NoSeriesCode: Code[20])
-    begin
-        NoSeriesLine.SetRange("Series Code", NoSeriesCode);
-        NoSeriesLine.FindFirst();
     end;
 
     local procedure FixedAssetDetailReport(No: Code[20]; DepreciationBookCode: Code[10]; PrintOnlyOnePerPage: Boolean; IncludeReverseEntries: Boolean)
@@ -2181,19 +2288,6 @@ codeunit 134982 "ERM Financial Reports"
             Format(CalcDate('<30D+11M>', GenJournalLine."Posting Date"))));
     end;
 
-#if not CLEAN24
-    local procedure SaveNoSeriesReport(NoSeriesCode: Code[20])
-    var
-        NoSeries: Record "No. Series";
-        NoSeriesReport: Report "No. Series";
-    begin
-        Clear(NoSeriesReport);
-        NoSeries.SetRange(Code, NoSeriesCode);
-        NoSeriesReport.SetTableView(NoSeries);
-        Commit();
-        NoSeriesReport.Run();
-    end;
-#endif
 
     local procedure SuggestBankRecLines(BankAccReconciliation: Record "Bank Acc. Reconciliation")
     var
@@ -2454,6 +2548,58 @@ codeunit 134982 "ERM Financial Reports"
         Message(JournalLineCreatedMsg);
     end;
 
+    local procedure CreateAndPostSalesInvoice(CustomerNo: Code[20]; ItemNo: Code[20]; CurrencyCode: Code[10])
+    var
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+    begin
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Invoice, CustomerNo);
+        SalesHeader.Validate("Posting Date", WorkDate());
+        SalesHeader.Validate("Currency Code", CurrencyCode);
+        SalesHeader.Modify(true);
+
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, ItemNo, LibraryRandom.RandInt(1));
+
+        LibrarySales.PostSalesDocument(SalesHeader, true, true);
+    end;
+
+    local procedure RunAuditTrailReport(RegisterNo: Integer)
+    var
+        GLRegister: Record "G/L Register";
+        AuditTrailReport: Report "Audit Trail";
+    begin
+        GLRegister.SetRange("No.", RegisterNo);
+        AuditTrailReport.SetTableView(GLRegister);
+        AuditTrailReport.Run();
+    end;
+
+    local procedure VerifyAuditTrailReport(GenJournalLine: Record "Gen. Journal Line"; GLRegister: Record "G/L Register")
+    var
+        GLEntry: Record "G/L Entry";
+    begin
+        LibraryReportDataset.LoadDataSetFile();
+        LibraryReportDataset.AssertElementWithValueExists(G_L_Register_NoLbl, GLRegister."No.");
+        LibraryReportDataset.SetRange(G_L_Entry_Document_NoLbl, GenJournalLine."Document No.");
+        if LibraryReportDataset.GetNextRow() then begin
+            GLEntry.Get(GLRegister."From Entry No.");
+
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Document_NoLbl, GenJournalLine."Document No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_G_L_Account_NoLbl, GenJournalLine."Account No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Register_From_Entry_NoLbl, GLRegister."From Entry No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Register_To_Entry_NoLbl, GLRegister."To Entry No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Document_TypeLbl, Format(GenJournalLine."Document Type"));
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_G_L_Account_NoLbl, Format(GLEntry."G/L Account No."));
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_AmountLbl, GLEntry.Amount);
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Entry_NoLbl, GLEntry."Entry No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Source_CodeLbl, GLEntry."Source Code");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Source_NoLbl, GLEntry."Source No.");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_System_Created_EntryLbl, GLEntry."System-Created Entry");
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Posting_DateLbl, Format(GLEntry."Posting Date"));
+            LibraryReportDataset.AssertCurrentRowValueEquals(G_L_Entry_Document_DateLbl, Format(GLEntry."Document Date"));
+        end else
+            Error(ReportErr, GenJournalLine.FieldCaption("Document No."), GenJournalLine."Document No.");
+    end;
+
     [ConfirmHandler]
     [Scope('OnPrem')]
     procedure ConfirmHandler(Question: Text[1024]; var Reply: Boolean)
@@ -2574,23 +2720,6 @@ codeunit 134982 "ERM Financial Reports"
         Sleep(200);
     end;
 
-#if not CLEAN24
-    [RequestPageHandler]
-    [Scope('OnPrem')]
-    procedure RHNoSeriesReport(var NoSeriesReport: TestRequestPage "No. Series")
-    begin
-        CurrentSaveValuesId := REPORT::"No. Series";
-        NoSeriesReport.SaveAsXml(LibraryReportDataset.GetParametersFileName(), LibraryReportDataset.GetFileName());
-    end;
-
-    [RequestPageHandler]
-    [Scope('OnPrem')]
-    procedure RHNoSeriesCheck(var NoSeriesCheck: TestRequestPage "No. Series Check")
-    begin
-        CurrentSaveValuesId := REPORT::"No. Series Check";
-        NoSeriesCheck.SaveAsXml(LibraryReportDataset.GetParametersFileName(), LibraryReportDataset.GetFileName());
-    end;
-#endif
 
     [RequestPageHandler]
     [Scope('OnPrem')]
@@ -2733,5 +2862,10 @@ codeunit 134982 "ERM Financial Reports"
         CloseIncomeStatement.RetainedEarningsAcc.SetValue(''); // Retained Earnings Acc.
         CloseIncomeStatement.OK().Invoke();
     end;
-}
 
+    [RequestPageHandler]
+    procedure AuditTrailReportRequestPageHandler(var AuditTrail: TestRequestPage "Audit Trail")
+    begin
+        AuditTrail.SaveAsXml(LibraryReportDataset.GetParametersFileName(), LibraryReportDataset.GetFileName());
+    end;
+}

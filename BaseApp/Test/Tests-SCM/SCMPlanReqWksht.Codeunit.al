@@ -64,6 +64,8 @@
         BOMLineCommnetAndFirmProdOrderBOMLineCommentMustMatchErr: Label 'BOM Line Comment and Firm Prod. Order BOM Line Comment must match.';
         PostingProductionJournalQst: Label 'Do you want to post the journal lines?';
         PostingProductionJournalTxt: Label 'The journal lines were successfully posted';
+        ProdOrderComponentCommentErr: Label 'Production Order Component comment should exist';
+        ExpectedCommentErr: Label 'Comment should match expected value';
 
     [Test]
     [HandlerFunctions('MessageHandler')]
@@ -1672,14 +1674,13 @@
         SalesHeader: Record "Sales Header";
         SalesLine: Record "Sales Line";
         PlanningWorksheet: TestPage "Planning Worksheet";
-        OldCombinedMPSMRPCalculation: Boolean;
         Quantity: Integer;
         ForecastDate: Date;
         ShipmentDate: Date;
     begin
         // Setup: Create Order Item. Create Production Forecast.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateOrderItem(Item, '', Item."Replenishment System"::Purchase);
         ForecastDate := GetRequiredDate(10, 0, WorkDate(), 1);  // Forecast Date Relative to Workdate.
         CreateProductionForecastSetup(ProductionForecastEntry, Item."No.", ForecastDate, false);
@@ -1700,9 +1701,6 @@
         VerifyRequisitionLineQuantity(
           RequisitionLine, ProductionForecastEntry[1]."Forecast Quantity" - SalesLine.Quantity, 0,
           RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -1716,11 +1714,10 @@
         RequisitionLine: Record "Requisition Line";
         PlanningWorksheet: TestPage "Planning Worksheet";
         ForecastDate: Date;
-        OldCombinedMPSMRPCalculation: Boolean;
     begin
         // Setup: Create Order Item. Create Production Forecast.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateOrderItem(Item, '', Item."Replenishment System"::Purchase);
         ForecastDate := GetRequiredDate(10, 0, WorkDate(), 1);  // Forecast Date Relative to Workdate.
         CreateProductionForecastSetup(ProductionForecastEntry, Item."No.", ForecastDate, false);
@@ -1733,9 +1730,6 @@
         SelectRequisitionLine(RequisitionLine, Item."No.");
         VerifyRequisitionLineQuantity(
           RequisitionLine, ProductionForecastEntry[1]."Forecast Quantity", 0, RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -1746,13 +1740,12 @@
         RequisitionLine: Record "Requisition Line";
         SalesHeader: Record "Sales Header";
         SalesLine: Record "Sales Line";
-        OldCombinedMPSMRPCalculation: Boolean;
         EndDate: Date;
         Quantity: Integer;
     begin
         // Setup: Create Order Item.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateOrderItem(Item, '', Item."Replenishment System"::Purchase);
 
         // Create Sales Order. Update Shipment Date.
@@ -1766,9 +1759,6 @@
         // Verify: Verify Planning Worksheet for Quantities and Reference Order Type.
         SelectRequisitionLine(RequisitionLine, Item."No.");
         VerifyRequisitionLineQuantity(RequisitionLine, SalesLine.Quantity, 0, RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -1785,13 +1775,12 @@
         ItemJournalLine: Record "Item Journal Line";
         RequisitionLine: Record "Requisition Line";
         PlanningWorksheet: TestPage "Planning Worksheet";
-        OldCombinedMPSMRPCalculation: Boolean;
         ForecastDate: Date;
         Quantity: Integer;
     begin
         // Setup: Create Lot for Lot Parent and Child Item. Create And Certify Production BOM.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateLotForLotItem(ChildItem, 0, '<0D>');  // Safety Stock - 0. Child Item.
         CreateAndCertifyProductionBOM(ProductionBOMHeader, ChildItem."No.");
 
@@ -1816,9 +1805,6 @@
         SelectRequisitionLine(RequisitionLine, ChildItem."No.");
         VerifyRequisitionLineQuantity(
           RequisitionLine, ProductionForecastEntry[1]."Forecast Quantity", 0, RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -1931,12 +1917,11 @@
         RequisitionWkshName: Record "Requisition Wksh. Name";
         RequisitionLine: Record "Requisition Line";
         PlanningWorksheet: TestPage "Planning Worksheet";
-        OldCombinedMPSMRPCalculation: Boolean;
         ForecastDate: Date;
     begin
         // Setup: Create Lot for Lot  Item. Create Production Forecast with multiple Entries.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateLotForLotItem(Item, 0, '<0D>');  // Safety Stock - 0, Lot Accumulation Period - 0D.
         ForecastDate := GetRequiredDate(10, 0, WorkDate(), 1);  // Forecast Date Relative to Workdate.
         CreateAndUpdateProductionForecastSetup(ProductionForecastEntry, Item."No.", ForecastDate, 0, true); // Boolean - TRUE, for multiple Forecast Entries. Update Production Forecast Quantity to - 0.
@@ -1955,9 +1940,6 @@
           RequisitionLine."Ref. Order Type"::Purchase);
         VerifyRequisitionLineQuantity(
           RequisitionLine, ProductionForecastEntry[3]."Forecast Quantity", 0, RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -1972,12 +1954,11 @@
         RequisitionWkshName: Record "Requisition Wksh. Name";
         RequisitionLine: Record "Requisition Line";
         PlanningWorksheet: TestPage "Planning Worksheet";
-        OldCombinedMPSMRPCalculation: Boolean;
         ForecastDate: Date;
     begin
         // Setup: Create Lot for Lot  Item.
         Initialize();
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);  // Combined MPS/MRP Calculation of Manufacturing Setup -FALSE.
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
         CreateLotForLotItem(Item, 0, '<0D>');  // Safety Stock - 0, Lot Accumulation Period - 0D.
 
         // Create Production Forecast with multiple Entries. Update Production Forecast Quantity to - 0.
@@ -2003,9 +1984,6 @@
           RequisitionLine, ProductionForecastEntry[2]."Forecast Quantity", 0, RequisitionLine."Ref. Order Type"::Purchase);
         VerifyRequisitionLineQuantity(
           RequisitionLine, ProductionForecastEntry[3]."Forecast Quantity", 0, RequisitionLine."Ref. Order Type"::Purchase);
-
-        // Teardown.
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -2196,7 +2174,7 @@
         SalesLine: Record "Sales Line";
         PurchaseLine: Record "Purchase Line";
         TempOrderPromisingLine: Record "Order Promising Line" temporary;
-        ManufacturingSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
         PromisedReceiptDate: Date;
     begin
         // Setup: Create Sales Order. Calculate Plan for Requisition Worksheet and Carry out Action Message.
@@ -2211,8 +2189,8 @@
         UpdatePromisedReceiptDateOnPurchaseHeader(PurchaseLine."Document No.", PromisedReceiptDate);
 
         // Verify: Reservation Entry existed.
-        ManufacturingSetup.Get();
-        VerifyReservationEntry(Item."No.", CalcDate(ManufacturingSetup."Default Safety Lead Time", PromisedReceiptDate));
+        InventorySetup.Get();
+        VerifyReservationEntry(Item."No.", CalcDate(InventorySetup."Default Safety Lead Time", PromisedReceiptDate));
 
         // Exercise: Run Available to Promise in Sales Order.
         AvailabilityMgt.SetSourceRecord(TempOrderPromisingLine, SalesHeader);
@@ -3767,23 +3745,18 @@
     [Test]
     procedure RequestedReceiptDateInPurchaseEqualToPlanDeliveryDateOnSalesForDropShipment()
     var
-        ManufacturingSetup: Record "Manufacturing Setup";
         Item: Record Item;
         Purchasing: Record Purchasing;
         SalesLine: Record "Sales Line";
         PurchaseLine: Record "Purchase Line";
         RequisitionLine: Record "Requisition Line";
-        DefaultLeadTimeDateFormula: DateFormula;
     begin
         // [FEATURE] [Drop Shipment] [Get Sales Orders]
         // [SCENARIO 404883] Lead time settings are not applied when planning drop shipment.
         Initialize();
-        Evaluate(DefaultLeadTimeDateFormula, '<1D>');
 
         // [GIVEN] Ensure "Default Safety Lead Time" is not blank in Manufacturing Setup.
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Default Safety Lead Time", DefaultLeadTimeDateFormula);
-        ManufacturingSetup.Modify(true);
+        LibraryPlanning.SetDefaultSafetyLeadTime('<1D>');
 
         // [GIVEN] Item with vendor.
         LibraryInventory.CreateItem(Item);
@@ -3945,8 +3918,8 @@
         // [GIVEN] Create Location
         LibraryWarehouse.CreateLocationWMS(Location, false, false, false, false, false);
 
-        // [GIVEN] Set Location at "Component At Location" on Manufacturing Setup
-        UpdateManufacturingSetupComponentsAtLocation(Location.Code);
+        // [GIVEN] Set Location at "Component At Location"
+        LibraryManufacturing.SetComponentsAtLocation(Location.Code);
 
         // [GIVEN] Create two Manufacturing Items
         CreateManufacturingItems(ParentItem, ChildItem, '<1W>', 13);
@@ -3983,8 +3956,8 @@
         // [GIVEN] Create Location
         LibraryWarehouse.CreateLocationWMS(Location, false, false, false, false, false);
 
-        // [GIVEN] Set Location at "Component At Location" on Manufacturing Setup
-        UpdateManufacturingSetupComponentsAtLocation(Location.Code);
+        // [GIVEN] Set Location at "Component At Location"
+        LibraryManufacturing.SetComponentsAtLocation(Location.Code);
 
         // [GIVEN] Create three Manufacturing Items
         CreateManufacturingItems(ParentItem, ChildItem, '<1W>');
@@ -4025,8 +3998,8 @@
         // [GIVEN] Create Location
         LibraryWarehouse.CreateLocationWMS(Location, false, false, false, false, false);
 
-        // [GIVEN] Set Location at "Component At Location" on Manufacturing Setup
-        UpdateManufacturingSetupComponentsAtLocation(Location.Code);
+        // [GIVEN] Set Location at "Component At Location"
+        LibraryManufacturing.SetComponentsAtLocation(Location.Code);
 
         // [GIVEN] Create two Manufacturing Items
         CreateManufacturingItems(ParentItem, ChildItem, 5, 50);
@@ -4069,18 +4042,15 @@
         ObjectOptions.DeleteAll();
 
         // [GIVEN] Set "Default Safety Lead Time" to blank and other settings to default values.
+        LibraryPlanning.SetDefaultSafetyLeadTime('');
+        LibraryPlanning.SetUseForecastOnLocations(false);
+        LibraryPlanning.SetDemandForecast('');
+
         ManufacturingSetup.Get();
-        Evaluate(BlankDateFormula, '');
-        if ManufacturingSetup."Default Safety Lead Time" <> BlankDateFormula then
-            ManufacturingSetup.Validate("Default Safety Lead Time", BlankDateFormula);
         if ManufacturingSetup."Normal Starting Time" = 0T then
             ManufacturingSetup.Validate("Normal Starting Time", 080000T);
         if ManufacturingSetup."Normal Ending Time" = 0T then
             ManufacturingSetup.Validate("Normal Ending Time", 170000T);
-        if ManufacturingSetup."Use Forecast on Locations" then
-            ManufacturingSetup.Validate("Use Forecast on Locations", false);
-        if ManufacturingSetup."Current Production Forecast" <> '' then
-            ManufacturingSetup.Validate("Current Production Forecast", '');
         ManufacturingSetup.Modify(true);
 
         // [GIVEN] Create Item "I" with "Reordering Policy" = "Lot-for-Lot", "Replenishment System" = "Prod. Order".
@@ -4242,8 +4212,9 @@
         // [GIVEN] Validate Dynamic Low-Level Code and Combined MPS/MRP Calculation in Manufacturing Setup.
         ManufacturingSetup.Get();
         ManufacturingSetup.Validate("Dynamic Low-Level Code", true);
-        ManufacturingSetup.Validate("Combined MPS/MRP Calculation", true);
         ManufacturingSetup.Modify(true);
+
+        LibraryPlanning.SetCombinedMPSMRPCalculation(true);
 
         // [GIVEN] Create Unit of Measure Code.
         LibraryInventory.CreateUnitOfMeasureCode(UnitOfMeasure);
@@ -4617,7 +4588,6 @@
         SalesLine: Record "Sales Line";
         RequisitionLine: Record "Requisition Line";
         SafetyStockQty: Decimal;
-        OldCombinedMPSMRPCalculation: Boolean;
         StartDate: Date;
         EndDate: Date;
     begin
@@ -4625,8 +4595,8 @@
         // with MPS as soon as a second demand is available from a sales order.
         Initialize();
 
-        // [GIVEN] Set "Combined MPS/MRP Calculation" as false in Manufacturing Setup
-        OldCombinedMPSMRPCalculation := UpdateManufacturingSetup(false);
+        // [GIVEN] Set "Combined MPS/MRP Calculation" as false
+        LibraryPlanning.SetCombinedMPSMRPCalculation(false);
 
         // [GIVEN] Generate and save Safety Stock Quantity in a Variable.
         SafetyStockQty := LibraryRandom.RandIntInRange(5, 5);
@@ -4654,9 +4624,6 @@
         Assert.IsTrue(
             RequisitionLine."MPS Order",
             StrSubstNo(MPSOrderErr, RequisitionLine.FieldCaption("MPS Order")));
-
-        // Teardown
-        UpdateManufacturingSetup(OldCombinedMPSMRPCalculation);
     end;
 
     [Test]
@@ -4727,7 +4694,6 @@
         Item: array[6] of Record Item;
         Customer: Record Customer;
         Location: Record Location;
-        ManufacturingSetup: Record "Manufacturing Setup";
         SalesHeader: Record "Sales Header";
         SalesLine: Record "Sales Line";
         BOMComponent: Record "BOM Component";
@@ -4743,10 +4709,8 @@
         // [GIVEN] Create a Location with Inventory Posting Setup.
         LibraryWarehouse.CreateLocationWithInventoryPostingSetup(Location);
 
-        // [GIVEN] Validate Components at Location in Manufacturing Setup.
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Components at Location", Location.Code);
-        ManufacturingSetup.Modify(true);
+        // [GIVEN] Validate Components at Location
+        LibraryManufacturing.SetComponentsAtLocation(Location.Code);
 
         // [GIVEN] Create Lot for Lot Item[1] with Replenishment System and Assembly Policy.
         CreateLotForLotItemWithReplenishmentSystemAndAssemblyPolicy(
@@ -5325,6 +5289,65 @@
         Assert.IsTrue(RequisitionLine.IsEmpty, StrSubstNo(RequisitionLineMustNotExistTxt, ProdItem."No."));
     end;
 
+    [Test]
+    procedure ProductionBOMCommentInheritanceToOrderComponents()
+    var
+        ProductionOrder: Record "Production Order";
+        ProdOrderComponent: Record "Prod. Order Component";
+        ParentProductionBOMHeader: Record "Production BOM Header";
+        ProductionBOMVersion: Record "Production BOM Version";
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+        SubordinateProductionBOMHeader: Record "Production BOM Header";
+        TestItem: Record Item;
+        ParentBOMItemComment: Text[80];
+        SubOrdinateBOMItemComment: Text[80];
+        VersionCode: Code[20];
+    begin
+        // [SCENARIO 574066] Comments not copied from Production BOM Line to Prod. Order Component
+        Initialize();
+
+        // [GIVEN] Generate random comments and version code
+        ParentBOMItemComment := CopyStr(LibraryUtility.GenerateRandomText(80), 1, 80);
+        SubOrdinateBOMItemComment := CopyStr(LibraryUtility.GenerateRandomText(80), 1, 80);
+        VersionCode := LibraryUtility.GenerateRandomCode(ProductionBOMVersion.FieldNo("Version Code"), Database::"Production BOM Version");
+
+        // [GIVEN] Create parent Production BOM with Item line and Production BOM line
+        CreateParentProductionBOMWithComments(ParentProductionBOMHeader, SubordinateProductionBOMHeader);
+
+        // [GIVEN] Add comment to Item line in parent Production BOM
+        AddCommentToProductionBOMLine(ParentProductionBOMHeader."No.", '', 10000, ParentBOMItemComment);
+
+        // [GIVEN] Create new version of subordinate Production BOM with version code 0001
+        CreateSubordinateProductionBOMVersion(SubordinateProductionBOMHeader, ProductionBOMVersion, VersionCode);
+
+        // [GIVEN] Add comment to first Item line in subordinate BOM version
+        AddCommentToProductionBOMLine(SubordinateProductionBOMHeader."No.", VersionCode, 10000, SubOrdinateBOMItemComment);
+
+        // [GIVEN] Certify the subordinate Production BOM version
+        CertifyProductionBOMVersion(ProductionBOMVersion);
+
+        // [GIVEN] Configure test item with Production BOM and Routing
+        CreateTestItemWithProductionBOM(TestItem, ParentProductionBOMHeader."No.");
+
+        // [GIVEN] Create and release Sales Order for test item
+        CreateAndReleaseSalesOrder(SalesHeader, SalesLine, TestItem);
+
+        // [WHEN] Run Calculate Regenerative Plan and execute Carry Out Action Message
+        RunRegenerativePlanningAndCarryOut(TestItem, SalesLine."Shipment Date");
+
+        // [WHEN] Find the created Production Order
+        FindProductionOrderForItem(ProductionOrder, TestItem."No.");
+
+        // [THEN] Verify first component has parent BOM comment
+        FindProdOrderComponentByIndex(ProdOrderComponent, ProductionOrder."No.", 1);
+        VerifyProdOrderComponentComment(ProdOrderComponent, ParentBOMItemComment);
+
+        // [THEN] Verify second component has subordinate BOM comment  
+        FindProdOrderComponentByIndex(ProdOrderComponent, ProductionOrder."No.", 2);
+        VerifyProdOrderComponentComment(ProdOrderComponent, SubOrdinateBOMItemComment);
+    end;
+
     local procedure Initialize()
     var
         AllProfile: Record "All Profile";
@@ -5360,8 +5383,9 @@
         CreateLocationSetup();
         ConsumptionJournalSetup();
 
-        LibrarySetupStorage.Save(DATABASE::"Manufacturing Setup");
-        LibrarySetupStorage.Save(DATABASE::"Sales & Receivables Setup");
+        LibrarySetupStorage.SaveManufacturingSetup();
+        LibrarySetupStorage.SaveSalesSetup();
+        LibrarySetupStorage.SaveInventorySetup();
 
         isInitialized := true;
         Commit();
@@ -5411,11 +5435,9 @@
 
     local procedure SetBlankOverflowLevelAsUseItemValues()
     var
-        ManufacturingSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
     begin
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Blank Overflow Level", ManufacturingSetup."Blank Overflow Level"::"Use Item/SKU Values Only");
-        ManufacturingSetup.Modify(true);
+        LibraryPlanning.SetBlankOverflowLevel(InventorySetup."Blank Overflow Level"::"Use Item/SKU Values Only");
     end;
 
     local procedure AutoReserveForSalesLine(SalesLine: Record "Sales Line")
@@ -5655,7 +5677,7 @@
     begin
         // Using Random Value and Dates based on WORKDATE.
         LibraryManufacturing.CreateProductionForecastName(ProductionForecastName);
-        UpdateForecastOnManufacturingSetup(ProductionForecastName.Name);
+        LibraryPlanning.SetDemandForecast(ProductionForecastName.Name);
         CreateAndUpdateProductionForecast(
           ProductionForecastEntry[1], ProductionForecastName.Name, ForecastDate, ItemNo, LibraryRandom.RandDec(10, 2) + 100);  // Large Random Quantity Required.
         if MultipleLine then begin
@@ -5675,15 +5697,6 @@
     begin
         LibraryManufacturing.CreateProductionBOM(ProdBOMHeader, ProdItem, CompItem, 1, '');
         LibraryManufacturing.CreateProductionOrder(ProdOrder, ProdOrder.Status::Released, ProdItem, '', '', Qty, WorkDate());
-    end;
-
-    local procedure UpdateForecastOnManufacturingSetup(CurrentProductionForecast: Code[10])
-    var
-        ManufacturingSetup: Record "Manufacturing Setup";
-    begin
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Current Production Forecast", CurrentProductionForecast);
-        ManufacturingSetup.Modify(true);
     end;
 
     local procedure CreateAndUpdateProductionForecast(var ProductionForecastEntry: Record "Production Forecast Entry"; Name: Code[10]; Date: Date; ItemNo: Code[20]; Quantity: Decimal)
@@ -6363,16 +6376,6 @@
         ProductionForecastEntry[1].Modify(true);
     end;
 
-    local procedure UpdateManufacturingSetup(NewCombinedMPSMRPCalculation: Boolean) OldCombinedMPSMRPCalculation: Boolean
-    var
-        ManufacturingSetup: Record "Manufacturing Setup";
-    begin
-        ManufacturingSetup.Get();
-        OldCombinedMPSMRPCalculation := ManufacturingSetup."Combined MPS/MRP Calculation";
-        ManufacturingSetup.Validate("Combined MPS/MRP Calculation", NewCombinedMPSMRPCalculation);
-        ManufacturingSetup.Modify(true);
-    end;
-
     local procedure CreateAndPostConsumptionJournal(ProductionOrderNo: Code[20])
     begin
         LibraryInventory.ClearItemJournal(ConsumptionItemJournalTemplate, ConsumptionItemJournalBatch);
@@ -6685,15 +6688,6 @@ ItemJournalLine, ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name
         LibraryInventory.PostItemJournalLine(ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name);
     end;
 
-    local procedure UpdateManufacturingSetupComponentsAtLocation(NewComponentsAtLocation: Code[10])
-    var
-        ManufacturingSetup: Record "Manufacturing Setup";
-    begin
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Components at Location", NewComponentsAtLocation);
-        ManufacturingSetup.Modify(true);
-    end;
-
     local procedure CreateManufacturingItems(var ParentItem: Record Item; var ChildItem: Record Item; ReorderPoint: Decimal; MaxQty: Decimal)
     var
         ProductionBOMHeader: Record "Production BOM Header";
@@ -6944,7 +6938,7 @@ ItemJournalLine, ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name
         var UnitOfMeasure: Record "Unit of Measure";
         var ItemUnitOfMeasure: Record "Item Unit of Measure";
         ReplenishmentSystem: Enum "Replenishment System";
-                                 ReorderPolicy: Enum "Reordering Policy")
+        ReorderPolicy: Enum "Reordering Policy")
     var
         VATPostingSetup: Record "VAT Posting Setup";
         GeneralPostingSetup: Record "General Posting Setup";
@@ -7259,6 +7253,144 @@ ItemJournalLine, ItemJournalBatch."Journal Template Name", ItemJournalBatch.Name
     begin
         LibraryVariableStorage.Dequeue(QueuedMsg);
         Assert.IsTrue(AreSameMessages(Message, QueuedMsg), Message);
+    end;
+
+    local procedure CreateParentProductionBOMWithComments(var ParentProductionBOMHeader: Record "Production BOM Header"; var SubordinateProductionBOMHeader: Record "Production BOM Header")
+    var
+        ProductionBOMLine: Record "Production BOM Line";
+        Item: Record Item;
+    begin
+        // Create subordinate Production BOM first
+        LibraryInventory.CreateItem(Item);
+        LibraryManufacturing.CreateProductionBOMHeader(SubordinateProductionBOMHeader, Item."Base Unit of Measure");
+        LibraryInventory.CreateItem(Item);
+        LibraryManufacturing.CreateProductionBOMLine(SubordinateProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, Item."No.", 1);
+        LibraryManufacturing.UpdateProductionBOMStatus(SubordinateProductionBOMHeader, SubordinateProductionBOMHeader.Status::Certified);
+
+        // Create parent Production BOM
+        LibraryManufacturing.CreateProductionBOMHeader(ParentProductionBOMHeader, Item."Base Unit of Measure");
+        LibraryInventory.CreateItem(Item);
+        LibraryManufacturing.CreateProductionBOMLine(ParentProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::Item, Item."No.", 1);
+        LibraryManufacturing.CreateProductionBOMLine(ParentProductionBOMHeader, ProductionBOMLine, '', ProductionBOMLine.Type::"Production BOM", SubordinateProductionBOMHeader."No.", 1);
+        LibraryManufacturing.UpdateProductionBOMStatus(ParentProductionBOMHeader, ParentProductionBOMHeader.Status::Certified);
+    end;
+
+    local procedure AddCommentToProductionBOMLine(ProductionBOMNo: Code[20]; VersionCode: Code[20]; LineNo: Integer; CommentText: Text[80])
+    var
+        ProductionBOMCommentLine: Record "Production BOM Comment Line";
+    begin
+        ProductionBOMCommentLine.Init();
+        ProductionBOMCommentLine."Production BOM No." := ProductionBOMNo;
+        ProductionBOMCommentLine."Version Code" := VersionCode;
+        ProductionBOMCommentLine."BOM Line No." := LineNo;
+        ProductionBOMCommentLine."Line No." := 10000;
+        ProductionBOMCommentLine.Comment := CommentText;
+        ProductionBOMCommentLine.Insert(true);
+    end;
+
+    local procedure CreateSubordinateProductionBOMVersion(var ProductionBOMHeader: Record "Production BOM Header"; var ProductionBOMVersion: Record "Production BOM Version"; VersionCode: Code[20])
+    var
+        ProductionBOMLine: Record "Production BOM Line";
+        Item: Record Item;
+    begin
+        LibraryManufacturing.CreateProductionBOMVersion(ProductionBOMVersion, ProductionBOMHeader."No.", VersionCode, ProductionBOMHeader."Unit of Measure Code");
+        ProductionBOMVersion."Unit of Measure Code" := ProductionBOMHeader."Unit of Measure Code";
+        ProductionBOMVersion.Modify(true);
+
+        // Copy BOM structure
+        LibraryInventory.CreateItem(Item);
+        LibraryManufacturing.CreateProductionBOMLine(ProductionBOMHeader, ProductionBOMLine, VersionCode, ProductionBOMLine.Type::Item, Item."No.", 1);
+    end;
+
+    local procedure CertifyProductionBOMVersion(var ProductionBOMVersion: Record "Production BOM Version")
+    begin
+        ProductionBOMVersion.Status := ProductionBOMVersion.Status::Certified;
+        ProductionBOMVersion.Modify(true);
+    end;
+
+    local procedure CreateTestItemWithProductionBOM(var Item: Record Item; ProductionBOMNo: Code[20])
+    var
+        UnitOfMeasure: Record "Unit of Measure";
+        ItemUnitOfMeasure: Record "Item Unit of Measure";
+        WorkCenter: Record "Work Center";
+        RoutingNo: Code[20];
+    begin
+        LibraryManufacturing.CreateWorkCenterWithCalendar(WorkCenter);
+        RoutingNo := CreateRoutingWithWorkCenter(WorkCenter."No.", 10, 2, 0);
+        LibraryInventory.CreateUnitOfMeasureCode(UnitOfMeasure);
+        CreateItemWithReorderPolicy(Item, UnitOfMeasure, ItemUnitOfMeasure, Item."Replenishment System"::"Prod. Order", Item."Reordering Policy"::Order);
+        Item."Production BOM No." := ProductionBOMNo;
+        Item.Validate("Routing No.", RoutingNo);
+        Item.Modify(true);
+    end;
+
+    local procedure CreateAndReleaseSalesOrder(var SalesHeader: Record "Sales Header"; var SalesLine: Record "Sales Line"; Item: Record Item)
+    var
+        Customer: Record Customer;
+        VATPostingSetup: Record "VAT Posting Setup";
+    begin
+        VATPostingSetup.SetRange("VAT Prod. Posting Group", Item."VAT Prod. Posting Group");
+        VATPostingSetup.FindFirst();
+
+        LibrarySales.CreateCustomer(Customer);
+        Customer.Validate("VAT Bus. Posting Group", VATPostingSetup."VAT Bus. Posting Group");
+        Customer.Modify(true);
+
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Order, Customer."No.");
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", 1);
+        LibrarySales.ReleaseSalesDocument(SalesHeader);
+    end;
+
+    local procedure RunRegenerativePlanningAndCarryOut(Item: Record Item; DueDate: Date)
+    var
+        RequisitionWkshName: Record "Requisition Wksh. Name";
+        RequisitionLine: Record "Requisition Line";
+    begin
+        LibraryPlanning.CreateRequisitionWkshName(RequisitionWkshName, LibraryPlanning.SelectRequisitionTemplateName());
+
+        LibraryPlanning.CalcRegenPlanForPlanWksh(Item, WorkDate(), DueDate);
+
+        RequisitionLine.SetRange("No.", Item."No.");
+        RequisitionLine.FindFirst();
+        RequisitionLine.Validate("Accept Action Message", true);
+        RequisitionLine.Modify(true);
+
+        LibraryPlanning.CarryOutActionMsgPlanWksh(RequisitionLine);
+    end;
+
+    local procedure FindProductionOrderForItem(var ProductionOrder: Record "Production Order"; ItemNo: Code[20])
+    begin
+        ProductionOrder.SetRange(Status, ProductionOrder.Status::"Firm Planned");
+        ProductionOrder.SetRange("Source No.", ItemNo);
+        ProductionOrder.FindFirst();
+    end;
+
+    local procedure FindProdOrderComponentByIndex(var ProdOrderComponent: Record "Prod. Order Component"; ProductionOrderNo: Code[20]; ComponentIndex: Integer)
+    begin
+        ProdOrderComponent.SetRange(Status, ProdOrderComponent.Status::"Firm Planned");
+        ProdOrderComponent.SetRange("Prod. Order No.", ProductionOrderNo);
+        case ComponentIndex of
+            1:
+                ProdOrderComponent.FindFirst();
+            2:
+                begin
+                    ProdOrderComponent.FindFirst();
+                    ProdOrderComponent.Next();
+                end;
+        end;
+    end;
+
+    local procedure VerifyProdOrderComponentComment(ProdOrderComponent: Record "Prod. Order Component"; ExpectedComment: Text[80])
+    var
+        ProdOrderCompCmtLine: Record "Prod. Order Comp. Cmt Line";
+    begin
+        ProdOrderCompCmtLine.SetRange(Status, ProdOrderComponent.Status);
+        ProdOrderCompCmtLine.SetRange("Prod. Order No.", ProdOrderComponent."Prod. Order No.");
+        ProdOrderCompCmtLine.SetRange("Prod. Order Line No.", ProdOrderComponent."Prod. Order Line No.");
+        ProdOrderCompCmtLine.SetRange("Prod. Order BOM Line No.", ProdOrderComponent."Line No.");
+
+        Assert.IsTrue(ProdOrderCompCmtLine.FindFirst(), ProdOrderComponentCommentErr);
+        Assert.AreEqual(ExpectedComment, ProdOrderCompCmtLine.Comment, ExpectedCommentErr);
     end;
 
     [MessageHandler]

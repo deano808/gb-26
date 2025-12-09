@@ -2068,16 +2068,16 @@ codeunit 134984 "ERM Sales Report III"
         LibraryReportDataset.AssertCurrentRowValueEquals('DocumentNo', SalesLine[1]."Document No.");
         LibraryReportDataset.AssertCurrentRowValueEquals('Quantity', Quantity);
         LibraryReportDataset.AssertCurrentRowValueEquals('LineAmount', Format(SalesLine[1]."Line Amount"));
-        VATAmount := SalesLine[1]."Amount Including VAT" - SalesLine[1].Amount;
+        VATAmount := Round(SalesLine[1].Amount * SalesLine[1]."VAT %" / 100 * SalesLine[1]."Qty. to Invoice" / SalesLine[1].Quantity);
         LibraryReportDataset.AssertCurrentRowValueEquals('VATAmount', Format(VATAmount));
 
         Assert.IsTrue(LibraryReportDataset.GetNextRow(), Rep1302DatasetErr);
         LibraryReportDataset.AssertCurrentRowValueEquals('Quantity', Quantity);
         LibraryReportDataset.AssertCurrentRowValueEquals('LineAmount', Format(SalesLine[2]."Line Amount"));
-        VATAmount := SalesLine[2]."Amount Including VAT" - SalesLine[2].Amount;
+        VATAmount := Round(SalesLine[2].Amount * SalesLine[2]."VAT %" / 100 * SalesLine[2]."Qty. to Invoice" / SalesLine[2].Quantity);
         LibraryReportDataset.AssertCurrentRowValueEquals('VATAmount', Format(VATAmount));
     end;
-    
+
     [Test]
     [HandlerFunctions('RHStandardSalesShipment')]
     [Scope('OnPrem')]
@@ -2088,7 +2088,7 @@ codeunit 134984 "ERM Sales Report III"
         PostedShipmentNo: Code[20];
     begin
         // [FEATURE] [Standard Sales - Shipment]
-        // [SCENARIO 306111] "Sales Standard Shipment" report prints basic header and line data 
+        // [SCENARIO 306111] "Sales Standard Shipment" report prints basic header and line data
         Initialize();
 
         // [GIVEN] Set report "Sales Standard Shipment" as default for printing sales shipments
@@ -2101,7 +2101,7 @@ codeunit 134984 "ERM Sales Report III"
         SalesShipmentLine.SetRange("Document No.", PostedShipmentNo);
         SalesShipmentLine.FindFirst();
 
-        // [WHEN] Report "Sales Standard Shipment" is being printed 
+        // [WHEN] Report "Sales Standard Shipment" is being printed
         SaveStandardSalesShipmentReport(PostedShipmentNo);
 
         // [THEN] Dataset contains data about customer "C", line with item "I" and Quantity "5"
@@ -2127,7 +2127,7 @@ codeunit 134984 "ERM Sales Report III"
         ItemTrackingMode: Option " ","Assign Lot No.","Select Entries","Verify Entries";
     begin
         // [FEATURE] [Standard Sales - Shipment] [Item Tracking]
-        // [SCENARIO 306111] "Sales Standard Shipment" report prints item tracking data 
+        // [SCENARIO 306111] "Sales Standard Shipment" report prints item tracking data
         Initialize();
 
         // [GIVEN] Set report "Sales Standard Shipment" as default for printing sales shipments
@@ -2189,7 +2189,7 @@ codeunit 134984 "ERM Sales Report III"
         SalesShipmentLine.SetRange("Document No.", PostedShipmentNo);
         SalesShipmentLine.FindFirst();
 
-        // [WHEN] Report "Sales Standard Shipment" is being printed 
+        // [WHEN] Report "Sales Standard Shipment" is being printed
         SaveStandardSalesShipmentReport(PostedShipmentNo);
 
         // [THEN] Dataset contains data for ship-to customer "C1"
@@ -2211,7 +2211,7 @@ codeunit 134984 "ERM Sales Report III"
         PostedReturnReceiptNo: Code[20];
     begin
         // [FEATURE] [Standard Sales - Return Receipt]
-        // [SCENARIO 306111] "Standard Sales - Return Rcpt." report prints basic header and line data 
+        // [SCENARIO 306111] "Standard Sales - Return Rcpt." report prints basic header and line data
         Initialize();
 
         // [GIVEN] Set report "Standard Sales - Return Rcpt.." as default for printing return receipts
@@ -2223,7 +2223,7 @@ codeunit 134984 "ERM Sales Report III"
         ReturnReceiptLine.SetRange("Document No.", PostedReturnReceiptNo);
         ReturnReceiptLine.FindFirst();
 
-        // [WHEN] Report "Standard Sales - Return Rcpt.." is being printed 
+        // [WHEN] Report "Standard Sales - Return Rcpt.." is being printed
         SaveStandardSalesReturnReceiptReport(PostedReturnReceiptNo);
 
         // [THEN] Dataset contains data about customer "C", line with item "I" and Quantity "5"
@@ -2263,7 +2263,7 @@ codeunit 134984 "ERM Sales Report III"
         ReturnReceiptLine.SetRange("Document No.", PostedReturnReceiptNo);
         ReturnReceiptLine.FindFirst();
 
-        // [WHEN] Report "Standard Sales - Return Rcpt.." is being printed 
+        // [WHEN] Report "Standard Sales - Return Rcpt.." is being printed
         SaveStandardSalesReturnReceiptReport(PostedReturnReceiptNo);
 
         // [THEN] Dataset contains data for ship-to customer "C1"
@@ -2563,7 +2563,7 @@ codeunit 134984 "ERM Sales Report III"
         Customer.SetRecFilter();
         Commit();
 
-        // [WHEN] When run "Standard Statement" report for the customer "C" and Log Interaction = false 
+        // [WHEN] When run "Standard Statement" report for the customer "C" and Log Interaction = false
         LibraryVariableStorage.Enqueue(false);
         RequestPageXML := REPORT.RunRequestPage(REPORT::"Standard Statement");
         LibraryReportDataset.RunReportAndLoad(REPORT::"Standard Statement", Customer, RequestPageXML);
@@ -2624,7 +2624,7 @@ codeunit 134984 "ERM Sales Report III"
         // [WHEN] Stan pushes OK on request page
         // Done in RHVendorBalanceToDateEnableShowEntriesWithZeroBalance
 
-        // [THEN] Dataset does not contain record related to original payment (only as applied entry) 
+        // [THEN] Dataset does not contain record related to original payment (only as applied entry)
         LibraryReportDataset.LoadDataSetFile();
         LibraryReportDataset.AssertElementWithValueNotExist('DocType_CustLedgEntry', Format(GenJournalLine."Document Type"::Payment));
     end;
@@ -2768,7 +2768,7 @@ codeunit 134984 "ERM Sales Report III"
         LibraryVariableStorage.Enqueue(ItemTrackingMode::"Select Entries");
         SalesLine.OpenItemTrackingLines();
 
-        // [GIVEN] Post Sales Shipment 
+        // [GIVEN] Post Sales Shipment
         PostedShipmentNo := LibrarySales.PostSalesDocument(SalesHeader, true, false);
 
         // [WHEN] Run "Standard Sales - Shipment" report with "Show Serial/Lot Number Appendix" = Yes.
@@ -2776,7 +2776,7 @@ codeunit 134984 "ERM Sales Report III"
         RequestPageXML := Report.RunRequestPage(Report::"Standard Sales - Shipment");
         LibraryReportDataset.RunReportAndLoad(Report::"Standard Sales - Shipment", SalesShipmentHeader, RequestPageXML);
 
-        // [VERIFY] Verify Second Serial No. exist in the report. 
+        // [VERIFY] Verify Second Serial No. exist in the report.
         LibraryReportDataset.SearchForElementByValue('TrackingSpecBufferLotNo', FindAssignedLotNo(Item."No."));
     end;
 
@@ -2934,6 +2934,156 @@ codeunit 134984 "ERM Sales Report III"
 
         // [VERIFY] Verify: Data on Customer Balance to Date report resultset
         VerifyTotalOnCustBalanceToDateWithLCY(DetailedCustLedgEntryAmount(Customer."No.", GenJournalLine."Posting Date"));
+    end;
+
+    [Test]
+    [HandlerFunctions('RHAgedAccountsReceivableFileName')]
+    [Scope('OnPrem')]
+    procedure AgedAccountReceivablesReportsPrioritizeMostRecentPostingCausingFaultyReports()
+    var
+        GenJournalLine: Record "Gen. Journal Line";
+        Customer: Record Customer;
+        CustomerLedgerEntry: Record "Cust. Ledger Entry";
+        LibraryLowerPermissions: Codeunit "Library - Lower Permissions";
+        DocumentNo: Code[20];
+        Amount: Decimal;
+        AsofDate: Date;
+        PeriodLength: DateFormula;
+    begin
+        //[SCENARIO 574822] Aged Account Receivables and Aged Account Payable Reports Prioritize Most Recent Posting Date Rather than Posting Date on Latest Entry Causing Faulty Reports
+
+        Initialize();
+
+        // [GIVEN] Create Customer
+        LibrarySales.CreateCustomer(Customer);
+
+        //[GIVEN] Create and Post Sales Invoice
+        Amount := 12000;
+        DocumentNo :=
+        CreateAndPostSalesInvoiceWithOneLine(Customer."No.", '123', Amount, 0D);
+
+        // [GIVEN] Create Payment Journal and post for Sales Invoice
+        CreateGeneralJournalLine(GenJournalLine, 1, Customer."No.", GenJournalLine."Document Type"::Payment, -Amount);
+        GenJournalLine.Validate("Posting Date", WorkDate());
+        UpdateGenJournalLine(GenJournalLine, '', DocumentNo, -Amount);
+        LibraryLowerPermissions.SetAccountReceivables();
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+
+        // [GIVEN] Unapply The Payment for Sales Invoice
+        LibraryERM.FindCustomerLedgerEntry(CustomerLedgerEntry, CustomerLedgerEntry."Document Type"::Payment, DocumentNo);
+        UnapplyCustomerLedgerEntry(CustomerLedgerEntry, 20280201D);
+
+        // [GIVEN] apply the payment again for the Sales Invoice
+        CreateGeneralJournalLine(GenJournalLine, 1, Customer."No.", GenJournalLine."Document Type"::Payment, -Amount);
+        GenJournalLine.Validate("Posting Date", WorkDate());
+        UpdateGenJournalLine(GenJournalLine, '', DocumentNo, -Amount);
+        LibraryLowerPermissions.SetAccountReceivables();
+        LibraryERM.PostGeneralJnlLine(GenJournalLine);
+
+        //[WHEN] Run Aged Account Receivable Report
+        AsofDate := 20271231D;
+        SaveAgedAccReceivable(Customer, AgingBy::"Posting Date", HeadingType::"Date Interval", PeriodLength, false, true, AsofDate);
+
+        //[THEN] Check These  Entries should not be there.
+        LibraryReportDataset.AssertElementWithValueNotExist('CLEPostingDate', WorkDate());
+    end;
+
+    [Test]
+    [HandlerFunctions('PostAndApplyCustPageHandler,PostApplicationPageHandler,MessageHandler,RHAgedAccountsReceivable')]
+    [Scope('OnPrem')]
+    procedure AgedAccountsReceivableReportShouldShowCreditMemoWhenUsingOptionAgingByPostingDate()
+    var
+        Customer: Record Customer;
+        Item: Record Item;
+        CustledEntry: Record "Cust. Ledger Entry";
+        SalesHeader: Record "Sales Header";
+        SalesCrMemo: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+        DocumentNo: Code[20];
+        PeriodLength: DateFormula;
+    begin
+
+        //[SCENARIO 599304] Aged Accounts Receivable/Payable reports do not show credit memo when using option Aging By = Posting Date
+        Initialize();
+
+        // [GIVEN] Create Customer
+        LibrarySales.CreateCustomer(Customer);
+        LibraryInventory.CreateItem(Item);
+
+        // [GIVEN] Create and Post Sales Invoice
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Invoice, Customer."No.");
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", 1);
+        SalesHeader."Posting Date" := WorkDate();
+        SalesHeader.Modify();
+        SalesLine.Validate("Unit Price", 1000); //Use a value that is easy to verify in the report
+        SalesLine.Modify(true);
+        LibrarySales.PostSalesDocument(SalesHeader, true, false);
+
+        // [GIVEN] Create and Post Sales Credit Memo
+        LibrarySales.CreateSalesHeader(SalesCrMemo, SalesCrMemo."Document Type"::"Credit Memo", Customer."No.");
+        LibrarySales.CreateSalesLine(SalesLine, SalesCrMemo, SalesLine.Type::Item, Item."No.", 1);
+        SalesCrMemo."Posting Date" := WorkDate();
+        SalesCrMemo.Modify();
+        SalesLine.Validate("Unit Price", 1000); //Use a value that is easy to verify in the report
+        SalesLine.Modify(true);
+        DocumentNo := LibrarySales.PostSalesDocument(SalesCrMemo, true, false);
+
+        // [WHEN] Apply Entries from Credit Memo to Invoice
+        LibraryERM.FindCustomerLedgerEntry(CustledEntry, CustledEntry."Document Type"::"Credit Memo", DocumentNo);
+        ApplyCustLedgerEntry(CustledEntry."Document Type"::"Credit Memo", Customer."No.");
+
+        // [WHEN] Run Aged Accounts Receivable Report
+        Evaluate(PeriodLength, '<1M>');
+        Customer.SetRecFilter();
+        Commit();
+        SaveAgedAccountsReceivable(
+            Customer, AgingBy::"Posting Date", HeadingType::"Date Interval", PeriodLength, true, true);
+
+        //[THEN] Check These  Entries should be there.
+        LibraryReportDataset.AssertElementWithValueNotExist('CLEPostingDate', WorkDate());
+    end;
+
+    [Test]
+    [HandlerFunctions('ProFormaInvoiceXML_RPH')]
+    [Scope('OnPrem')]
+    procedure VerifyTaxAmountOnPartialQuantityStandardSalesProFormaInv()
+    var
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+        Quantity: Decimal;
+        UnitPrice: Decimal;
+        AmountInclVAT: Decimal;
+        VATAmount: Decimal;
+        ItemNo: Code[20];
+    begin
+        // [SCENARIO 608883] Verify the VAT Amount on the Pro Forma Invoice should be according to qty to ship
+        Initialize();
+
+        // [GIVEN] Create Sales Header
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Invoice, LibrarySales.CreateCustomerNo());
+        Quantity := LibraryRandom.RandInt(10);
+        ItemNo := LibraryInventory.CreateItemNo();
+
+        // [WHEN] Create first Sales Line
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, ItemNo, Quantity);
+
+        // [GIVEN] Create "Amount Inc. VAT" with prescision = 0.001, which will be round down. The 2*"Amount Inc. VAT" will be rounded up.
+        AmountInclVAT := LibraryRandom.RandDecInDecimalRange(50, 100, 2) + LibraryRandom.RandDecInDecimalRange(0.003, 0.004, 3);
+        UnitPrice := AmountInclVAT / (1 + SalesLine."VAT %" / 100) / Quantity;
+        SalesLine.Validate("Unit Price", UnitPrice);
+        SalesLine.Modify(true);
+
+        // [WHEN] Print "Pro Forma Invoice" report
+        RunStandardSalesProFormaInv(SalesLine."Document No.");
+
+        // [THEN] The fields VATAmount evaluates correctly
+        LibraryReportDataset.LoadDataSetFile();
+        Assert.IsTrue(LibraryReportDataset.GetNextRow(), Rep1302DatasetErr);
+        if SalesHeader."Currency Code" = '' then
+            VATAmount := Round(
+                                SalesLine.Amount * SalesLine."VAT %" / 100 * SalesLine."Qty. to Invoice" / SalesLine.Quantity, 0.01);
+
+        LibraryReportDataset.AssertCurrentRowValueEquals('VATAmount', Format(VATAmount));
     end;
 
     local procedure Initialize()
@@ -3873,20 +4023,9 @@ codeunit 134984 "ERM Sales Report III"
         GeneralLedgerSetup: Record "General Ledger Setup";
     begin
         GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."LCY Code" := '';        // to avoid error on updating LCY Code
         GeneralLedgerSetup.Validate("LCY Code", CurrencyCode);
         GeneralLedgerSetup.Modify(true);
-    end;
-
-    local procedure UpdateReportSelection(Usage: Enum "Report Selection Usage"; ReportID: Integer)
-    var
-        ReportSelections: Record "Report Selections";
-    begin
-        ReportSelections.SetRange(Usage, Usage);
-        ReportSelections.DeleteAll();
-        ReportSelections.Usage := Usage;
-        ReportSelections.Sequence := '1';
-        ReportSelections."Report ID" := ReportID;
-        ReportSelections.Insert();
     end;
 
     local procedure UpdateOpenOnCustLedgerEntry(EntryNo: Integer)
@@ -4384,7 +4523,7 @@ codeunit 134984 "ERM Sales Report III"
         LibraryReportDataset.SetRange('PostingDt_CustLedgEntry', Format(WorkDate()));
         LibraryReportDataset.SetRange('DocType_CustLedgEntry', Format(GenJournalLine."Document Type"::Invoice));
         LibraryReportDataset.GetNextRow();
-        LibraryReportDataset.AssertCurrentRowValueEquals('OriginalAmt', Format(CustLedgerEntry.Amount, 0, 2));
+        LibraryReportDataset.AssertCurrentRowValueEquals('OriginalAmt', Format(CustLedgerEntry.Amount));
     end;
 
     local procedure VerifyCustomerEntriesAndBalanceInCustomerBalanceToDate(GenJournalLine: Record "Gen. Journal Line"; Balance: Decimal)
@@ -4535,7 +4674,7 @@ codeunit 134984 "ERM Sales Report III"
     begin
         Item.Get(SalesLine."No.");
         LineAmount := Round(SalesLine.Amount * SalesLine."Qty. to Invoice" / SalesLine.Quantity);
-        VATAmount := SalesLine."Amount Including VAT" - SalesLine.Amount;
+        VATAmount := Round(SalesLine.Amount * SalesLine."VAT %" / 100 * SalesLine."Qty. to Invoice" / SalesLine.Quantity);
         LibraryReportDataset.AssertCurrentRowValueEquals('ItemDescription', SalesLine."No.");
         LibraryReportDataset.AssertCurrentRowValueEquals('CountryOfManufacturing', Item."Country/Region of Origin Code");
         LibraryReportDataset.AssertCurrentRowValueEquals('Tariff', Item."Tariff No.");
@@ -4708,6 +4847,99 @@ codeunit 134984 "ERM Sales Report III"
         LibraryReportDataset.SetRange('TotalCaption', TotalCapTxt);
         LibraryReportDataset.GetNextRow();
         LibraryReportDataset.AssertCurrentRowValueEquals('TtlAmtCurrencyTtlBuff2', Round(Amount));
+    end;
+
+    local procedure SaveAgedAccReceivable(var Customer: Record Customer; AgingBy: Option; HeadingType: Option; PeriodLength: DateFormula; AmountLCY: Boolean; PrintDetails: Boolean; PostingDate: Date)
+    var
+        AgedAccountsReceivable: Report "Aged Accounts Receivable";
+    begin
+        Clear(AgedAccountsReceivable);
+        AgedAccountsReceivable.SetTableView(Customer);
+        AgedAccountsReceivable.InitializeRequest(PostingDate, AgingBy, PeriodLength, AmountLCY, PrintDetails, HeadingType, false);
+        AgedAccountsReceivable.Run();
+    end;
+
+    procedure UnapplyCustomerLedgerEntry(CustLedgerEntry: Record "Cust. Ledger Entry"; PostingDate: Date)
+    var
+        DetailedCustLedgEntry: Record "Detailed Cust. Ledg. Entry";
+        GenJournalLine: Record "Gen. Journal Line";
+        SourceCodeSetup: Record "Source Code Setup";
+        GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line";
+    begin
+        DetailedCustLedgEntry.SetRange("Entry Type", DetailedCustLedgEntry."Entry Type"::Application);
+        DetailedCustLedgEntry.SetRange("Customer No.", CustLedgerEntry."Customer No.");
+        DetailedCustLedgEntry.SetRange("Document No.", CustLedgerEntry."Document No.");
+        DetailedCustLedgEntry.SetRange("Cust. Ledger Entry No.", CustLedgerEntry."Entry No.");
+        DetailedCustLedgEntry.SetRange(Unapplied, false);
+        DetailedCustLedgEntry.FindFirst();
+        if PostingDate = 0D then
+            PostingDate := DetailedCustLedgEntry."Posting Date";
+        SourceCodeSetup.Get();
+        CustLedgerEntry.Get(DetailedCustLedgEntry."Cust. Ledger Entry No.");
+        GenJournalLine.Validate("Document No.", DetailedCustLedgEntry."Document No.");
+        GenJournalLine.Validate("Posting Date", PostingDate);
+        GenJournalLine.Validate("Account Type", GenJournalLine."Account Type"::Customer);
+        GenJournalLine.Validate("Account No.", DetailedCustLedgEntry."Customer No.");
+        GenJournalLine.Validate(Correction, true);
+        GenJournalLine.Validate("Document Type", GenJournalLine."Document Type"::" ");
+        GenJournalLine.Validate(Description, CustLedgerEntry.Description);
+        GenJournalLine.Validate("Posting Group", CustLedgerEntry."Customer Posting Group");
+        GenJournalLine.Validate("Source Type", GenJournalLine."Source Type"::Vendor);
+        GenJournalLine.Validate("Source No.", DetailedCustLedgEntry."Customer No.");
+        GenJournalLine.Validate("Source Code", SourceCodeSetup."Unapplied Sales Entry Appln.");
+        GenJournalLine.Validate("Source Currency Code", DetailedCustLedgEntry."Currency Code");
+        GenJournalLine.Validate("System-Created Entry", true);
+        GenJnlPostLine.UnapplyCustLedgEntry(GenJournalLine, DetailedCustLedgEntry);
+    end;
+
+    local procedure UpdateGenJournalLine(var GenJournalLine: Record "Gen. Journal Line"; CurrencyCode: Code[10]; AppliestoDocNo: Code[20]; Amount: Decimal)
+    begin
+        GenJournalLine.Validate("Currency Code", CurrencyCode);
+        GenJournalLine.Validate("Applies-to Doc. Type", GenJournalLine."Applies-to Doc. Type"::Invoice);
+        GenJournalLine.Validate("Applies-to Doc. No.", AppliestoDocNo);
+        GenJournalLine.Validate("Document No.", AppliestoDocNo);
+        GenJournalLine.Validate(Amount, Amount);
+        GenJournalLine.Modify(true);
+    end;
+
+    local procedure CreateGeneralJournalLine(var GenJournalLine: Record "Gen. Journal Line"; NoOfLine: Integer; CustomerNo: Code[20]; DocumentType: Enum "Gen. Journal Document Type"; Amount: Decimal)
+    var
+        GenJournalBatch: Record "Gen. Journal Batch";
+        Counter: Integer;
+    begin
+        SelectGenJournalBatch(GenJournalBatch);
+        for Counter := 1 to NoOfLine do
+            LibraryERM.CreateGeneralJnlLine(
+              GenJournalLine, GenJournalBatch."Journal Template Name", GenJournalBatch.Name, DocumentType,
+              GenJournalLine."Account Type"::Customer, CustomerNo, Amount);
+    end;
+
+    local procedure CreateAndPostSalesInvoiceWithOneLine(CustomerNo: Code[20]; ExtDocNo: Code[20]; Amount: Decimal; DueDate: Date): Code[20]
+    var
+        Item: Record Item;
+        SalesHeader: Record "Sales Header";
+        SalesLine: Record "Sales Line";
+    begin
+        CreateItem(Item, Amount);
+        LibrarySales.CreateSalesHeader(SalesHeader, SalesHeader."Document Type"::Invoice, CustomerNo);
+        SalesHeader.Validate("External Document No.", ExtDocNo);
+
+        if DueDate <> 0D then
+            SalesHeader.Validate("Due Date", DueDate);
+        SalesHeader."Posting Date" := WorkDate();
+
+        SalesHeader.Modify(true);
+        LibrarySales.CreateSalesLine(SalesLine, SalesHeader, SalesLine.Type::Item, Item."No.", 1);
+
+        exit(LibrarySales.PostSalesDocument(SalesHeader, true, true));
+    end;
+
+    local procedure CreateItem(var Item: Record Item; Amount: Decimal)
+    begin
+        LibraryInventory.CreateItem(Item);
+        Item.Validate("Unit Price", Amount);
+        Item.Validate("Last Direct Cost", Amount);
+        Item.Modify(true);
     end;
 
     [RequestPageHandler]
@@ -4987,4 +5219,3 @@ codeunit 134984 "ERM Sales Report III"
         ProFormaInvoice.SaveAsXml(LibraryReportDataset.GetParametersFileName(), LibraryReportDataset.GetFileName());
     end;
 }
-

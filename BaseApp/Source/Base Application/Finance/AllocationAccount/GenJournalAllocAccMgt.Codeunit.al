@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.AllocationAccount;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.AllocationAccount;
 
 using Microsoft.Finance.Dimension;
 using Microsoft.Finance.GeneralLedger.Journal;
@@ -57,6 +61,7 @@ codeunit 2677 "Gen. Journal Alloc. Acc. Mgt."
             AllocationLine.Quantity := AllocAccManualOverride.Quantity;
             AllocationLine."Dimension Set ID" := AllocAccManualOverride."Dimension Set ID";
             AllocationLine.Amount := AllocAccManualOverride.Amount;
+            OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(AllocAccManualOverride, AllocationLine);
             AllocationLine.Insert();
         until AllocAccManualOverride.Next() = 0;
     end;
@@ -142,6 +147,7 @@ codeunit 2677 "Gen. Journal Alloc. Acc. Mgt."
     local procedure HandleBeforeInsertGLEntryBuffer(var TempGLEntryBuf: Record "G/L Entry" temporary; var GenJournalLine: Record "Gen. Journal Line"; var BalanceCheckAmount: Decimal; var BalanceCheckAmount2: Decimal; var BalanceCheckAddCurrAmount: Decimal; var BalanceCheckAddCurrAmount2: Decimal; var NextEntryNo: Integer; var TotalAmount: Decimal; var TotalAddCurrAmount: Decimal; var GLEntry: Record "G/L Entry")
     begin
         TempGLEntryBuf."Allocation Account No." := GenJournalLine."Allocation Account No.";
+        TempGLEntryBuf."Alloc. Journal Line SystemId" := GenJournalLine."Alloc. Journal Line SystemId";
     end;
 
     [EventSubscriber(ObjectType::Table, Database::"Gen. Journal Line", 'OnBeforeShowDimensions', '', false, false)]
@@ -342,6 +348,7 @@ codeunit 2677 "Gen. Journal Alloc. Acc. Mgt."
         GenJournalLine."Journal Batch Name" := AllocationAccountGenJournalLine."Journal Batch Name";
         GenJournalLine."Journal Template Name" := AllocationAccountGenJournalLine."Journal Template Name";
         GenJournalLine."Line No." := LastJournalLineNo + Increment;
+        GenJournalLine."Alloc. Journal Line SystemId" := AllocationAccountGenJournalLine.SystemId;
         UpdateAccountNumbersAndTypesOnGenJournalLine(AllocationAccountGenJournalLine, GenJournalLine, AllocationLine);
 
         GenJournalLine.Validate(Amount, AllocationLine.Amount);
@@ -608,4 +615,9 @@ codeunit 2677 "Gen. Journal Alloc. Acc. Mgt."
         AllocationAccountsCannotBeUsedOnThisPageErr: Label 'Allocation accounts cannot be used on this page.';
         GenJnlLineCount: Integer;
         SumAmountLCY: Decimal;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(var AllocAccManualOverride: Record "Alloc. Acc. Manual Override"; var AllocationLine: Record "Allocation Line")
+    begin
+    end;
 }

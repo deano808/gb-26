@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Reminder;
 
 using Microsoft.Sales.Customer;
@@ -12,6 +16,8 @@ page 440 "Issued Reminder List"
     InsertAllowed = false;
     ModifyAllowed = false;
     PageType = List;
+    AboutTitle = 'About Issued Reminders';
+    AboutText = 'View and manage reminders issued to customers for overdue payments, including the ability to review details and cancel reminders individually or in batches before they are sent.';
     SourceTable = "Issued Reminder Header";
     UsageCategory = Lists;
 
@@ -230,7 +236,7 @@ page 440 "Issued Reminder List"
         }
         area(reporting)
         {
-#if not CLEAN25
+#if not CLEAN26
             action("Reminder Nos.")
             {
                 ApplicationArea = Suite;
@@ -243,7 +249,9 @@ page 440 "Issued Reminder List"
                 Visible = false;
                 ObsoleteState = Pending;
                 ObsoleteReason = 'The related report doesn''t exist anymore';
-                ObsoleteTag = '25.0';
+#pragma warning disable AS0074
+                ObsoleteTag = '26.0';
+#pragma warning restore AS0074
             }
 #endif
             action("Customer - Balance to Date")

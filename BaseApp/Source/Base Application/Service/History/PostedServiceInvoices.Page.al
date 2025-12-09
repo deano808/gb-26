@@ -16,6 +16,8 @@ page 5977 "Posted Service Invoices"
     CardPageID = "Posted Service Invoice";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Service Invoices';
+    AboutText = 'Review posted service invoices, print invoice documents, and analyze key details such as amounts, VAT, customer information, and payment status for completed service transactions.';
     SourceTable = "Service Invoice Header";
     SourceTableView = sorting("Posting Date")
                       order(descending);
@@ -342,6 +344,7 @@ page 5977 "Posted Service Invoices"
 
                 trigger OnAction()
                 begin
+                    ServiceInvHeader := Rec;
                     CurrPage.SetSelectionFilter(ServiceInvHeader);
                     ServiceInvHeader.PrintRecords(true);
                 end;
@@ -389,7 +392,7 @@ page 5977 "Posted Service Invoices"
             }
             action("Update Document")
             {
-                ApplicationArea = Basic, Suite;
+                ApplicationArea = Service;
                 Caption = 'Update Document';
                 Image = Edit;
                 ToolTip = 'Add new information that is relevant to the document, such as a payment reference. You can only edit a few fields because the document has already been posted.';

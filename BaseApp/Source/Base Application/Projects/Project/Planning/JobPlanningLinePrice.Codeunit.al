@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Projects.Project.Planning;
 
 using Microsoft.Inventory.Item;
@@ -100,7 +104,12 @@ codeunit 7024 "Job Planning Line - Price" implements "Line With Price"
     begin
         DtldPriceCalculationSetup.Init();
         DtldPriceCalculationSetup.Type := CurrPriceType;
-        DtldPriceCalculationSetup.Method := JobPlanningLine."Price Calculation Method";
+        case CurrPriceType of
+            CurrPriceType::Sale:
+                DtldPriceCalculationSetup.Method := JobPlanningLine."Price Calculation Method";
+            CurrPriceType::Purchase:
+                DtldPriceCalculationSetup.Method := JobPlanningLine."Cost Calculation Method";
+        end;
         DtldPriceCalculationSetup."Asset Type" := GetAssetType();
         DtldPriceCalculationSetup."Asset No." := JobPlanningLine."No.";
         exit(PriceSourceList.GetSourceGroup(DtldPriceCalculationSetup));

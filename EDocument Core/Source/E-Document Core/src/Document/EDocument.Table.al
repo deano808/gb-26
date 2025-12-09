@@ -1,4 +1,4 @@
-// ------------------------------------------------------------------------------------------------
+﻿// ------------------------------------------------------------------------------------------------
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License. See License.txt in the project root for license information.
 // ------------------------------------------------------------------------------------------------
@@ -16,7 +16,11 @@ using System.Reflection;
 using System.Threading;
 using Microsoft.eServices.EDocument.Processing.Import;
 using Microsoft.eServices.EDocument.Processing.Interfaces;
+using Microsoft.eServices.EDocument.OrderMatch;
 using Microsoft.eServices.EDocument.Processing.Import.Purchase;
+#if not CLEAN27
+using Microsoft.Purchases.Document;
+#endif
 
 table 6121 "E-Document"
 {
@@ -24,6 +28,14 @@ table 6121 "E-Document"
     LookupPageId = "E-Documents";
     DrillDownPageId = "E-Documents";
     DataClassification = CustomerContent;
+
+    Permissions =
+        tabledata "E-Document" = i,
+        tabledata "E-Document Service Status" = d,
+        tabledata "E-Document Log" = d,
+        tabledata "E-Document Integration Log" = d,
+        tabledata "E-Doc. Mapping Log" = d;
+
 
     fields
     {
@@ -213,9 +225,6 @@ table 6121 "E-Document"
             Caption = 'File Name';
             ToolTip = 'Specifies the file name of the E-Document source.';
         }
-#pragma warning disable AS0004
-#pragma warning disable AS0115
-#pragma warning disable AS0072
 #if not CLEANSCHEMA26
         field(36; "File Type"; Integer)
         {
@@ -234,9 +243,6 @@ table 6121 "E-Document"
             ObsoleteTag = '26.0';
         }
 #endif
-#pragma warning restore AS0115
-#pragma warning restore AS0004
-#pragma warning restore AS0072
         field(38; "Service Integration"; Enum "Service Integration")
         {
             Caption = 'Service Integration';
@@ -277,6 +283,21 @@ table 6121 "E-Document"
             ToolTip = 'Specifies the implementation to use for processing the draft received.';
         }
         #endregion
+
+        #region Clearance Model
+        field(60; "Clearance Date"; DateTime)
+        {
+            Caption = 'Clearance Date';
+            ToolTip = 'Specifies date and time when document was cleared by authority';
+            DataClassification = SystemMetadata;
+        }
+        field(61; "Last Clearance Request Time"; DateTime)
+        {
+            Caption = 'Last Clearance Request Time';
+            DataClassification = SystemMetadata;
+        }
+
+        #endregion
     }
     keys
     {
@@ -316,11 +337,8 @@ table 6121 "E-Document"
     /// <summary>
     /// Inserts a new E-Document record with the specified parameters.
     /// </summary>
-    internal procedure Create(
-        EDocumentDirection: Enum "E-Document Direction";
-                                EDocumentType: Enum "E-Document Type";
-                                EDocumentService: Record "E-Document Service"
-    )
+    [InherentPermissions(PermissionObjectType::TableData, Database::"E-Document", 'i')]
+    internal procedure Create(EDocumentDirection: Enum "E-Document Direction"; EDocumentType: Enum "E-Document Type"; EDocumentService: Record "E-Document Service")
     begin
         Rec."Entry No" := 0;
         Rec.Direction := EDocumentDirection;
@@ -333,7 +351,6 @@ table 6121 "E-Document"
     internal procedure IsDuplicate(ShowMessage: Boolean): Boolean
     var
         EDocument: Record "E-Document";
-
     begin
         EDocument.ReadIsolation := EDocument.ReadIsolation::ReadUncommitted;
         EDocument.SetRange("Incoming E-Document No.", Rec."Incoming E-Document No.");
@@ -349,6 +366,21 @@ table 6121 "E-Document"
         exit(true);
     end;
 
+    /// <summary>
+    /// Checks if an E-Document is created for the given document record.
+    /// </summary>
+    /// <param name="RecordVariant">Document record</param>
+    /// <returns>True if an E-Document exists for the given record, false otherwise</returns>
+    procedure IsEDocumentCreatedForRecord(RecordVariant: Variant): Boolean
+    var
+        EDocument: Record "E-Document";
+        TypeHelper: Codeunit "Type Helper";
+        RecordRef: RecordRef;
+    begin
+        TypeHelper.CopyRecVariantToRecRef(RecordVariant, RecordRef);
+        EDocument.SetRange("Document Record ID", RecordRef.RecordId());
+        exit(not EDocument.IsEmpty());
+    end;
     internal procedure IsSourceDocumentStructured(): Boolean
     var
         EDocDataStorage: Record "E-Doc. Data Storage";
@@ -380,8 +412,15 @@ table 6121 "E-Document"
         EDocMappingLog: Record "E-Doc. Mapping Log";
         EDocumentIntegrationLog: Record "E-Document Integration Log";
         EDocumentLog: Record "E-Document Log";
+        EDocImportedLine: Record "E-Doc. Imported Line";
         EDocumentServiceStatus: Record "E-Document Service Status";
+#if not CLEAN27
+        PurchaseHeader: Record "Purchase Header";
+#endif
         IProcessStructuredData: Interface IProcessStructuredData;
+#if not CLEAN27
+        NullGuid: Guid;
+#endif
     begin
         EDocumentLog.SetRange("E-Doc. Entry No", Rec."Entry No");
         if not EDocumentLog.IsEmpty() then
@@ -404,6 +443,18 @@ table 6121 "E-Document"
         if not EDocMappingLog.IsEmpty() then
             EDocMappingLog.DeleteAll(true);
 
+        EDocImportedLine.SetRange("E-Document Entry No.", Rec."Entry No");
+        if not EDocImportedLine.IsEmpty() then
+            EDocImportedLine.DeleteAll(true);
+
+#if not CLEAN27
+        // Version 1 processing cleanup
+        // Can be removed soon as version 1 is fully migrated to version 2
+        PurchaseHeader.SetRange("E-Document Link", Rec.SystemId);
+        PurchaseHeader.ModifyAll("E-Document Link", NullGuid, false);
+#endif
+
+        // Version 2 processing cleanup
         IProcessStructuredData := Rec."Process Draft Impl.";
         IProcessStructuredData.CleanUpDraft(Rec);
     end;
@@ -474,10 +525,13 @@ table 6121 "E-Document"
         if EDocumentService.Get(GetEDocumentServiceStatus()."E-Document Service Code") then;
     end;
 
+#if not CLEAN27
+    [Obsolete('Use flow field "Import Processing Status"', '27.0')]
     procedure GetEDocumentImportProcessingStatus(): Enum "Import E-Doc. Proc. Status"
     begin
         exit(GetEDocumentServiceStatus()."Import Processing Status");
     end;
+#endif
     internal procedure ToString(): Text
     begin
         exit(StrSubstNo(ToStringLbl, SystemId, "Document Record ID", "Workflow Step Instance ID", "Job Queue Entry ID"));

@@ -575,6 +575,7 @@ table 1001 "Job Task"
         {
             Caption = 'Bill-to Name 2';
             DataClassification = CustomerContent;
+            ToolTip = 'Specifies an additional part of the name of the customer who pays for the project.';
         }
         field(79; "Bill-to Contact No."; Code[20])
         {
@@ -668,6 +669,7 @@ table 1001 "Job Task"
         {
             Caption = 'Sell-to Customer Name 2';
             DataClassification = CustomerContent;
+            ToolTip = 'Specifies an additional part of the name of the customer who will receive the products and be billed by default.';
         }
         field(93; "Sell-to Address"; Text[100])
         {
@@ -1379,23 +1381,39 @@ table 1001 "Job Task"
         CustDefaultDimension: Record "Default Dimension";
         TempJobDefaultDimension: Record "Default Dimension" temporary;
     begin
-        JobTaskDim.SetRange("Job No.", "Job No.");
-        JobTaskDim.SetRange("Job Task No.", "Job Task No.");
-        if not JobTaskDim.IsEmpty() then
-            JobTaskDim.DeleteAll();
+        JobTaskDim.SetRange("Job No.", Rec."Job No.");
+        JobTaskDim.SetRange("Job Task No.", Rec."Job Task No.");
+        if JobTaskDim.FindSet() then
+            repeat
+                TempJobDefaultDimension.Init();
+                TempJobDefaultDimension."Table ID" := Database::"Job Task";
+                TempJobDefaultDimension."No." := Rec."Job Task No.";
+                TempJobDefaultDimension."Dimension Code" := JobTaskDim."Dimension Code";
+                TempJobDefaultDimension."Dimension Value Code" := JobTaskDim."Dimension Value Code";
+                TempJobDefaultDimension.Insert();
+            until JobTaskDim.Next() = 0;
 
         CustDefaultDimension.SetRange("Table ID", Database::Customer);
         CustDefaultDimension.SetRange("No.", BillToCustomerNo);
         if CustDefaultDimension.FindSet() then
             repeat
-                TempJobDefaultDimension.Init();
-                TempJobDefaultDimension.TransferFields(CustDefaultDimension);
-                TempJobDefaultDimension."Table ID" := Database::"Job Task";
-                TempJobDefaultDimension."No." := "Job Task No.";
-                TempJobDefaultDimension.Insert();
+                if TempJobDefaultDimension.Get(Database::"Job Task", Rec."Job Task No.", CustDefaultDimension."Dimension Code") then begin
+                    // Override existing dimension with customer dimension
+                    TempJobDefaultDimension."Dimension Value Code" := CustDefaultDimension."Dimension Value Code";
+                    TempJobDefaultDimension.Modify();
+                end else begin
+                    TempJobDefaultDimension.Init();
+                    TempJobDefaultDimension.TransferFields(CustDefaultDimension);
+                    TempJobDefaultDimension."Table ID" := Database::"Job Task";
+                    TempJobDefaultDimension."No." := Rec."Job Task No.";
+                    TempJobDefaultDimension.Insert();
+                end;
             until CustDefaultDimension.Next() = 0;
 
-        DimMgt.InsertJobTaskDim(TempJobDefaultDimension, "Job No.", "Job Task No.", "Global Dimension 1 Code", "Global Dimension 2 Code");
+        if not JobTaskDim.IsEmpty() then
+            JobTaskDim.DeleteAll();
+
+        DimMgt.InsertJobTaskDim(TempJobDefaultDimension, Rec."Job No.", Rec."Job Task No.", Rec."Global Dimension 1 Code", Rec."Global Dimension 2 Code");
     end;
 
     procedure ShouldSearchForCustomerByName(CustomerNo: Code[20]): Boolean

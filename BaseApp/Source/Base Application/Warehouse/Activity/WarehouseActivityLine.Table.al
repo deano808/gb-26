@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Activity;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Activity;
 
 using Microsoft.Assembly.Document;
 using Microsoft.Foundation.Shipping;
@@ -2621,6 +2625,7 @@ table 5767 "Warehouse Activity Line"
     begin
         "Serial No." := '';
         "Lot No." := '';
+        "Expiration Date" := 0D;
 
         OnAfterClearTracking(Rec);
     end;
@@ -3014,7 +3019,12 @@ table 5767 "Warehouse Activity Line"
     internal procedure CopyItemTrackingToRelatedLine(xWhseActivLine: Record "Warehouse Activity Line"; FieldNo: Integer)
     var
         WarehouseActivityLine2: Record "Warehouse Activity Line";
+        IsHandled: Boolean;
     begin
+        OnBeforeCopyItemTrackingToRelatedLine(Rec, xWhseActivLine, FieldNo, IsHandled);
+        if IsHandled then
+            exit;
+
         if ("Activity Type" in ["Activity Type"::"Invt. Put-away", "Activity Type"::"Invt. Pick"]) then
             exit;
 
@@ -3098,6 +3108,7 @@ table 5767 "Warehouse Activity Line"
     var
         Item: Record Item;
         WhseActivityLine: Record "Warehouse Activity Line";
+        QuantityUpdated: Boolean;
     begin
         if CurrFieldNo = 0 then
             exit;
@@ -3121,10 +3132,21 @@ table 5767 "Warehouse Activity Line"
         Item.Get(FromWhseActivityLine."Item No.");
         Item.TestField("Allow Whse. Overpick");
 
+        SetFilterFromWhseActivityLineToUpdateQty(WhseActivityLine, FromWhseActivityLine, xWhseActivityLine, QuantityUpdated);
+        if QuantityUpdated then
+            WhseActivityLine.Modify(true);
+    end;
+
+    local procedure SetFilterFromWhseActivityLineToUpdateQty(
+        var WhseActivityLine: Record "Warehouse Activity Line";
+        FromWhseActivityLine: Record "Warehouse Activity Line";
+        xWhseActivityLine: Record "Warehouse Activity Line";
+        var QuantityUpdated: Boolean)
+    begin
         WhseActivityLine.SetLoadFields("Activity Type", "No.", "Line No.", "Item No.", "Variant Code", "Location Code", "Action Type", Quantity, "Lot No.", "Serial No.", "Source No.", "Source Line No.", "Source Document");
         WhseActivityLine.SetRange("Activity Type", FromWhseActivityLine."Activity Type");
         WhseActivityLine.SetRange("No.", FromWhseActivityLine."No.");
-        WhseActivityLine.SetFilter("Line No.", '<>%1', FromWhseActivityLine."Line No.");
+        WhseActivityLine.SetFilter("Line No.", '>%1', FromWhseActivityLine."Line No.");
         WhseActivityLine.SetRange("Item No.", FromWhseActivityLine."Item No.");
         WhseActivityLine.SetRange("Variant Code", FromWhseActivityLine."Variant Code");
         WhseActivityLine.SetRange("Location Code", FromWhseActivityLine."Location Code");
@@ -3135,11 +3157,18 @@ table 5767 "Warehouse Activity Line"
         WhseActivityLine.SetRange("Source Document", FromWhseActivityLine."Source Document");
         WhseActivityLine.SetRange("Source No.", FromWhseActivityLine."Source No.");
         WhseActivityLine.SetRange("Source Line No.", FromWhseActivityLine."Source Line No.");
+        if WhseActivityLine.FindFirst() then begin
+            WhseActivityLine.Validate(Quantity, FromWhseActivityLine.Quantity);
+            QuantityUpdated := true;
+            exit;
+        end;
 
-        WhseActivityLine.FindFirst();
-
-        WhseActivityLine.Validate(Quantity, FromWhseActivityLine.Quantity);
-        WhseActivityLine.Modify(true);
+        WhseActivityLine.SetRange("Line No.");
+        WhseActivityLine.SetFilter("Line No.", '<>%1', FromWhseActivityLine."Line No.");
+        if WhseActivityLine.FindFirst() then begin
+            WhseActivityLine.Validate(Quantity, FromWhseActivityLine.Quantity);
+            QuantityUpdated := true;
+        end
     end;
 
     [IntegrationEvent(false, false)]
@@ -3738,6 +3767,11 @@ table 5767 "Warehouse Activity Line"
 
     [IntegrationEvent(true, false)]
     local procedure OnAfterReNumberWhseActivLine(var WarehouseActivityLine: Record "Warehouse Activity Line"; OldLineNo: Integer)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnBeforeCopyItemTrackingToRelatedLine(WarehouseActivityLine: Record "Warehouse Activity Line"; xWarehouseActivityLine: Record "Warehouse Activity Line"; FieldNo: Integer; var IsHandled: Boolean)
     begin
     end;
 }

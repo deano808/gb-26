@@ -105,7 +105,7 @@ page 8068 "Customer Contract Line Subp."
                     Caption = 'Primary Attribute';
                     Editable = false;
                     Visible = false;
-                    ToolTip = 'Displays the primary attribute of the related Subscription.';
+                    ToolTip = 'Specifies the primary attribute of the related Subscription.';
                 }
                 field("Service Object Customer Reference"; ServiceObject."Customer Reference")
                 {
@@ -122,6 +122,7 @@ page 8068 "Customer Contract Line Subp."
                 {
                     Caption = 'Quantity';
                     ToolTip = 'Specifies the number of units of Subscription.';
+                    AutoFormatType = 0;
 
                     trigger OnValidate()
                     begin
@@ -375,8 +376,11 @@ page 8068 "Customer Contract Line Subp."
                 }
                 field(Discount; ServiceCommitment.Discount)
                 {
-                    Editable = false;
                     ToolTip = 'Specifies whether the Subscription Line is used as a basis for periodic invoicing or discounts.';
+                    trigger OnValidate()
+                    begin
+                        UpdateServiceCommitmentOnPage(ServiceCommitment.FieldNo("Exclude from Price Update"));
+                    end;
                 }
                 field("Create Contract Deferrals"; ServiceCommitment."Create Contract Deferrals")
                 {
@@ -398,7 +402,7 @@ page 8068 "Customer Contract Line Subp."
                 field("Period Calculation"; ServiceCommitment."Period Calculation")
                 {
                     Visible = false;
-                    ToolTip = 'The Period Calculation controls how a period is determined for billing. The calculation of a month from 28.02. can extend to 27.03. (Align to Start of Month) or 30.03. (Align to End of Month).';
+                    ToolTip = 'Specifies the Period Calculation, which controls how a period is determined for billing. The calculation of a month from 28.02. can extend to 27.03. (Align to Start of Month) or 30.03. (Align to End of Month).';
                     trigger OnValidate()
                     begin
                         UpdateServiceCommitmentOnPage(ServiceCommitment.FieldNo("Period Calculation"));

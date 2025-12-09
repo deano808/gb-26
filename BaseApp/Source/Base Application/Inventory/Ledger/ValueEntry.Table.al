@@ -219,21 +219,21 @@ table 5802 "Value Entry"
         }
         field(68; "Cost Amount (Actual) (ACY)"; Decimal)
         {
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             Caption = 'Cost Amount (Actual) (ACY)';
         }
         field(70; "Cost Posted to G/L (ACY)"; Decimal)
         {
             AccessByPermission = TableData Currency = R;
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             Caption = 'Cost Posted to G/L (ACY)';
         }
         field(72; "Cost per Unit (ACY)"; Decimal)
         {
             AccessByPermission = TableData Currency = R;
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 2;
             Caption = 'Cost per Unit (ACY)';
         }
@@ -329,14 +329,14 @@ table 5802 "Value Entry"
         }
         field(156; "Cost Amount (Expected) (ACY)"; Decimal)
         {
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             Caption = 'Cost Amount (Expected) (ACY)';
         }
         field(157; "Cost Amount (Non-Invtbl.)(ACY)"; Decimal)
         {
             AccessByPermission = TableData "Item Charge" = R;
-            AutoFormatExpression = GetCurrencyCode();
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             Caption = 'Cost Amount (Non-Invtbl.)(ACY)';
         }
@@ -347,6 +347,7 @@ table 5802 "Value Entry"
         }
         field(159; "Exp. Cost Posted to G/L (ACY)"; Decimal)
         {
+            AutoFormatExpression = GetAdditionalReportingCurrencyCode();
             AutoFormatType = 1;
             Caption = 'Exp. Cost Posted to G/L (ACY)';
         }
@@ -573,7 +574,7 @@ table 5802 "Value Entry"
         exit(FindRecordManagement.GetLastEntryIntFieldValue(Rec, FieldNo("Entry No.")))
     end;
 
-    local procedure GetCurrencyCode(): Code[10]
+    local procedure GetAdditionalReportingCurrencyCode(): Code[10]
     begin
         if not GLSetupRead then begin
             GLSetup.Get();
@@ -735,7 +736,7 @@ table 5802 "Value Entry"
 
         if QtyFactor = 0 then
             exit(QtyFactor);
-            
+
         ValueEntry2.SetRange("Location Code");
         ValueEntry2.SetRange("Variant Code");
         ValueEntry2.CalcSums("Item Ledger Entry Quantity");
@@ -871,6 +872,21 @@ table 5802 "Value Entry"
         exit(false);
     end;
 
+/// <summary>
+/// Returns true if EntryNo parameter and Rec."Entry No." both are positive or negative.
+/// Used in scenarios where we posting preview entries are negative
+/// </summary>
+/// <param name="EntryNo">The entry no. of the entry we are comparing to</param>
+/// <returns>Boolean</returns>
+    internal procedure EntryNoHasSameSign(EntryNo: integer): Boolean
+    begin
+        if (Rec."Entry No." >= 0) and (EntryNo >= 0) then
+            exit(true);
+        if (Rec."Entry No." < 0) and (EntryNo < 0) then
+            exit(true);
+        exit(false);
+    end;
+
     [IntegrationEvent(false, false)]
     local procedure OnBeforeCheckApplyLocationVariantFilters(var RecValueEntry: Record "Value Entry"; AccountingPeriod: Record "Accounting Period"; ValueEntry: Record "Value Entry"; var IsHandled: Boolean; Item: Record Item; CostCalcIsChanged: Boolean; var QtyFactor: Decimal; FromDate: Date; ToDate: Date)
     begin
@@ -911,4 +927,3 @@ table 5802 "Value Entry"
     begin
     end;
 }
-

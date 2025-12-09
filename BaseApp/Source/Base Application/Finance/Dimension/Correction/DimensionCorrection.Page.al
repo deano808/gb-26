@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.Dimension.Correction;
 
 using System.Security.AccessControl;
@@ -7,6 +11,7 @@ page 2588 "Dimension Correction"
 {
     PageType = ListPlus;
     SourceTable = "Dimension Correction";
+    SourceTableView = where(Completed = const(true));
     DataCaptionExpression = Rec.Description;
     Caption = 'Dimension Correction';
 
@@ -328,6 +333,7 @@ page 2588 "Dimension Correction"
     begin
         DimensionCorrectionMgt.ShowNotificationUpdateCashFlowAccounting();
         CurrPage.SelectedGLEntries.Page.SetDimensionCorrectionEntryNo(Rec."Entry No.");
+        CurrPage.SelectedGLEntries.Page.Update(false);
         Rec.GetValidateDimensionChangesText(ValidationStatusTxt);
         ValidationStatusVisible := (ValidationStatusTxt <> '') and (not (Rec.Status in [Rec.Status::Failed, Rec.Status::"Undo Completed"]));
         IsErrorActionEnabled := ValidationStatusVisible and (not IsNullGuid(Rec."Validation Errors Register ID"));

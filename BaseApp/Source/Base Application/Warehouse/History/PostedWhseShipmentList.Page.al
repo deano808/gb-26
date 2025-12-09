@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Warehouse.History;
 
 using Microsoft.Warehouse.Comment;
@@ -11,6 +15,8 @@ page 7340 "Posted Whse. Shipment List"
     DataCaptionFields = "No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Warehouse Shipments';
+    AboutText = 'Review and track completed warehouse shipments, including shipment details, quantities shipped, locations, and related sales shipments for audit and operational purposes.';
     SourceTable = "Posted Whse. Shipment Header";
     SourceTableView = sorting("Posting Date")
                       order(descending);

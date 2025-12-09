@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Projects.Resources.Journal;
 
 using Microsoft.Finance.Dimension;
@@ -46,7 +50,6 @@ codeunit 211 "Res. Jnl.-Check Line"
         ResJnlLine.TestField("Resource No.", ErrorInfo.Create());
         ResJnlLine.TestField("Posting Date", ErrorInfo.Create());
         ResJnlLine.TestField("Gen. Prod. Posting Group", ErrorInfo.Create());
-        ResJnlLine.TestField("Document No.", ErrorInfo.Create());
 
         CheckPostingDate(ResJnlLine);
 

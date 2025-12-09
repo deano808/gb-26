@@ -25,6 +25,7 @@ codeunit 134096 "ERM VAT Return"
         IfEmptyErr: Label '''%1'' in ''%2'' must not be blank.', Comment = '%1=caption of a field, %2=key of record';
         GeneratedMsg: Label 'The report has been successfully generated.';
         SubmittedMsg: Label 'The report has been successfully submitted.';
+        AttachedDocumentsListErr: Label 'Attached Documents List must be enabled.';
 
     [Test]
     [HandlerFunctions('SuggestLinesRPH')]
@@ -391,7 +392,7 @@ codeunit 134096 "ERM VAT Return"
         VATReportPage: TestPage "VAT Report";
     begin
         // [FEATURE] [UI]
-        // [SCENARIO 329990] "Download Submission Message" action is enabled when report is released but submission codeunit not specified 
+        // [SCENARIO 329990] "Download Submission Message" action is enabled when report is released but submission codeunit not specified
 
         LibraryLowerPermissions.SetO365BusFull();
         LibraryApplicationArea.EnableBasicSetup();
@@ -534,7 +535,7 @@ codeunit 134096 "ERM VAT Return"
         LibraryLowerPermissions.SetO365BusFull();
         // [GIVEN] VAT Report Request Page is opened
         VATReportRequestPage.SetTableView(VATReportHeader);
-        // [WHEN] Click "Lookup" on the "Country/Region Filter" field 
+        // [WHEN] Click "Lookup" on the "Country/Region Filter" field
         // Done in the VATReportRequestPageHandler
         VATReportRequestPage.Run();
         // [THEN] Country/Region List page is opened
@@ -583,6 +584,49 @@ codeunit 134096 "ERM VAT Return"
         VerifyVATStatementReportLine(VATReportHeader, '4', VATEntry."Remaining Unrealized Base");
 
         LibraryLowerPermissions.SetOutsideO365Scope();
+    end;
+
+    [Test]
+    procedure EnsureVATReturnPeriodDocumentAttachmentMgmtSupport()
+    var
+        DocumentAttachment: Record "Document Attachment";
+        VATReportHeader: Record "VAT Report Header";
+        VATReturnPeriod: Record "VAT Return Period";
+        RecordRef: RecordRef;
+        VATReportList: TestPage "VAT Report List";
+        VATReport: TestPage "VAT Report";
+    begin
+        // [SCENARIO 597641] Ensure VAT Return Period supports Documents in Attached Documents List FactBox.
+        // [GIVEN] Initialized VAT Return Period.
+        VATReturnPeriod.Init();
+        VATReturnPeriod."No." := LibraryUtility.GenerateGUID();
+        VATReturnPeriod.Status := VATReturnPeriod.Status::Open;
+        VATReturnPeriod."Start Date" := DMY2Date(1, 1, Date2DMY(WorkDate(), 3));
+        VATReturnPeriod."End Date" := DMY2Date(31, 3, Date2DMY(WorkDate(), 3));
+        VATReturnPeriod."Due Date" := WorkDate();
+        VATReturnPeriod.Insert();
+
+        // [GIVEN] Open VAT Report List page and create VAT Report for the VAT Return Period.
+        LibraryLowerPermissions.SetO365BusFull();
+        VATReport.OpenNew();
+        VATReport.Status.SetValue(VATReportHeader.Status::Open);
+
+        // [GIVEN] Set VAT Return Period No. in VAT Report page and save the record.
+        VATReportHeader.SetRange("No.", VATReport."No.".Value());
+        VATReportHeader.FindFirst();
+
+        // [GIVEN] Open VAT Report List page and go to the created VAT Report record.
+        VATReportList.OpenEdit();
+        VATReportList.GoToRecord(VATReportHeader);
+
+        // [GIVEN] Document Attachment record for VAT Return Period.
+        RecordRef.GetTable(VATReportHeader);
+
+        // [GIVEN] Create and attach document to VAT Report Header.
+        CreateDocumentAttachment(DocumentAttachment, RecordRef, 'foo.jpeg');
+
+        // [THEN] Verify that Document Attachment record is created.
+        Assert.IsTrue(VATReportList."Attached Documents List".Enabled(), AttachedDocumentsListErr);
     end;
 
     local procedure Initialize()
@@ -641,23 +685,6 @@ codeunit 134096 "ERM VAT Return"
             InsertVATStatementLine(VATStatementLine, Format(i), VATStatementLine."Amount Type"::Amount);
     end;
 
-    local procedure SetupSingleVATStatementLineForVATPostingSetup(var VATStatementLine: Record "VAT Statement Line"; VATPostingSetup: Record "VAT Posting Setup")
-    var
-        VATStatementTemplate: Record "VAT Statement Template";
-        VATStatementName: Record "VAT Statement Name";
-    begin
-        LibraryERM.CreateVATStatementTemplate(VATStatementTemplate);
-        LibraryERM.CreateVATStatementName(VATStatementName, VATStatementTemplate.Name);
-        LibraryERM.CreateVATStatementLine(VATStatementLine, VATStatementName."Statement Template Name", VATStatementName.Name);
-        VATStatementLine.Validate(Type, VATStatementLine.Type::"VAT Entry Totaling");
-        VATStatementLine.Validate("Amount Type", VATStatementLine."Amount Type"::Amount);
-        VATStatementLine.Validate("Gen. Posting Type", VATStatementLine."Gen. Posting Type"::Sale);
-        VATStatementLine.Validate("VAT Bus. Posting Group", VATPostingSetup."VAT Bus. Posting Group");
-        VATStatementLine.Validate("VAT Prod. Posting Group", VATPostingSetup."VAT Prod. Posting Group");
-        VATStatementLine.Validate("Box No.", LibraryUtility.GenerateGUID());
-        VATStatementLine.Modify(true);
-    end;
-
     local procedure InsertVATStatementLine(var VATStatementLine: Record "VAT Statement Line"; BoxNo: Text[30]; AmountType: Enum "VAT Statement Line Amount Type")
     begin
         VATStatementLine."Line No." += 10000;
@@ -701,19 +728,6 @@ codeunit 134096 "ERM VAT Return"
         VATReportMediator.GetLines(VATReportHeader);
     end;
 
-    local procedure SuggestLinesWithPeriod(VATReportHeader: Record "VAT Report Header"; Selection: Enum "VAT Statement Report Selection"; PeriodSelection: Enum "VAT Statement Report Period Selection"; PeriodYear: Integer; PeriodNo: Integer; AmountInACY: Boolean);
-    var
-        VATReportMediator: Codeunit "VAT Report Mediator";
-    begin
-        Commit();
-        LibraryVariableStorage.Enqueue(Selection);
-        LibraryVariableStorage.Enqueue(PeriodSelection);
-        LibraryVariableStorage.Enqueue(PeriodYear);
-        LibraryVariableStorage.Enqueue(PeriodNo);
-        LibraryVariableStorage.Enqueue(AmountInACY);
-        VATReportMediator.GetLines(VATReportHeader);
-    end;
-
     local procedure SuggestLines(VATReportHeader: Record "VAT Report Header"; Selection: Enum "VAT Statement Report Selection"; PeriodSelection: Enum "VAT Statement Report Period Selection"; PeriodYear: Integer; AmountInACY: Boolean; CountryRegionFilter: Text[250]);
     var
         VATReportMediator: Codeunit "VAT Report Mediator";
@@ -737,11 +751,6 @@ codeunit 134096 "ERM VAT Return"
         InitVATReportsConfiguration(Codeunit::"VAT Report Suggest Lines", Codeunit::"Test VAT Content", Codeunit::"Test VAT Validate", SubmissionCodeunitID, Codeunit::"Test VAT Response");
     end;
 
-    local procedure SetupVATRepConfSuggestLines()
-    begin
-        InitVATReportsConfiguration(Codeunit::"VAT Report Suggest Lines", 0, 0, 0, 0);
-    end;
-
     local procedure InitVATReportsConfiguration(SuggestLinesCodeunitID: Integer; ContentCodeunitID: Integer; ValidateCodeunitID: Integer; SubmissionCodeunitID: Integer; ResponseHandlerCodeunitID: Integer)
     var
         VATReportHeader: Record "VAT Report Header";
@@ -754,15 +763,6 @@ codeunit 134096 "ERM VAT Return"
             SuggestLinesCodeunitID, ContentCodeunitID, ValidateCodeunitID, SubmissionCodeunitID, ResponseHandlerCodeunitID);
     end;
 
-    local procedure SetReportBaseInVATReportSetup()
-    var
-        VATReportSetup: Record "VAT Report Setup";
-    begin
-        VATReportSetup.Get();
-        VATReportSetup.Validate("Report VAT Base", true);
-        VATReportSetup.Modify(true);
-    end;
-
     local procedure SetReportNoteInVATReportSetup()
     var
         VATReportSetup: Record "VAT Report Setup";
@@ -770,16 +770,6 @@ codeunit 134096 "ERM VAT Return"
         VATReportSetup.Get();
         VATReportSetup.Validate("Report VAT Note", true);
         VATReportSetup.Modify(true);
-    end;
-
-    local procedure FindPostingDateWithNoVATEntries(): Date
-    var
-        VATEntry: Record "VAT Entry";
-    begin
-        VATEntry.SetCurrentKey("Posting Date");
-        if VATEntry.FindLast() then
-            exit(CalcDate('<1Y>', VATEntry."Posting Date"));
-        exit(WorkDate());
     end;
 
     local procedure VerifyVATStatementReportLine(VATReportHeader: Record "VAT Report Header"; BoxNo: Text[30]; ExpectedAmount: Decimal)
@@ -797,6 +787,28 @@ codeunit 134096 "ERM VAT Return"
         VATStatementReportLine.FindFirst();
         VATStatementReportLine.TestField(Base, ExpectedBase);
         VATStatementReportLine.TestField(Amount, ExpectedAmount);
+    end;
+
+    local procedure CreateDocumentAttachment(var DocumentAttachment: Record "Document Attachment"; RecRef: RecordRef; FileName: Text)
+    var
+        TempBlob: Codeunit "Temp Blob";
+    begin
+        DocumentAttachment.Init();
+        CreateTempBLOBWithImageOfType(TempBlob);
+        DocumentAttachment.SaveAttachment(RecRef, FileName, TempBlob);
+        Clear(DocumentAttachment);
+    end;
+
+    local procedure CreateTempBLOBWithImageOfType(var TempBlob: Codeunit "Temp Blob")
+    var
+        ImageFormat: DotNet ImageFormat;
+        Bitmap: DotNet Bitmap;
+        InStr: InStream;
+    begin
+        TempBlob.CreateInStream(InStr);
+        Bitmap := Bitmap.Bitmap(1, 1);
+        Bitmap.Save(InStr, ImageFormat.Jpeg);
+        Bitmap.Dispose();
     end;
 
     [RequestPageHandler]
@@ -885,4 +897,3 @@ codeunit 134096 "ERM VAT Return"
         TaskGUID := CreateGuid();
     end;
 }
-

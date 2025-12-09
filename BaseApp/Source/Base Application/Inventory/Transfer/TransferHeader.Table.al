@@ -1146,6 +1146,8 @@ table 5740 "Transfer Header"
         if (OldDimSetID <> "Dimension Set ID") and (OldDimSetID <> 0) then
             DimMgt.UpdateGlobalDimFromDimSetID("Dimension Set ID", "Shortcut Dimension 1 Code", "Shortcut Dimension 2 Code");
 
+        OnCreateDimOnBeforeUpdateLines(Rec, xRec, CurrFieldNo, OldDimSetID, DefaultDimSource);
+
         if (OldDimSetID <> "Dimension Set ID") and TransferLinesExist() then begin
             Modify();
             UpdateAllLineDim("Dimension Set ID", OldDimSetID);
@@ -1452,10 +1454,6 @@ table 5740 "Transfer Header"
     var
         TransferHeader: Record "Transfer Header";
         NoSeries: Codeunit "No. Series";
-#if not CLEAN24
-        NoSeriesManagement: Codeunit NoSeriesManagement;
-        DefaultNoSeriesCode: Code[20];
-#endif
         IsHandled: Boolean;
     begin
         IsHandled := false;
@@ -1463,22 +1461,6 @@ table 5740 "Transfer Header"
         if not IsHandled then
             if "No." = '' then begin
                 TestNoSeries();
-#if not CLEAN24
-                DefaultNoSeriesCode := GetNoSeriesCode();
-                NoSeriesManagement.RaiseObsoleteOnBeforeInitSeries(DefaultNoSeriesCode, xRec."No. Series", "Posting Date", "No.", "No. Series", IsHandled);
-                if not IsHandled then begin
-                    if NoSeries.AreRelated(DefaultNoSeriesCode, xRec."No. Series") then
-                        "No. Series" := xRec."No. Series"
-                    else
-                        "No. Series" := DefaultNoSeriesCode;
-                    "No." := NoSeries.GetNextNo("No. Series", "Posting Date");
-                    TransferHeader.ReadIsolation(IsolationLevel::ReadUncommitted);
-                    TransferHeader.SetLoadFields("No.");
-                    while TransferHeader.Get("No.") do
-                        "No." := NoSeries.GetNextNo("No. Series", "Posting Date");
-                    NoSeriesManagement.RaiseObsoleteOnAfterInitSeries("No. Series", DefaultNoSeriesCode, "Posting Date", "No.");
-                end;
-#else
                 if NoSeries.AreRelated(GetNoSeriesCode(), xRec."No. Series") then
                     "No. Series" := xRec."No. Series"
                 else
@@ -1488,7 +1470,6 @@ table 5740 "Transfer Header"
                 TransferHeader.SetLoadFields("No.");
                 while TransferHeader.Get("No.") do
                     "No." := NoSeries.GetNextNo("No. Series", "Posting Date");
-#endif
             end;
 
         OnInitInsertOnBeforeInitRecord(xRec);
@@ -1546,23 +1527,28 @@ table 5740 "Transfer Header"
 
     internal procedure GetQtyReservedFromStockState() Result: Enum "Reservation From Stock"
     var
-        TransferLineLocal: Record "Transfer Line";
         TransferLineReserve: Codeunit "Transfer Line-Reserve";
         QtyReservedFromStock: Decimal;
     begin
         QtyReservedFromStock := TransferLineReserve.GetReservedQtyFromInventory(Rec);
+        if QtyReservedFromStock = 0 then
+            exit(Result::None);
 
-        TransferLineLocal.SetRange("Document No.", Rec."No.");
-        TransferLineLocal.CalcSums("Outstanding Qty. (Base)");
+        if QtyReservedFromStock = CalculateReservableOutstandingQuantityBase() then
+            exit(Result::Full);
 
-        case QtyReservedFromStock of
-            0:
-                exit(Result::None);
-            TransferLineLocal."Outstanding Qty. (Base)":
-                exit(Result::Full);
-            else
-                exit(Result::Partial);
-        end;
+        exit(Result::Partial);
+    end;
+
+    local procedure CalculateReservableOutstandingQuantityBase() OutstandingQtyBase: Decimal
+    var
+        RemQtyBaseInvtItemTransferLine: Query RemQtyBaseInvtItemTransferLine;
+    begin
+        RemQtyBaseInvtItemTransferLine.SetTransferLineFilter(Rec);
+        if RemQtyBaseInvtItemTransferLine.Open() then
+            if RemQtyBaseInvtItemTransferLine.Read() then
+                OutstandingQtyBase := RemQtyBaseInvtItemTransferLine.Outstanding_Qty___Base_;
+        RemQtyBaseInvtItemTransferLine.Close();
     end;
 
     local procedure FindPurchRcptHeader(var PurchRcptHeader: Record "Purch. Rcpt. Header")
@@ -1834,5 +1820,9 @@ table 5740 "Transfer Header"
     local procedure OnBeforePerformManualRelease(var TransferHeader: Record "Transfer Header"; var IsHandled: Boolean)
     begin
     end;
-}
 
+    [IntegrationEvent(false, false)]
+    local procedure OnCreateDimOnBeforeUpdateLines(var TransferHeader: Record "Transfer Header"; xTransferHeader: Record "Transfer Header"; CurrentFieldNo: Integer; OldDimSetID: Integer; DefaultDimSource: List of [Dictionary of [Integer, Code[20]]])
+    begin
+    end;
+}

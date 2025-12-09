@@ -49,8 +49,13 @@ codeunit 134987 "ERM Financial Reports III"
         AmountToApplyDiscTolSalesTxt: Label 'Amount_to_Apply____AmountDiscounted___AmountPmtDiscTolerance___AmountPmtTolerance_';
         AmountToApplyDiscTolPurchTxt: Label 'Amount_to_Apply____AmountDiscounted___AmountPmtDiscTolerance___AmountPmtTolerance__Control3036';
         AmountTotalDiscTolAppliedTxt: Label 'Amount___TotalAmountDiscounted___TotalAmountPmtDiscTolerance___TotalAmountPmtTolerance___AmountApplied';
+#if not CLEAN27
         FormatTok: Label '**<Sign><Integer>-<Decimals,3>**', Locked = true;
+#else
+        FormatTok: Label '<Precision,%1:%2><Standard Format,1>', Locked = true;
+#endif
         TotalAmountDiscountedMustBeAvailableErr: Label 'TotalAmountDiscounted must be available';
+        NoOfCheckLinesErr: Label 'No. of check lines printed must be equal to %1.', Comment = '%1 Expected check lines';
 
     [Test]
     [HandlerFunctions('BalanceCompPrevYearReqPageHandler')]
@@ -1342,6 +1347,119 @@ codeunit 134987 "ERM Financial Reports III"
         Assert.IsTrue(RowNo >= 0, TotalAmountDiscountedMustBeAvailableErr);
     end;
 
+    [Test]
+    [HandlerFunctions('MessageHandler,PrintCheckWithReprintReqPageHandler,SuggestVendorPaymentsNewDocPerLineRequestPageHandler')]
+    procedure ReprintCheckUsingOneCheckPerVendorPerDoc()
+    var
+        BankAccount: Record "Bank Account";
+        GenJournalBatch: Record "Gen. Journal Batch";
+        GenJournalLine: Record "Gen. Journal Line";
+        PurchaseHeader: array[4] of Record "Purchase Header";
+        Vendor: array[2] of Record Vendor;
+    begin
+        // [SCENARIO 578572] Print Checks followed by a Reprint Checks using the "One check per vendor per doc number".
+        Initialize();
+
+        // [GIVEN] Create two Vendors.
+        LibraryPurchase.CreateVendor(Vendor[1]);
+        LibraryPurchase.CreateVendor(Vendor[2]);
+
+        // [GIVEN] Create two Purchase Invoices for both Vendors.
+        CreatePurchaseInvoice(PurchaseHeader[1], Vendor[1]."No.");
+        CreatePurchaseInvoice(PurchaseHeader[2], Vendor[1]."No.");
+        CreatePurchaseInvoice(PurchaseHeader[3], Vendor[2]."No.");
+        CreatePurchaseInvoice(PurchaseHeader[4], Vendor[2]."No.");
+
+        // [GIVEN] Create Bank Account.
+        BankAccount.Get(CreateBankAccount());
+
+        // [GIVEN] Create Payment Journal using suggested payments.
+        CreatePaymentGeneralBatch(GenJournalBatch);
+
+        SuggestVendorPayment(GenJournalLine, GenJournalBatch, Vendor[1]."No.", BankAccount."No.", false);
+        SuggestVendorPayment(GenJournalLine, GenJournalBatch, Vendor[2]."No.", BankAccount."No.", false);
+
+        // [GIVEN] Open Payment Journal and Print Check.
+        OpenPaymentJournalAndPrintCheck(BankAccount, GenJournalBatch.Name);
+
+        // [WHEN] Reprint Check using "One check per vendor per doc number"
+        BankAccount.Get(BankAccount."No.");
+        OpenPaymentJournalAndPrintCheck(BankAccount, GenJournalBatch.Name);
+
+        // [THEN] Four Check lines should be printed 
+        VerifyNoOfCheckLinesPrinted(GenJournalBatch, 4);
+    end;
+
+    [Test]
+    [HandlerFunctions('ApplyVendorEntriesModalPageHandler,VendorPrePaymentJournalHandler')]
+    procedure PrintVendorPrePaymentJournalWithPmtDisc()
+    var
+        PaymentTerms: Record "Payment Terms";
+        PurchaseHeader: Record "Purchase Header";
+        GenJournalLine: Record "Gen. Journal Line";
+        VendorLedgerEntry: Record "Vendor Ledger Entry";
+        PaymentJournal: TestPage "Payment Journal";
+        RemainingPmtDiscPossible: Decimal;
+        VendorNo: Code[20];
+        GLAccountNo: Code[20];
+        RowNo: Integer;
+    begin
+        // [SCENARIO 556952] Verify values on Vendor Pre-Payment Journal for Payment Discount.
+        Initialize();
+
+        // [GIVEN] Create Payment Term with Discount % 2
+        libraryerm.CreatePaymentTermsDiscount(PaymentTerms, false);
+
+        // [GIVEN] Create New Vendor with that Payment Term
+        VendorNo := CreateVendorWithPaymentTerms(PaymentTerms.Code);
+        LibraryVariableStorage.Enqueue(VendorNo);
+
+        // [GIVEN] Create New G/L Account
+        GLAccountNo := LibraryERM.CreateGLAccountWithPurchSetup();
+
+        // [GIVEN] Post Purchase Invoice with G/L Account and Workdate as 07042025.
+        WorkDate(DMY2Date(7, 4, 2025));
+        PostPurchaseDocumentWithAmount(
+          PurchaseHeader."Document Type"::Invoice, VendorNo,
+          GLAccountNo, LibraryRandom.RandDec(10, 2), 1);
+
+        // [GIVEN] Post Purchase Invoice with G/L Account and Workdate as 04062025.
+        WorkDate(DMY2Date(4, 6, 2025));
+        PostPurchaseDocumentWithAmount(
+          PurchaseHeader."Document Type"::Invoice, VendorNo,
+          GLAccountNo, LibraryRandom.RandDec(10, 2), 1);
+
+        // [GIVEN] Create Payment Journal line for Vendor.
+        CreateGenJournalLine(
+            GenJournalLine, GenJournalLine."Document Type"::Payment,
+            GenJournalLine."Account Type"::Vendor, VendorNo, 0,
+            GenJournalLine."Bank Payment Type"::"Computer Check");
+        GenJournalLine.Modify();
+
+        // [GIVEN] Open Payment Journal and Apply Entries.
+        PaymentJournal.OpenEdit();
+        PaymentJournal.CurrentJnlBatchName.SetValue(GenJournalLine."Journal Batch Name");
+        PaymentJournal.ApplyEntries.Invoke();
+
+        // [WHEN] Run report 317 "Vendor Pre-Payment Journal"
+        Clear(LibraryReportDataset);
+        RunVendorPrePaymentJournal(GenJournalLine);
+
+        // [THEN] Verify the Payment Discount amount
+        VendorLedgerEntry.Reset();
+        VendorLedgerEntry.SetRange("Vendor No.", VendorNo);
+        VendorLedgerEntry.SetFilter("Pmt. Discount Date", '>=%1', GenJournalLine."Posting Date");
+        if VendorLedgerEntry.FindSet() then
+            repeat
+                RemainingPmtDiscPossible += VendorLedgerEntry."Remaining Pmt. Disc. Possible";
+            until VendorLedgerEntry.Next() = 0;
+
+        LibraryReportDataset.LoadDataSetFile();
+        RowNo := LibraryReportDataset.FindRow('TotalAmountDiscounted', abs(RemainingPmtDiscPossible));
+
+        Assert.IsTrue(RowNo >= 0, TotalAmountDiscountedMustBeAvailableErr);
+    end;
+
     local procedure Initialize()
     begin
         LibraryTestInitialize.OnTestInitialize(CODEUNIT::"ERM Financial Reports III");
@@ -1512,7 +1630,6 @@ codeunit 134987 "ERM Financial Reports III"
 
         InvoiceAmount := LibraryRandom.RandDecInDecimalRange(50, 100, Precision) * 2;
         CrMemoAmount := LibraryRandom.RandDecInDecimalRange(10, 50, Precision) * 2;
-
         // credit memo amount should be less then invoice's
         CreateGenJournalLine(
           GenJournalLine, GenJournalLine."Document Type"::Invoice, GenJournalLine."Account Type"::Vendor, VendorNo, -InvoiceAmount, GenJournalLine."Bank Payment Type"::" ");
@@ -2041,15 +2158,35 @@ codeunit 134987 "ERM Financial Reports III"
 
     local procedure VerifyCheckTotalAmount(InvoiceAmount: Decimal; CrMemoAmount: Decimal)
     var
+#if not CLEAN27
         ExpectedResult: Text;
+#else
+        DotNetMath: DotNet Math;
+        FormatString: Text;
+#endif
     begin
         LibraryReportDataset.LoadDataSetFile();
         LibraryReportDataset.SetRange('TotalText', 'Total');
         Assert.IsTrue(LibraryReportDataset.GetNextRow(), StrSubstNo(RowNotFoundErr, 'TotalText', 'Total'));
         LibraryReportDataset.AssertCurrentRowValueEquals('TotalLineAmount', InvoiceAmount - CrMemoAmount);
+#if not CLEAN27
         ExpectedResult := Format(InvoiceAmount - CrMemoAmount, 0, FormatTok);
         ExpectedResult := DelChr(ExpectedResult, '=', '.');
         LibraryReportDataset.AssertCurrentRowValueEquals('CheckAmountText', ExpectedResult);
+#else
+        FormatString :=
+          StrSubstNo(
+            FormatTok,
+            DotNetMath.Log10(1 / LibraryERM.GetAmountRoundingPrecision()),
+            DotNetMath.Log10(1 / LibraryERM.GetAmountRoundingPrecision()));
+
+        LibraryReportDataset.AssertCurrentRowValueEquals('CheckAmountText', FormatExpectedResult(Format(InvoiceAmount - CrMemoAmount, 0, FormatString)));
+    end;
+
+    local procedure FormatExpectedResult(ExpectedResult: Text): Text
+    begin
+        exit('**' + ExpectedResult.Replace('.', '-') + '**');
+#endif
     end;
 
     local procedure VerifyInvAndPmtDiscInPreCheckReport(AmountToApplyDiscTolCap: Text; InvAmount: Decimal; PmtDiscAmount: Decimal)
@@ -2081,6 +2218,25 @@ codeunit 134987 "ERM Financial Reports III"
 
         LibraryERM.FindVendorLedgerEntry(
           VendorLedgerEntry, VendorLedgerEntry."Document Type"::Invoice, LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, true));
+    end;
+
+    local procedure CreatePurchaseInvoice(PurchaseHeader: Record "Purchase Header"; VendorNo: Code[20])
+    begin
+        LibraryPurchase.CreatePurchaseInvoiceForVendorNo(PurchaseHeader, VendorNo);
+        PurchaseHeader.Validate("Posting Date", Today);
+        PurchaseHeader.Modify(true);
+        LibraryPurchase.PostPurchaseDocument(PurchaseHeader, false, true);
+    end;
+    
+    local procedure VerifyNoOfCheckLinesPrinted(GenJournalBatch: Record "Gen. Journal Batch"; ExpectedCheckLines: Integer)
+    var
+        GenJournalLine: Record "Gen. Journal Line";
+    begin
+        GenJournalLine.SetRange("Journal Template Name", GenJournalBatch."Journal Template Name");
+        GenJournalLine.SetRange("Journal Batch Name", GenJournalBatch.Name);
+        GenJournalLine.SetRange("Document Type", GenJournalLine."Document Type"::Payment);
+        GenJournalLine.SetRange("Bank Payment Type", GenJournalLine."Bank Payment Type"::"Computer Check");
+        Assert.AreEqual(ExpectedCheckLines, GenJournalLine.Count(), NoOfCheckLinesErr);
     end;
 
     [RequestPageHandler]
@@ -2175,6 +2331,51 @@ codeunit 134987 "ERM Financial Reports III"
         Sleep(200);
     end;
 
+    [RequestPageHandler]
+    procedure SuggestVendorPaymentsNewDocPerLineRequestPageHandler(var SuggestVendorPayments: TestRequestPage "Suggest Vendor Payments")
+    var
+        VendorNo: Variant;
+        BankAccountNo: Variant;
+        SummarizePerVend: Variant;
+        BalAccountType: Option "G/L Account",,,"Bank Account";
+        BankPmtType: Option " ","Computer Check","Manual Check";
+    begin
+        LibraryVariableStorage.Dequeue(VendorNo);
+        LibraryVariableStorage.Dequeue(BankAccountNo);
+        LibraryVariableStorage.Dequeue(SummarizePerVend);
+        SuggestVendorPayments.Vendor.SetFilter("No.", VendorNo);
+        SuggestVendorPayments.SummarizePerVendor.SetValue(SummarizePerVend);
+        SuggestVendorPayments.BalAccountType.SetValue(BalAccountType::"Bank Account");
+        SuggestVendorPayments.BalAccountNo.SetValue(BankAccountNo);
+        SuggestVendorPayments.BankPaymentType.SetValue(BankPmtType::"Computer Check");
+        SuggestVendorPayments.LastPaymentDate.SetValue(WorkDate());
+        SuggestVendorPayments.NewDocNoPerLine.SetValue(true);
+        SuggestVendorPayments.StartingDocumentNo.SetValue(LibraryRandom.RandInt(10));
+        SuggestVendorPayments.OK().Invoke();
+        Sleep(200);
+    end;
+
+    [RequestPageHandler]
+    procedure PrintCheckWithReprintReqPageHandler(var Check: TestRequestPage Check)
+    var
+        FileName: Text;
+        ParametersFileName: Text;
+        Value: Variant;
+    begin
+        LibraryVariableStorage.Dequeue(Value);
+        Check.BankAccount.SetValue(Value);
+        LibraryVariableStorage.Dequeue(Value);
+        Check.LastCheckNo.SetValue(Value);
+        LibraryVariableStorage.Dequeue(Value);
+        Check.OneCheckPerVendorPerDocumentNo.SetValue(Value);
+        Check.ReprintChecks.SetValue(true);
+
+        ParametersFileName := LibraryReportDataset.GetParametersFileName();
+        FileName := LibraryReportDataset.GetFileName();
+        Check.SaveAsXml(ParametersFileName, FileName);
+        Sleep(200)
+    end;
+
     [MessageHandler]
     [Scope('OnPrem')]
     procedure MessageHandler(Message: Text[1024])
@@ -2210,5 +2411,14 @@ codeunit 134987 "ERM Financial Reports III"
         PaymentDiscToleranceWarning.Posting.SetValue(PostingOption::"Post as Payment Discount Tolerance");
         PaymentDiscToleranceWarning.Yes().Invoke();
     end;
-}
 
+    [ModalPageHandler]
+    [Scope('OnPrem')]
+    procedure ApplyVendorEntriesModalPageHandler(var ApplyVendorEntries: TestPage "Apply Vendor Entries")
+    begin
+        ApplyVendorEntries.ActionSetAppliesToID.Invoke();
+        ApplyVendorEntries.Next();
+        ApplyVendorEntries.ActionSetAppliesToID.Invoke();
+        ApplyVendorEntries.OK().Invoke();
+    end;
+}

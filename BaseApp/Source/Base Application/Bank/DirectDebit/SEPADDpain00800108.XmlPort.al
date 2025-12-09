@@ -8,6 +8,11 @@ using Microsoft.Bank.Payment;
 using Microsoft.Foundation.Company;
 using System.Telemetry;
 
+/// <summary>
+/// XMLPort for exporting SEPA direct debit collections in pain.008.001.08 format.
+/// Generates XML files compliant with SEPA Customer Direct Debit Initiation standard
+/// for submission to banks for automated collection processing.
+/// </summary>
 xmlport 1011 "SEPA DD pain.008.001.08"
 {
     Caption = 'SEPA DD pain.008.001.08';
@@ -48,45 +53,6 @@ xmlport 1011 "SEPA DD pain.008.001.08"
                     {
                         fieldelement(Nm; CompanyInformation.Name)
                         {
-                        }
-                        textelement(PstlAdr)
-                        {
-                            fieldelement(StrtNm; CompanyInformation.Address)
-                            {
-
-                                trigger OnBeforePassField()
-                                begin
-                                    if CompanyInformation.Address = '' then
-                                        currXMLport.Skip();
-                                end;
-                            }
-                            fieldelement(PstCd; CompanyInformation."Post Code")
-                            {
-
-                                trigger OnBeforePassField()
-                                begin
-                                    if CompanyInformation."Post Code" = '' then
-                                        currXMLport.Skip();
-                                end;
-                            }
-                            fieldelement(TwnNm; CompanyInformation.City)
-                            {
-
-                                trigger OnBeforePassField()
-                                begin
-                                    if CompanyInformation.City = '' then
-                                        currXMLport.Skip();
-                                end;
-                            }
-                            fieldelement(Ctry; CompanyInformation."Country/Region Code")
-                            {
-
-                                trigger OnBeforePassField()
-                                begin
-                                    if CompanyInformation."Country/Region Code" = '' then
-                                        currXMLport.Skip();
-                                end;
-                            }
                         }
                         textelement(Id)
                         {

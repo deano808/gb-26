@@ -1,3 +1,27 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+
+namespace Microsoft.DemoTool;
+
+using Microsoft.DemoData.Bank;
+using Microsoft.DemoData.Common;
+using Microsoft.DemoData.CRM;
+using Microsoft.DemoData.eServices;
+using Microsoft.DemoData.Finance;
+using Microsoft.DemoData.FixedAsset;
+using Microsoft.DemoData.Foundation;
+using Microsoft.DemoData.HumanResources;
+using Microsoft.DemoData.Inventory;
+using Microsoft.DemoData.Jobs;
+using Microsoft.DemoData.Manufacturing;
+using Microsoft.DemoData.Purchases;
+using Microsoft.DemoData.Sales;
+using Microsoft.DemoData.Service;
+using Microsoft.DemoData.Warehousing;
+using Microsoft.DemoData.Analytics;
+
 enum 5160 "Contoso Demo Data Module" implements "Contoso Demo Data Module"
 {
     Extensible = true;
@@ -76,5 +100,10 @@ enum 5160 "Contoso Demo Data Module" implements "Contoso Demo Data Module"
     {
         Implementation = "Contoso Demo Data Module" = "EService Module";
         Caption = 'EService';
+    }
+    value(18; Analytics)
+    {
+        Implementation = "Contoso Demo Data Module" = "Analytics Module";
+        Caption = 'Analytics';
     }
 }

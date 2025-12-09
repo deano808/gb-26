@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.GeneralLedger.Journal;
+﻿// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.GeneralLedger.Journal;
 
 using Microsoft.Bank.BankAccount;
 using Microsoft.CostAccounting.Setup;
@@ -22,7 +26,6 @@ using Microsoft.Purchases.Payables;
 using Microsoft.Purchases.Vendor;
 using Microsoft.Sales.Customer;
 using Microsoft.Sales.Receivables;
-using System.Environment.Configuration;
 using System.Security.User;
 using System.Utilities;
 
@@ -46,16 +49,18 @@ codeunit 11 "Gen. Jnl.-Check Line"
         TempErrorMessage: Record "Error Message" temporary;
         DimMgt: Codeunit DimensionManagement;
         CostAccMgt: Codeunit "Cost Account Mgt";
-        ApplicationAreaMgmt: Codeunit "Application Area Mgmt.";
+        ApplicationAreaMgmt: Codeunit System.Environment.Configuration."Application Area Mgmt.";
         ErrorMessageMgt: Codeunit "Error Message Management";
-#if not CLEAN24
-        FeatureKeyManagement: Codeunit "Feature Key Management";
+#if not CLEAN25
+        FeatureKeyManagement: Codeunit System.Environment.Configuration."Feature Key Management";
 #endif
         SkipFiscalYearCheck: Boolean;
         GenJnlTemplateFound: Boolean;
         OverrideDimErr: Boolean;
         LogErrorMode: Boolean;
         IsBatchMode: Boolean;
+        IgnoreJournalTemplNameMandatoryCheck: Boolean;
+        IsDeferralPostingAllowed: Boolean;
 
 #pragma warning disable AA0074
         Text000: Label 'can only be a closing date for G/L entries';
@@ -196,7 +201,7 @@ codeunit 11 "Gen. Jnl.-Check Line"
         if not OverrideDimErr then
             CheckDimensions(GenJnlLine);
 
-#if not CLEAN24
+#if not CLEAN25
         if FeatureKeyManagement.IsGLCurrencyRevaluationEnabled() then
 #endif
         CheckCurrencyCode(GenJnlLine);
@@ -382,6 +387,11 @@ codeunit 11 "Gen. Jnl.-Check Line"
         OverrideDimErr := true;
     end;
 
+    procedure SetIgnoreJournalTemplNameMandatoryCheck()
+    begin
+        IgnoreJournalTemplNameMandatoryCheck := true;
+    end;
+
     local procedure CheckDates(GenJnlLine: Record "Gen. Journal Line")
     var
         AccountingPeriodMgt: Codeunit "Accounting Period Mgt.";
@@ -402,8 +412,14 @@ codeunit 11 "Gen. Jnl.-Check Line"
             end;
         end;
 
-        if GLSetup."Journal Templ. Name Mandatory" then
-            GenJnlLine.TestField("Journal Template Name", ErrorInfo.Create());
+        if not IgnoreJournalTemplNameMandatoryCheck then
+            if GLSetup."Journal Templ. Name Mandatory" then
+                GenJnlLine.TestField("Journal Template Name", ErrorInfo.Create());
+        if IsDeferralPostingAllowed then begin
+            if DeferralPostingDateNotAllowed(GenJnlLine."Posting Date") then
+                GenJnlLine.FieldError("Posting Date", ErrorInfo.Create(Text001, true));
+            DateCheckDone := true
+        end;
         OnBeforeDateNotAllowed(GenJnlLine, DateCheckDone);
         if not DateCheckDone then
             if DateNotAllowed(GenJnlLine."Posting Date", GenJnlLine."Journal Template Name") then
@@ -1048,6 +1064,7 @@ codeunit 11 "Gen. Jnl.-Check Line"
     var
         GLAccountSourceCurrency: Record "G/L Account Source Currency";
     begin
+        GLSetup.Get();
         case GLAccount."Source Currency Posting" of
             GLAccount."Source Currency Posting"::"Same Currency":
                 if (CurrencyCode <> GLAccount."Source Currency Code") and
@@ -1151,6 +1168,11 @@ codeunit 11 "Gen. Jnl.-Check Line"
     begin
         exit((GenJnlLine."Gen. Posting Type" <> GenJnlLine."Gen. Posting Type"::" ") or
             (GenJnlLine."Bal. Gen. Posting Type" <> GenJnlLine."Bal. Gen. Posting Type"::" "));
+    end;
+
+    procedure CheckDeferralPostingAllowed(DeferralPostingAllowed: Boolean)
+    begin
+        IsDeferralPostingAllowed := DeferralPostingAllowed;
     end;
 
     [IntegrationEvent(true, false)]

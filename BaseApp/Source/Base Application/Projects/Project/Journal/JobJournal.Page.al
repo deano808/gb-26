@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Projects.Project.Journal;
 
 using Microsoft.Finance.Currency;
@@ -25,6 +29,8 @@ page 201 "Job Journal"
     DataCaptionFields = "Journal Batch Name";
     DelayedInsert = true;
     PageType = Worksheet;
+    AboutTitle = 'About Project Journals';
+    AboutText = 'Record and post project usage, costs, and sales by entering journal lines for resources, items, or accounts, with options to manage document numbering, apply discounts, and estimate remaining project quantities.';
     SaveValues = true;
     SourceTable = "Job Journal Line";
     UsageCategory = Tasks;

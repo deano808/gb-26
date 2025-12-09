@@ -1901,6 +1901,8 @@
         VendorLedgerEntry.TestField(Amount, -PurchaseLine."Amount Including VAT");
         VendorLedgerEntry.TestField("Purchase (LCY)", -AmountToPost);
         VendorLedgerEntry.TestField("Inv. Discount (LCY)", -InvDiscAmount);
+
+        LibraryVariableStorage.Clear();
     end;
 #endif
 
@@ -1969,6 +1971,7 @@
         VendorLedgerEntry.TestField(Amount, -PurchaseLine."Amount Including VAT");
         VendorLedgerEntry.TestField("Purchase (LCY)", -AmountToPost);
         VendorLedgerEntry.TestField("Inv. Discount (LCY)", -InvDiscAmount);
+        LibraryVariableStorage.Clear();
     end;
 
 #if not CLEAN25
@@ -2893,7 +2896,7 @@
         // [GIVEN] G/L account "B" has "Account Type" = "Posting" and "Direct Posting" = false
         GLAccountNo[2] := CreateGLAccount("G/L Account Type"::Posting, false);
 
-        //[WHEN] Validate "Destination Account Number" on the "Alloc. Account Distribution" with created Bank account 
+        //[WHEN] Validate "Destination Account Number" on the "Alloc. Account Distribution" with created Bank account
         AllocAccountDistribution.Validate("Destination Account Type", AllocAccountDistribution."Destination Account Type"::"Bank Account");
         AllocAccountDistribution.Validate("Destination Account Number", BankAccountNo);
 
@@ -2904,7 +2907,7 @@
         AllocAccountDistribution.Validate("Destination Account Type", AllocAccountDistribution."Destination Account Type"::"Bank Account");
         asserterror AllocAccountDistribution.Validate("Destination Account Number", LibraryRandom.RandText(20));
 
-        //[WHEN] Validate "Destination Account Number" on the "Alloc. Account Distribution" with G/L accounts 
+        //[WHEN] Validate "Destination Account Number" on the "Alloc. Account Distribution" with G/L accounts
         for i := 1 to ArrayLen(GLAccountNo) do begin
             AllocAccountDistribution.Validate("Destination Account Type", AllocAccountDistribution."Destination Account Type"::"G/L Account");
             asserterror AllocAccountDistribution.Validate("Destination Account Number", GLAccountNo[i]);
@@ -2977,8 +2980,11 @@
         PaymentDocNo: Code[20];
         VATCalculationType: Enum "Tax Calculation Type";
     begin
-        // [SCENARIO 549246] Unrealized Gain / Loss is cleared during applicaiton when using multiple vendor posting groups. 
+        // [SCENARIO 549246] Unrealized Gain / Loss is cleared during applicaiton when using multiple vendor posting groups.
         Initialize();
+
+        // [GIVEN] Set Journal Templ Name mandatory to false.
+        SetJournalTemplNameMandatoryFalse();
 
         // [GIVEN] Generate Posting Date.
         GeneratePostingDate(PostingDate);
@@ -3003,7 +3009,7 @@
         // [GIVEN] Create Vendor Posting Group Two.
         CreateVendorPostingGroupWithCopy(VendorPostingGroup);
 
-        // [GIVEN] Create Alternative Vendor Posting Group. 
+        // [GIVEN] Create Alternative Vendor Posting Group.
         LibraryPurchase.CreateAltVendorPostingGroup(VendorPostingGroup[1].Code, VendorPostingGroup[2].Code);
 
         // [GIVEN] Create Item.
@@ -3198,9 +3204,12 @@
         GenPostingType: Enum "General Posting Type";
         VATCalculationType: Enum "Tax Calculation Type";
     begin
-        // [SCENARIO 561134] G/L Accounts are balanced after applying full Payment and Invoice with currency using Multiple Posting Groups. 
+        // [SCENARIO 561134] G/L Accounts are balanced after applying full Payment and Invoice with currency using Multiple Posting Groups.
         Initialize();
         LibraryERMCountryData.UpdateGeneralLedgerSetup();
+
+        // [GIVEN] Set Journal Templ Name mandatory to false.
+        SetJournalTemplNameMandatoryFalse();
 
         // [GIVEN] Generate Posting Date.
         PostingDate[1] := CalcDate('<1M>', WorkDate());
@@ -3214,7 +3223,7 @@
         Amount[1] := LibraryRandom.RandIntInRange(1000, 1000);
         Amount[2] := LibraryRandom.RandDecInDecimalRange(233.85, 233.85, 2);
 
-        // [GIVEN] Create Currency and Exchange Rates.       
+        // [GIVEN] Create Currency and Exchange Rates.
         Currency.Get(LibraryERM.CreateCurrencyWithExchangeRate(PostingDate[1], ExchRate[1], ExchRate[1]));
         LibraryERM.CreateExchangeRate(Currency.Code, PostingDate[2], ExchRate[2], ExchRate[2]);
 
@@ -3235,7 +3244,7 @@
         // [GIVEN] Create Vendor Posting Group Two.
         CreateVendorPostingGroupWithCopy(VendorPostingGroup);
 
-        // [GIVEN] Create Alternative Vendor Posting Group. 
+        // [GIVEN] Create Alternative Vendor Posting Group.
         LibraryPurchase.CreateAltVendorPostingGroup(VendorPostingGroup[1].Code, VendorPostingGroup[2].Code);
         LibraryPurchase.CreateAltVendorPostingGroup(VendorPostingGroup[2].Code, VendorPostingGroup[1].Code);
 
@@ -3263,10 +3272,116 @@
         VerifyGLEntryForAccount(VendorPostingGroup, ActualAmount);
     end;
 
+    [Test]
+    [HandlerFunctions('ConfirmHandler,PurchaseStatisticsHandler')]
+    procedure VerifyGLEntriesWithVATDifferenceWithAllocationAccount()
+    var
+        GeneralPostingSetup: Record "General Posting Setup";
+        GLEntry: Record "G/L Entry";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        VATPostingSetup: Record "VAT Posting Setup";
+        AllocationAccountNo, GLAccountNo, InvoiceNo, VendorNo : Code[20];
+        TotalAmount, VATAmount, VATDifference : Decimal;
+    begin
+        // [SCENARIO 591943] Verify that the system updates the G/L entries with the VAT difference when a purchase invoice is posted with an allocation account.
+        Initialize();
+
+        // [GIVEN] Allow VAT Difference in Purchases & Payables Setup.
+        ModifyPurchasesPayablesSetup(true);
+
+        // [GIVEN] Set Maximum VAT Difference in General Ledger Setup.
+        UpdateGeneralLedgerSetup(LibraryRandom.RandIntInRange(1, 1));
+
+        // [GIVEN] Enable Non-Deductible VAT in VAT Setup.
+        ModifyVATSetup();
+
+        // [GIVEN] Create General Posting Setup and VAT Posting Setup.
+        CreateVATPostingSetup(VATPostingSetup);
+        CreateGeneralPostingSetup(GeneralPostingSetup, VATPostingSetup);
+
+        // [GIVEN] Create Allocation Account with multiple lines.
+        AllocationAccountNo := CreateAllocationAccountWithMulipleLines(GeneralPostingSetup);
+
+        // [GIVEN] Create Vendor with Posting Groups.
+        VendorNo := CreateVendorWithPostingGroups(GeneralPostingSetup, VATPostingSetup);
+
+        // [GIVEN] Create G/L Account with Posting Groups.
+        GLAccountNo := CreateGLAccountWithPostingGroup(GeneralPostingSetup, VATPostingSetup);
+
+        // [GIVEN] Create Purchase Invoice and Calculate VAT Amount.
+        VATAmount := CreatePurchaseInvoice(PurchaseHeader, PurchaseLine, VendorNo, GLAccountNo);
+
+        // [GIVEN] Add VAT Difference to VAT Amount.
+        VATDifference := LibraryRandom.RandDecInDecimalRange(0.01, 0.1, 2);
+        VATAmount := VATAmount + VATDifference;
+        LibraryVariableStorage.Enqueue(VATAmount);
+        PurchaseHeader.Get(PurchaseHeader."Document Type"::Invoice, PurchaseHeader."No.");// To retrive the updated Purchase Header.
+
+        // [GIVEN] Assign Allocation Account to Purchase Line.
+        OpenPurchaseInvoicePageAndAssignAllocationAccount(PurchaseHeader, AllocationAccountNo);
+
+        // [WHEN] Post Purchase Invoice.
+        InvoiceNo := LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, true);
+
+        // [WHEN] Calculate Total Amount from G/L Entries.
+        GLEntry.SetRange("Document No.", InvoiceNo);
+        GLEntry.SetFilter(Amount, '>%1', 0);
+        GLEntry.CalcSums(Amount);
+        TotalAmount := GLEntry.Amount;
+
+        // [THEN] Verify Total Amount with VAT Difference is equal to Purchase Line Amount Including VAT.
+        Assert.AreEqual(
+            PurchaseLine."Amount Including VAT" + VATDifference, TotalAmount,
+            StrSubstNo(
+                AmountErr, GLEntry.FieldCaption(Amount), PurchaseLine."Amount Including VAT" + VATDifference, GLEntry.TableCaption()));
+        LibraryVariableStorage.AssertEmpty();
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler,MessageHandler')]
+    procedure VerifyAmountFieldsOnPurchaseOrderArchives()
+    var
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        ArchiveManagement: Codeunit ArchiveManagement;
+        PurchOrderArchives: TestPage "Purchase Order Archives";
+        ExpectedAmount: Decimal;
+        ExpectedAmountInclVAT: Decimal;
+    begin
+        // [SCENARIO 598893] Verify Amount and "Amount Including VAT" on Purchase Order Archives page
+        Initialize();
+
+        // [GIVEN] Create a Purchase Order with one item line (quantity 2) and a deterministic unit cost
+        LibraryPurchase.CreatePurchHeader(PurchaseHeader, PurchaseHeader."Document Type"::Order, '');
+        LibraryPurchase.CreatePurchaseLine(PurchaseLine, PurchaseHeader, PurchaseLine.Type::Item, LibraryInventory.CreateItemNo(), 2);
+
+        // [GIVEN] Make unit cost deterministic so amounts are predictable
+        PurchaseLine.Validate("Direct Unit Cost", 10.00);
+        PurchaseLine.Modify(true);
+
+        // [GIVEN] Ensure header flow fields are calculated
+        PurchaseHeader.Get(PurchaseHeader."Document Type", PurchaseHeader."No.");
+        PurchaseHeader.CalcFields("Amount", "Amount Including VAT");
+        ExpectedAmount := PurchaseHeader.Amount;
+        ExpectedAmountInclVAT := PurchaseHeader."Amount Including VAT";
+
+        // [WHEN] Archive the purchase order (simulate invoking Archive Document + confirm as in recording)
+        ArchiveManagement.ArchivePurchDocument(PurchaseHeader);
+
+        // [WHEN] Open Purchase Order Archives and filter to our document
+        PurchOrderArchives.OpenView();
+        PurchOrderArchives.Filter.SetFilter("No.", PurchaseHeader."No.");
+
+        // [THEN] The Archives page shows the same Amount and Amount Including VAT as original header
+        PurchOrderArchives.Amount.AssertEquals(ExpectedAmount);
+        PurchOrderArchives."Amount Including VAT".AssertEquals(ExpectedAmountInclVAT);
+    end;
+
     local procedure Initialize()
     var
-        LibraryERMCountryData: Codeunit "Library - ERM Country Data";
         PriceListLine: Record "Price List Line";
+        LibraryERMCountryData: Codeunit "Library - ERM Country Data";
     begin
         LibraryTestInitialize.OnTestInitialize(CODEUNIT::"ERM Purchase Payables");
         LibrarySetupStorage.Restore();
@@ -3386,11 +3501,11 @@
 
     local procedure UpdateDefaultSafetyLeadTimeOnManufacturingSetup(DefaultSafetyLeadTime: DateFormula)
     var
-        ManufacturingSetup: Record "Manufacturing Setup";
+        InventorySetup: Record "Inventory Setup";
     begin
-        ManufacturingSetup.Get();
-        ManufacturingSetup.Validate("Default Safety Lead Time", DefaultSafetyLeadTime);
-        ManufacturingSetup.Modify(true);
+        InventorySetup.Get();
+        InventorySetup.Validate("Default Safety Lead Time", DefaultSafetyLeadTime);
+        InventorySetup.Modify(true);
     end;
 
     local procedure ModifyPurchasesPayablesSetup(AllowVATDifference: Boolean) OldAllowVATDifference: Boolean
@@ -4116,7 +4231,7 @@
         PurchaseLine.TestField("No.", ItemNo);
         PurchaseLine.TestField(Quantity, Quantity);
     end;
-
+#if not CLEAN25
     local procedure VerifyPriceAndLineDiscountOnPurchaseLine(PurchaseLine: Record "Purchase Line"; Quantity: Decimal; DirectUnitCost: Decimal; LineDiscountPercentage: Decimal)
     var
         PurchaseLine2: Record "Purchase Line";
@@ -4129,7 +4244,7 @@
         PurchaseLine2.TestField("Direct Unit Cost", DirectUnitCost);
         PurchaseLine2.TestField("Line Discount %", LineDiscountPercentage);
     end;
-
+#endif
     local procedure VerifyVATAmount(DocumentNo: Code[20])
     var
         VATEntry: Record "VAT Entry";
@@ -4253,20 +4368,6 @@
         PurchaseLine.Modify(true);
     end;
 
-    local procedure CreateAllocationAccountWithFixedDistribution(var AllocationAccountPage: TestPage "Allocation Account"): Code[20]
-    var
-        DummyAllocationAccount: Record "Allocation Account";
-        AllocationAccountNo: Code[20];
-    begin
-        AllocationAccountPage.OpenNew();
-        AllocationAccountNo := Format(LibraryRandom.RandText(5));
-        AllocationAccountPage."No.".SetValue(AllocationAccountNo);
-        AllocationAccountPage."Account Type".SetValue(DummyAllocationAccount."Account Type"::Fixed);
-        AllocationAccountPage.Name.SetValue(LibraryRandom.RandText(5));
-
-        exit(AllocationAccountNo);
-    end;
-
     local procedure CreateInheritFromParentAllocationDistrubWithDimension(AllocationAccountNo: Code[20]; Share: Decimal; DimensionValue: Record "Dimension Value") DimSetID: Integer
     var
         AllocAccountDistribution: Record "Alloc. Account Distribution";
@@ -4295,12 +4396,10 @@
     var
         GLAccount: Record "G/L Account";
     begin
-        GLAccount."No." := PadStr(
-            '1' + LibraryUtility.GenerateRandomCode(GLAccount.FieldNo("No."),
-            DATABASE::"G/L Account"), MaxStrLen(GLAccount."No."), '0');
+        LibraryERM.CreateGLAccount(GLAccount);
         GLAccount."Account Type" := GLAccountType;
         GLAccount."Direct Posting" := DirectPosting;
-        GLAccount.Insert();
+        GLAccount.Modify();
         exit(GLAccount."No.");
     end;
 
@@ -4330,6 +4429,15 @@
         AllocAccountDistribution."Destination Account Number" := GLAccount."No.";
         AllocAccountDistribution.Validate(Share, Shape);
         AllocAccountDistribution.Insert();
+    end;
+
+    local procedure SetJournalTemplNameMandatoryFalse()
+    var
+        GeneralLedgerSetup: Record "General Ledger Setup";
+    begin
+        GeneralLedgerSetup.Get();
+        GeneralLedgerSetup."Journal Templ. Name Mandatory" := false;
+        GeneralLedgerSetup.Modify();
     end;
 
     local procedure GeneratePostingDate(var PostingDate: array[3] of Date)
@@ -4497,6 +4605,116 @@
             PurchaseLine, PurchaseHeader, PurchaseLine.Type::"G/L Account", GLAccountNo, LibraryRandom.RandInt(0));
         PurchaseLine.Validate("Direct Unit Cost", DirectUnitCost);
         PurchaseLine.Modify(true);
+    end;
+
+    local procedure CreateVATPostingSetup(var VATPostingSetup: Record "VAT Posting Setup")
+    var
+        VATBusinessPostingGroup: Record "VAT Business Posting Group";
+        VATProductPostingGroup: Record "VAT Product Posting Group";
+    begin
+        LibraryERM.CreateVATBusinessPostingGroup(VATBusinessPostingGroup);
+        LibraryERM.CreateVATProductPostingGroup(VATProductPostingGroup);
+        LibraryERM.CreateVATPostingSetupWithAccounts(VATPostingSetup, VATPostingSetup."VAT Calculation Type"::"Normal VAT", 20);
+        VATPostingSetup.Validate("Allow Non-Deductible VAT", VATPostingSetup."Allow Non-Deductible VAT"::Allow);
+        VATPostingSetup.Validate("Non-Deductible VAT %", LibraryRandom.RandIntInRange(50, 70));
+        VATPostingSetup.Modify(true);
+    end;
+
+    local procedure CreateGeneralPostingSetup(var GeneralPostingSetup: Record "General Posting Setup"; VATPostingSetup: Record "VAT Posting Setup")
+    var
+        GenBusinessPostingGroup: Record "Gen. Business Posting Group";
+        GenProductPostingGroup: Record "Gen. Product Posting Group";
+    begin
+        LibraryERM.CreateGeneralPostingSetupInvt(GeneralPostingSetup);
+        GenBusinessPostingGroup.Get(GeneralPostingSetup."Gen. Bus. Posting Group");
+        GenBusinessPostingGroup.Validate("Def. VAT Bus. Posting Group", VATPostingSetup."VAT Bus. Posting Group");
+        GenBusinessPostingGroup.Modify(true);
+        GenProductPostingGroup.Get(GeneralPostingSetup."Gen. Prod. Posting Group");
+        GenProductPostingGroup.Validate("Def. VAT Prod. Posting Group", VATPostingSetup."VAT Prod. Posting Group");
+        GenProductPostingGroup.Modify(true);
+    end;
+
+    local procedure CreateAllocationAccountWithMulipleLines(GeneralPostingSetup: Record "General Posting Setup"): Code[20]
+    var
+        AllocationGLAccount: Record "G/L Account";
+        AllocationAccountNo: Code[20];
+        AllocationAccount: TestPage "Allocation Account";
+        DestinationAccountType: Enum "Destination Account Type";
+    begin
+        LibraryERM.CreateGLAccount(AllocationGLAccount);
+        AllocationGLAccount.Validate("Gen. Prod. Posting Group", GeneralPostingSetup."Gen. Prod. Posting Group");
+        AllocationGLAccount.Validate("Gen. Bus. Posting Group", GeneralPostingSetup."Gen. Bus. Posting Group");
+        AllocationGLAccount.Modify(true);
+
+        AllocationAccountNo := CreateAllocationAccountWithFixedDistribution();
+        AllocationAccount.OpenEdit();
+        AllocationAccount.Filter.SetFilter("No.", AllocationAccountNo);
+        AllocationAccount.FixedAccountDistribution.New();
+        AllocationAccount.FixedAccountDistribution."Destination Account Type".SetValue(Format((DestinationAccountType::"Inherit from Parent")));
+        AllocationAccount.FixedAccountDistribution.Next();
+        AllocationAccount.FixedAccountDistribution."Destination Account Type".SetValue(Format((DestinationAccountType::"G/L Account")));
+        AllocationAccount.FixedAccountDistribution."Destination Account Number".SetValue(AllocationGLAccount."No.");
+        AllocationAccount.OK().Invoke();
+
+        exit(AllocationAccountNo);
+    end;
+
+    local procedure ModifyVATSetup()
+    var
+        VATSetup: Record "VAT Setup";
+    begin
+        VATSetup.Get();
+        if not VATSetup."Enable Non-Deductible VAT" then begin
+            VATSetup.Validate("Enable Non-Deductible VAT", true);
+            VATSetup.Modify(true);
+        end;
+    end;
+
+    local procedure CreateVendorWithPostingGroups(GeneralPostingSetup: Record "General Posting Setup"; VATPostingSetup: Record "VAT Posting Setup"): Code[20]
+    var
+        Vendor: Record Vendor;
+    begin
+        LibraryPurchase.CreateVendor(Vendor);
+        Vendor.Validate("Gen. Bus. Posting Group", GeneralPostingSetup."Gen. Bus. Posting Group");
+        Vendor.Validate("VAT Bus. Posting Group", VATPostingSetup."VAT Bus. Posting Group");
+        Vendor.Modify(true);
+
+        exit(Vendor."No.");
+    end;
+
+    local procedure CreateGLAccountWithPostingGroup(GeneralPostingSetup: Record "General Posting Setup"; VATPostingSetup: Record "VAT Posting Setup"): Code[20]
+    var
+        GLAccount: Record "G/L Account";
+    begin
+        LibraryERM.CreateGLAccount(GLAccount);
+        GLAccount.Validate("Direct Posting", true);
+        GLAccount.Validate("Gen. Bus. Posting Group", GeneralPostingSetup."Gen. Bus. Posting Group");
+        GLAccount.Validate("Gen. Prod. Posting Group", GeneralPostingSetup."Gen. Prod. Posting Group");
+        GLAccount.Validate("VAT Bus. Posting Group", VATPostingSetup."VAT Bus. Posting Group");
+        GLAccount.Modify(true);
+
+        exit(GLAccount."No.");
+    end;
+
+    local procedure OpenPurchaseInvoicePageAndAssignAllocationAccount(PurchaseHeader: Record "Purchase Header"; AllocationAccountNo: Code[20])
+    var
+        PurchaseInvoice: TestPage "Purchase Invoice";
+    begin
+        PurchaseInvoice.OpenEdit();
+        PurchaseInvoice.GoToRecord(PurchaseHeader);
+        PurchaseInvoice.PurchLines."Allocation Account No.".SetValue(AllocationAccountNo);
+        PurchaseInvoice.PurchaseStatistics.Invoke();
+        PurchaseInvoice.OK().Invoke();
+    end;
+
+    local procedure CreatePurchaseInvoice(var PurchaseHeader: Record "Purchase Header"; var PurchaseLine: Record "Purchase Line"; VendorNo: Code[20]; GLAccountNo: Code[20]): Decimal
+    begin
+        LibraryPurchase.CreatePurchHeader(PurchaseHeader, PurchaseHeader."Document Type"::Invoice, VendorNo);
+        LibraryPurchase.CreatePurchaseLine(PurchaseLine, PurchaseHeader, PurchaseLine.Type::"G/L Account", GLAccountNo, LibraryRandom.RandIntInRange(1, 10));
+        PurchaseLine.Validate("Direct Unit Cost", LibraryRandom.RandDecInRange(1000, 2000, 2));
+        PurchaseLine.Modify(true);
+
+        exit(PurchaseLine."Amount Including VAT" - PurchaseLine.Amount);
     end;
 
     [RequestPageHandler]
@@ -4771,5 +4989,16 @@
         Assert.AreEqual(LibraryVariableStorage.DequeueText(), ChangeLogEntries."Old Value".Value(), ChangeLogEntries."Old Value".Caption());
         Assert.AreEqual(LibraryVariableStorage.DequeueText(), ChangeLogEntries."New Value".Value(), ChangeLogEntries."New Value".Caption());
         ChangeLogEntries.OK().Invoke();
+    end;
+
+    [PageHandler]
+    procedure PurchaseStatisticsHandler(var PurchaseStatistics: TestPage "Purchase Statistics")
+    var
+        VATAmount: Variant;
+    begin
+        VATAmount := LibraryVariableStorage.DequeueDecimal();
+        PurchaseStatistics.SubForm."VAT Amount".SetValue(VATAmount);
+        Commit();
+        PurchaseStatistics.OK().Invoke();
     end;
 }

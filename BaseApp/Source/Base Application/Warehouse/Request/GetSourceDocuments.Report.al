@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Request;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Request;
 
 using Microsoft.Inventory.Item;
 using Microsoft.Inventory.Location;
@@ -657,7 +661,7 @@ report 5753 "Get Source Documents"
         ActivitiesCreated := ActivitiesCreated + 1;
         WhseHeaderCreated := true;
 
-        OnAfterCreateShptHeader(WhseShptHeader, "Warehouse Request", "Sales Line");
+        OnAfterCreateShptHeader(WhseShptHeader, "Warehouse Request", "Sales Line", "Purchase Line");
     end;
 
     procedure CreateReceiptHeader()
@@ -913,7 +917,7 @@ report 5753 "Get Source Documents"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnAfterCreateShptHeader(var WarehouseShipmentHeader: Record "Warehouse Shipment Header"; WarehouseRequest: Record "Warehouse Request"; SalesLine: Record "Sales Line")
+    local procedure OnAfterCreateShptHeader(var WarehouseShipmentHeader: Record "Warehouse Shipment Header"; WarehouseRequest: Record "Warehouse Request"; SalesLine: Record "Sales Line"; PurchaseLine: Record "Purchase Line")
     begin
     end;
 

@@ -27,6 +27,8 @@ codeunit 134658 "Edit Posted Documents"
         UnexpectedVolumeErr: Label 'Unexpected Volume shown.';
         CashFlowWorkSheetLineMustNotBeFoundErr: Label 'Cash Flow Worksheet Line must not be found.';
         YourReferenceErr: Label 'Your reference must be editable';
+        SalesInvoiceYourReferenceErr: Label 'Sales Invoice Your Reference not updated';
+        CustLedgerEntryYourReferenceErr: Label 'Customer Ledger Entry Your Reference not updated';
 
     [Test]
     [HandlerFunctions('PostedSalesShipmentUpdateGetEditablelModalPageHandler')]
@@ -1035,6 +1037,46 @@ codeunit 134658 "Edit Posted Documents"
         LibraryLowerPermissions.SetOutsideO365Scope();
     end;
 
+    [Test]
+    [HandlerFunctions('PostedSalesInvoiceYourReferenceModalPageHandler')]
+    procedure VerifyYourReferenceUpdatedInCustLedgerEntry()
+    var
+        CustLedgerEntry: Record "Cust. Ledger Entry";
+        SalesInvoiceHeader: Record "Sales Invoice Header";
+        YourReference: Text[35];
+        PostedSalesInvoice: TestPage "Posted Sales Invoice";
+    begin
+        // [SCENARIO 595854] Verify Your Reference Field updated in Customer Ledger Entries,
+        // when changed with Update document on Posted Sales Invoice.
+        Initialize();
+
+        LibraryLowerPermissions.SetO365Setup();
+        LibraryLowerPermissions.AddSalesDocsPost();
+
+        // [GIVEN] Create and post a Sales Order.
+        SalesInvoiceHeader.Get(CreateAndPostSalesOrderGetInvoiceNo());
+        YourReference := LibraryRandom.RandText(35);
+        LibraryVariableStorage.Enqueue(YourReference);
+
+        // [GIVEN] Opened "Posted Sales Invoice - Update" page.
+        PostedSalesInvoice.OpenView();
+        PostedSalesInvoice.GoToRecord(SalesInvoiceHeader);
+        PostedSalesInvoice."Update Document".Invoke();
+
+        // [WHEN] Press OK on the page via PostedSalesInvoiceYourReferenceModalPageHandler.
+
+        // [THEN] Verify Your Reference field updated on Sales Invoice Header and Customer Ledger Entry.
+        SalesInvoiceHeader.Get(SalesInvoiceHeader."No.");
+        Assert.AreEqual(YourReference, SalesInvoiceHeader."Your Reference", SalesInvoiceYourReferenceErr);
+
+        CustLedgerEntry.SetRange("Document No.", SalesInvoiceHeader."No.");
+        CustLedgerEntry.FindFirst();
+        Assert.AreEqual(YourReference, CustLedgerEntry."Your Reference", CustLedgerEntryYourReferenceErr);
+
+        LibraryVariableStorage.AssertEmpty();
+        LibraryLowerPermissions.SetOutsideO365Scope();
+    end;
+
     local procedure Initialize()
     begin
         LibraryTestInitialize.OnTestInitialize(Codeunit::"Edit Posted Documents");
@@ -1289,9 +1331,11 @@ codeunit 134658 "Edit Posted Documents"
         PostedSalesShipmentUpdate."Shipping Agent Code".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Shipping Agent Service Code".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Package Tracking No.".SetValue(LibraryVariableStorage.DequeueText());
+#if not CLEAN27
         PostedSalesShipmentUpdate."Promised Delivery Date".SetValue(LibraryVariableStorage.DequeueDate());
         PostedSalesShipmentUpdate."Outbound Whse. Handling Time".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Shipping Time".SetValue(LibraryVariableStorage.DequeueText());
+#endif
         PostedSalesShipmentUpdate.OK().Invoke();
     end;
 
@@ -1310,9 +1354,11 @@ codeunit 134658 "Edit Posted Documents"
         PostedSalesShipmentUpdate."Shipping Agent Code".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Shipping Agent Service Code".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Package Tracking No.".SetValue(LibraryVariableStorage.DequeueText());
+#if not CLEAN27
         PostedSalesShipmentUpdate."Promised Delivery Date".SetValue(LibraryVariableStorage.DequeueDate());
         PostedSalesShipmentUpdate."Outbound Whse. Handling Time".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate."Shipping Time".SetValue(LibraryVariableStorage.DequeueText());
+#endif
         PostedSalesShipmentUpdate.Cancel().Invoke();
     end;
 
@@ -1567,7 +1613,7 @@ codeunit 134658 "Edit Posted Documents"
         PostedSalesShipmentUpdate."Shipping Agent Code".SetValue(LibraryVariableStorage.DequeueText());
         PostedSalesShipmentUpdate.OK().Invoke();
     end;
-       
+
     [RequestPageHandler]
     [Scope('OnPrem')]
     procedure SuggestWorksheetLinesReqPageHandler(var SuggestWorksheetLines: TestRequestPage "Suggest Worksheet Lines")
@@ -1596,6 +1642,14 @@ codeunit 134658 "Edit Posted Documents"
     begin
         LibraryVariableStorage.Enqueue(PostedSalesInvUpdate."Your Reference".Editable());
         PostedSalesInvUpdate.Cancel().Invoke();
+    end;
+
+    [ModalPageHandler]
+    [Scope('OnPrem')]
+    procedure PostedSalesInvoiceYourReferenceModalPageHandler(var PostedSalesInvUpdate: TestPage "Posted Sales Inv. - Update")
+    begin
+        PostedSalesInvUpdate."Your Reference".SetValue(LibraryVariableStorage.DequeueText());
+        PostedSalesInvUpdate.OK().Invoke();
     end;
 
     [ConfirmHandler]

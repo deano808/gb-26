@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.VAT.Ledger;
 
 using Microsoft.Finance.GeneralLedger.Ledger;
@@ -27,6 +31,9 @@ table 253 "G/L Entry - VAT Entry Link"
         key(Key1; "G/L Entry No.", "VAT Entry No.")
         {
             Clustered = true;
+        }
+        key(Key2; "VAT Entry No.")
+        {
         }
     }
 

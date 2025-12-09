@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Pricing;
 
 using Microsoft.Integration.Dataverse;
@@ -15,6 +19,8 @@ page 7015 "Sales Price Lists"
     CardPageID = "Sales Price List";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Sales Price Lists';
+    AboutText = 'Manage and update sales price lists for items and services, including setting prices, discounts, validity periods, and assignment to customers or groups.';
     QueryCategory = 'Sales Price Lists';
     RefreshOnActivate = true;
     SourceTable = "Price List Header";

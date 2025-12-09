@@ -18,6 +18,8 @@ page 9325 "Firm Planned Prod. Orders"
     CardPageID = "Firm Planned Prod. Order";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Firm Planned Production Orders';
+    AboutText = 'Create and manage firm planned production orders by specifying items, quantities, due dates, and production routing, while reviewing start and end times and reserving components to support detailed production planning.';
     SourceTable = "Production Order";
     SourceTableView = where(Status = const("Firm Planned"));
     UsageCategory = Lists;
@@ -79,48 +81,6 @@ page 9325 "Firm Planned Prod. Orders"
                     ToolTip = 'Specifies the location code to which you want to post the finished product from this production order.';
                     Visible = false;
                 }
-#if not CLEAN24
-                field("Starting Time"; StartingTime)
-                {
-                    ApplicationArea = Manufacturing;
-                    Caption = 'Starting Time';
-                    ToolTip = 'Specifies the starting time of the production order.';
-                    Visible = false;
-                    ObsoleteReason = 'Replaced by "Starting Date-Time" field';
-                    ObsoleteState = Pending;
-                    ObsoleteTag = '24.0';
-                }
-                field("Starting Date"; StartingDate)
-                {
-                    ApplicationArea = Manufacturing;
-                    Caption = 'Starting Date';
-                    ToolTip = 'Specifies the starting date of the production order.';
-                    Visible = false;
-                    ObsoleteReason = 'Replaced by "Starting Date-Time" field';
-                    ObsoleteState = Pending;
-                    ObsoleteTag = '24.0';
-                }
-                field("Ending Time"; EndingTime)
-                {
-                    ApplicationArea = Manufacturing;
-                    Caption = 'Ending Time';
-                    ToolTip = 'Specifies the ending time of the production order.';
-                    Visible = false;
-                    ObsoleteReason = 'Replaced by "Ending Date-Time" field';
-                    ObsoleteState = Pending;
-                    ObsoleteTag = '24.0';
-                }
-                field("Ending Date"; EndingDate)
-                {
-                    ApplicationArea = Manufacturing;
-                    Caption = 'Ending Date';
-                    ToolTip = 'Specifies the ending date of the production order.';
-                    Visible = false;
-                    ObsoleteReason = 'Replaced by "Ending Date-Time" field';
-                    ObsoleteState = Pending;
-                    ObsoleteTag = '24.0';
-                }
-#endif
                 field("Starting Date-Time"; Rec."Starting Date-Time")
                 {
                     ApplicationArea = Manufacturing;
@@ -401,7 +361,7 @@ page 9325 "Firm Planned Prod. Orders"
             action("Production Order List")
             {
                 ApplicationArea = Manufacturing;
-                Caption = 'Production Order List';
+                Caption = 'Production Order - List';
                 Image = "Report";
                 //The property 'PromotedCategory' can only be set if the property 'Promoted' is set to 'true'
                 //PromotedCategory = "Report";
@@ -469,12 +429,6 @@ page 9325 "Firm Planned Prod. Orders"
 
     trigger OnAfterGetRecord()
     begin
-#if not CLEAN24
-        StartingTime := DT2Time(Rec."Starting Date-Time");
-        StartingDate := DT2Date(Rec."Starting Date-Time");
-        EndingTime := DT2Time(Rec."Ending Date-Time");
-        EndingDate := DT2Date(Rec."Ending Date-Time");
-#endif
     end;
 
     trigger OnInit()
@@ -487,11 +441,4 @@ page 9325 "Firm Planned Prod. Orders"
 
     var
         ManuPrintReport: Codeunit "Manu. Print Report";
-#if not CLEAN24
-        StartingTime: Time;
-        EndingTime: Time;
-        StartingDate: Date;
-        EndingDate: Date;
-#endif
 }
-

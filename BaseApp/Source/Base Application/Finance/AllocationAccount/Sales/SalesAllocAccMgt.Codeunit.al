@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Finance.AllocationAccount.Sales;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Finance.AllocationAccount.Sales;
 
 using Microsoft.Finance.AllocationAccount;
 using Microsoft.Finance.Dimension;
@@ -64,6 +68,7 @@ codeunit 2678 "Sales Alloc. Acc. Mgt."
             AllocationLine."Dimension Set ID" := AllocAccManualOverride."Dimension Set ID";
             AllocationLine.Amount := AllocAccManualOverride.Amount;
             AllocationLine.Quantity := AllocAccManualOverride.Quantity;
+            OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(AllocAccManualOverride, AllocationLine);
             AllocationLine.Insert();
         until AllocAccManualOverride.Next() = 0;
     end;
@@ -369,6 +374,7 @@ codeunit 2678 "Sales Alloc. Acc. Mgt."
         TransferDimensionSetID(SalesLine, AllocationLine, AllocationSalesLine."Alloc. Acc. Modified by User");
         SalesLine."Allocation Account No." := AllocationLine."Allocation Account No.";
         SalesLine."Selected Alloc. Account No." := '';
+        SalesLine."Alloc. Sales Line SystemId" := AllocationSalesLine.SystemId;
         OnBeforeCreateSalesLine(SalesLine, AllocationLine, AllocationSalesLine);
         BindSubscription(AllocAccHandleDocPost);
         SalesLine.Insert(true);
@@ -724,6 +730,11 @@ codeunit 2678 "Sales Alloc. Acc. Mgt."
 
     [IntegrationEvent(false, false)]
     local procedure OnBeforeVerifySalesLine(var SalesLine: Record "Sales Line")
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnLoadManualAllocationLinesOnBeforeInsertAllocationLine(var AllocAccManualOverride: Record "Alloc. Acc. Manual Override"; var AllocationLine: Record "Allocation Line")
     begin
     end;
 

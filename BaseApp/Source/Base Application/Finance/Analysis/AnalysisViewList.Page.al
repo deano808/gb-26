@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Finance.Analysis;
 
 page 556 "Analysis View List"
@@ -7,6 +11,8 @@ page 556 "Analysis View List"
     CardPageID = "Analysis View Card";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Analysis Views';
+    AboutText = 'Create, manage, and update analysis views to organize and filter general ledger data by selected dimensions, enabling flexible financial analysis and reporting in a matrix format.';
     SourceTable = "Analysis View";
     UsageCategory = Administration;
 

@@ -11,6 +11,11 @@ using Microsoft.HumanResources.Employee;
 using Microsoft.Purchases.Vendor;
 using Microsoft.Sales.Customer;
 
+/// <summary>
+/// Validates general journal lines for SEPA credit transfer compliance and data completeness.
+/// Performs comprehensive validation of account types, amounts, bank information, and vendor/customer/employee
+/// details before export to ensure SEPA credit transfer standard compliance.
+/// </summary>
 codeunit 1223 "SEPA CT-Check Line"
 {
     TableNo = "Gen. Journal Line";
@@ -37,7 +42,6 @@ codeunit 1223 "SEPA CT-Check Line"
     var
         GLSetup: Record "General Ledger Setup";
         BankAccount: Record "Bank Account";
-        GenJournalBatch: Record "Gen. Journal Batch";
         IsHandled: Boolean;
     begin
         IsHandled := false;
@@ -46,8 +50,8 @@ codeunit 1223 "SEPA CT-Check Line"
             exit;
 
         GLSetup.Get();
-        if GenJournalBatch.Get(GenJnlLine."Journal Template Name", GenJnlLine."Journal Batch Name") then
-            GenJournalBatch.OnCheckGenJournalLineExportRestrictions();
+
+        GenJnlLine.OnCheckGenJournalLineExportRestrictions();
 
         if GenJnlLine."Bal. Account Type" <> GenJnlLine."Bal. Account Type"::"Bank Account" then
             GenJnlLine.InsertPaymentFileError(MustBeBankAccErr);

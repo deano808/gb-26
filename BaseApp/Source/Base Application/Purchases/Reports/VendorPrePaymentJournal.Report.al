@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Reports;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Reports;
 
 using Microsoft.Bank.BankAccount;
 using Microsoft.CRM.Campaign;
@@ -754,6 +758,8 @@ report 317 "Vendor Pre-Payment Journal"
 
     requestpage
     {
+        AboutTitle = 'About Vendor Pre-Payment Journal';
+        AboutText = 'Check payments before you create payment files and post the journal.';
         SaveValues = true;
 
         layout
@@ -1943,9 +1949,7 @@ report 317 "Vendor Pre-Payment Journal"
             OppositeSignAmount := TotalAmount[Sign::Negative]
         else
             OppositeSignAmount := TotalAmount[Sign::Positive];
-        if (IsPostingDateBeforePmtDate or AcceptedPmtTolerance) and
-           (Abs(AmountPaid + AmountPmtTolerance - RemPmtDiscPossible) <= Abs(AmountDue - OppositeSignAmount))
-        then
+        if IsPostingDateBeforePmtDate or AcceptedPmtTolerance then
             if IsPostingDateBeforePmtDate then
                 AmountDiscounted := -RemPmtDiscPossible
             else

@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Activity;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Activity;
 
 using Microsoft.Inventory.Availability;
 using Microsoft.Warehouse.Availability;
@@ -556,6 +560,7 @@ page 5780 "Whse. Pick Subform"
             exit;
 
         WhseActivLine.Copy(Rec);
+        WhseActivLine.SetCurrentKey("Activity Type", "No.", "Sorting Sequence No.");
         WhseActivLine.FilterGroup(3);
         WhseActivLine.SetRange(Breakbulk);
         WhseActivLine.FilterGroup(0);

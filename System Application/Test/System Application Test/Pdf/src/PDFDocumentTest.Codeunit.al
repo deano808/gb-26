@@ -30,7 +30,7 @@ codeunit 132601 "PDF Document Test"
         NavApp.GetResource('test.pdf', PdfInstream, TextEncoding::UTF8);
         TempBlob.CreateInStream(ImageStream);
         PdfDocument.Load(PdfInstream);
-        PdfDocument.ConvertToImage(ImageStream, ImageFormat::Png, 1);
+        PdfDocument.ConvertPdfToImage(ImageStream, ImageFormat::Png, 1);
         Assert.AreNotEqual(0, TempBlob.Length(), LengthErr);
     end;
 
@@ -198,6 +198,40 @@ codeunit 132601 "PDF Document Test"
             FileName,
             Description,
             false);
+
+        // [THEN] Assert that the attachment count is 1
+        Count := PDFDocument.AttachmentCount();
+        Assert.AreEqual(1, Count, 'Expected one attachment to be added.');
+    end;
+
+    [Test]
+    procedure AddAttachmentFromStream_Success()
+    var
+        PDFDocument: Codeunit "PDF Document";
+        TempBlob: Codeunit "Temp Blob";
+        FileOutStream: OutStream;
+        FileInStream: InStream;
+        AttachmentName: Text;
+        MimeType: Text;
+        FileName: Text;
+        Description: Text;
+        Count: Integer;
+    begin
+        // [GIVEN] A non-empty stream
+        TempBlob.CreateOutStream(FileOutStream);
+        FileOutStream.WriteText('Test content');
+        TempBlob.CreateInStream(FileInStream);
+
+        // [WHEN] Add the stream to append list
+        PDFDocument.Initialize();
+        AttachmentName := 'factur-x.xml';
+        MimeType := 'application/xml';
+        FileName := 'factur-x.xml';
+        Description := 'Test e-invoice attachment';
+
+        // [WHEN] Add the attachment
+        PDFDocument.Initialize();
+        PDFDocument.AddAttachment(AttachmentName, Enum::"PDF Attach. Data Relationship"::Data, MimeType, FileInStream, Description, false);
 
         // [THEN] Assert that the attachment count is 1
         Count := PDFDocument.AttachmentCount();

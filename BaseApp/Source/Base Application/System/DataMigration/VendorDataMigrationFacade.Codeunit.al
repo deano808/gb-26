@@ -48,7 +48,7 @@ codeunit 6111 "Vendor Data Migration Facade"
     begin
     end;
 
-    procedure CreateVendorIfNeeded(VendorNoToSet: Code[20]; VendorNameToSet: Text[50]): Boolean
+    procedure CreateVendorIfNeeded(VendorNoToSet: Code[20]; VendorNameToSet: Text[100]): Boolean
     var
         Vendor: Record Vendor;
     begin
@@ -414,7 +414,7 @@ codeunit 6111 "Vendor Data Migration Facade"
         exit(Vendor.Get(VendorNo));
     end;
 
-    procedure CreateDefaultDimensionAndRequirementsIfNeeded(DimensionCode: Text[20]; DimensionDescription: Text[50]; DimensionValueCode: Code[20]; DimensionValueName: Text[30])
+    procedure CreateDefaultDimensionAndRequirementsIfNeeded(DimensionCode: Text[20]; DimensionDescription: Text[50]; DimensionValueCode: Code[20]; DimensionValueName: Text[50])
     var
         Dimension: Record Dimension;
         DimensionValue: Record "Dimension Value";

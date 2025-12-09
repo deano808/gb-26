@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Warehouse.Ledger;
 
 using Microsoft.Inventory.Tracking;
@@ -12,6 +16,8 @@ page 7318 "Warehouse Entries"
     InsertAllowed = false;
     ModifyAllowed = false;
     PageType = List;
+    AboutTitle = 'About Warehouse Entries';
+    AboutText = 'Track and review detailed records of item movements within the warehouse, including adjustments, transfers, and transactions linked to specific documents, locations, bins, and serial or lot numbers.';
     SourceTable = "Warehouse Entry";
     SourceTableView = sorting("Entry No.")
                       order(descending);

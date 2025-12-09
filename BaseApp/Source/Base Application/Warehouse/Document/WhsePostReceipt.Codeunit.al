@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Warehouse.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Warehouse.Document;
 
 using Microsoft.Finance.GeneralLedger.Journal;
 using Microsoft.Finance.GeneralLedger.Preview;
@@ -34,7 +38,10 @@ codeunit 5760 "Whse.-Post Receipt"
     TableNo = "Warehouse Receipt Line";
 
     trigger OnRun()
+    var
+        SequenceNoMgt: Codeunit "Sequence No. Mgt.";
     begin
+        SequenceNoMgt.SetPreviewMode(PreviewMode);
         OnBeforeRun(Rec, SuppressCommit, PreviewMode);
 
         WhseRcptLine.Copy(Rec);
@@ -557,9 +564,11 @@ codeunit 5760 "Whse.-Post Receipt"
         end;
 
         if PurchaseLine."Document Type" = PurchaseLine."Document Type"::Order then begin
-            ModifyLine := PurchaseLine."Qty. to Receive" <> QtyToHandle;
-            if ModifyLine then
-                PurchaseLine.Validate("Qty. to Receive", QtyToHandle);
+            if PurchaseLine."Quantity Received" <> QtyToHandle then begin
+                ModifyLine := PurchaseLine."Qty. to Receive" <> QtyToHandle;
+                if ModifyLine then
+                    PurchaseLine.Validate("Qty. to Receive", QtyToHandle);
+            end;
         end else begin
             ModifyLine := PurchaseLine."Return Qty. to Ship" <> QtyToHandle;
             if ModifyLine then
@@ -781,7 +790,7 @@ codeunit 5760 "Whse.-Post Receipt"
                     Clear(TransferPostReceipt);
                 end;
             else
-                OnPostSourceDocument(WarehouseReceiptHeader, WarehouseReceiptLine);
+                OnPostSourceDocument(WarehouseReceiptHeader, WarehouseReceiptLine, CounterSourceDocOK);
         end;
 
         OnAfterPostSourceDocument(WarehouseReceiptLine);
@@ -889,6 +898,7 @@ codeunit 5760 "Whse.-Post Receipt"
         WhsePutAwayRequest: Record "Whse. Put-away Request";
         PostedWhseReceiptHeaderNo: Code[20];
         DeleteWhseRcptLine: Boolean;
+        IsHandled: Boolean;
     begin
         OnBeforePostUpdateWhseDocuments(WarehouseReceiptHeader);
         if TempWarehouseReceiptLine.Find('-') then begin
@@ -917,8 +927,12 @@ codeunit 5760 "Whse.-Post Receipt"
             WarehouseReceiptHeader."Document Status" := WarehouseReceiptHeader.GetHeaderStatus(0);
             WarehouseReceiptHeader.Modify();
         end else begin
-            WarehouseReceiptHeader.DeleteRelatedLines(false);
-            WarehouseReceiptHeader.Delete();
+            IsHandled := false;
+            OnPostUpdateWhseDocumentsOnBeforeWhseRcptHeaderDelete(WarehouseReceiptHeader, IsHandled);
+            if not IsHandled then begin
+                WarehouseReceiptHeader.DeleteRelatedLines(false);
+                WarehouseReceiptHeader.Delete();
+            end;
             OnPostUpdateWhseDocumentsOnAfterWhseRcptHeaderDelete(WarehouseReceiptHeader);
         end;
 
@@ -1933,7 +1947,7 @@ codeunit 5760 "Whse.-Post Receipt"
     end;
 
     [IntegrationEvent(false, false)]
-    local procedure OnPostSourceDocument(var WhseReceiptHeader: Record "Warehouse Receipt Header"; var WhseReceiptLine: Record "Warehouse Receipt Line")
+    local procedure OnPostSourceDocument(var WhseReceiptHeader: Record "Warehouse Receipt Header"; var WhseReceiptLine: Record "Warehouse Receipt Line"; var CounterSourceDocOK: Integer)
     begin
     end;
 
@@ -1959,6 +1973,11 @@ codeunit 5760 "Whse.-Post Receipt"
 
     [IntegrationEvent(false, false)]
     local procedure OnPostUpdateWhseDocumentsOnBeforeWhseRcptLineModify(var WarehouseReceiptLine: Record "Warehouse Receipt Line"; var WhseRcptLineBuf: Record "Warehouse Receipt Line" temporary)
+    begin
+    end;
+
+    [IntegrationEvent(false, false)]
+    local procedure OnPostUpdateWhseDocumentsOnBeforeWhseRcptHeaderDelete(var WarehouseReceiptHeader: Record "Warehouse Receipt Header"; var IsHandled: Boolean)
     begin
     end;
 

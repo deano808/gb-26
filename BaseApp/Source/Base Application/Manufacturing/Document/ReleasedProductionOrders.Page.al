@@ -21,6 +21,8 @@ page 9326 "Released Production Orders"
     CardPageID = "Released Production Order";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Released Production Orders';
+    AboutText = 'Track and monitor released production orders, compare expected and finished quantities, and analyze variances to prioritize production, identify process issues, and improve manufacturing efficiency.';
     SourceTable = "Production Order";
     SourceTableView = where(Status = const(Released));
     UsageCategory = Lists;
@@ -128,6 +130,12 @@ page 9326 "Released Production Orders"
                 {
                     ApplicationArea = Warehouse;
                     ToolTip = 'Specifies a bin to which you want to post the finished items.';
+                    Visible = false;
+                }
+                field("Completely Picked"; Rec."Completely Picked")
+                {
+                    ApplicationArea = Manufacturing;
+                    ToolTip = 'Specifies whether all production components have been completely picked.';
                     Visible = false;
                 }
             }
@@ -416,7 +424,7 @@ page 9326 "Released Production Orders"
             action("Production Order List")
             {
                 ApplicationArea = Manufacturing;
-                Caption = 'Production Order List';
+                Caption = 'Production Order - List';
                 Image = "Report";
                 RunObject = Report "Prod. Order - List";
                 ToolTip = 'View a list of the production orders contained in the system. Information such as order number, number of the item to be produced, starting/ending date and other data are shown or printed.';
@@ -497,6 +505,11 @@ page 9326 "Released Production Orders"
             }
         }
     }
+
+    trigger OnAfterGetRecord()
+    begin
+        Rec.CalcFields("Completely Picked");
+    end;
 
     var
         ManuPrintReport: Codeunit "Manu. Print Report";

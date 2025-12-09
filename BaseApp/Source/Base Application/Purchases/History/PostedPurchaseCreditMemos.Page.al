@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.History;
 
 using Microsoft.CRM.Outlook;
@@ -15,6 +19,8 @@ page 147 "Posted Purchase Credit Memos"
     CardPageID = "Posted Purchase Credit Memo";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Posted Purchase Credit Memos';
+    AboutText = 'Review and track posted purchase credit memos, including vendor details, amounts, payment status, and related documents, to manage supplier returns and corrections in your purchasing process.';
     QueryCategory = 'Posted Purchase Credit Memos';
     SourceTable = "Purch. Cr. Memo Hdr.";
     SourceTableView = sorting("Posting Date")

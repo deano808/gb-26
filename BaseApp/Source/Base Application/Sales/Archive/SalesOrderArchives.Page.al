@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Sales.Archive;
 
 using Microsoft.Finance.Dimension;
@@ -11,6 +15,8 @@ page 9349 "Sales Order Archives"
     CardPageID = "Sales Order Archive";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Sales Order Archives';
+    AboutText = 'View and manage archived versions of sales orders, including details about customers, dates, and amounts, with options to restore or copy archived orders for reuse.';
     SourceTable = "Sales Header Archive";
     SourceTableView = where("Document Type" = const(Order));
     UsageCategory = History;

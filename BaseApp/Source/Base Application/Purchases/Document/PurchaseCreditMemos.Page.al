@@ -1,4 +1,8 @@
-﻿namespace Microsoft.Purchases.Document;
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
+namespace Microsoft.Purchases.Document;
 
 using Microsoft.CRM.Outlook;
 using Microsoft.EServices.EDocument;
@@ -24,6 +28,8 @@ page 9309 "Purchase Credit Memos"
     DataCaptionFields = "Buy-from Vendor No.";
     Editable = false;
     PageType = List;
+    AboutTitle = 'About Purchase Credit Memos';
+    AboutText = 'Create, manage, and post purchase credit memos to process vendor returns, allowances, or cancellations, reverse charges from purchase invoices, and adjust inventory and vendor balances for accurate financial reconciliation.';
     QueryCategory = 'Purchase Credit Memos';
     RefreshOnActivate = true;
     SourceTable = "Purchase Header";
@@ -214,6 +220,11 @@ page 9309 "Purchase Credit Memos"
                 {
                     ApplicationArea = Basic, Suite;
                     ToolTip = 'Specifies the sum of amounts on all the lines in the document. This will include invoice discounts.';
+                }
+                field("Amount Including VAT"; Rec."Amount Including VAT")
+                {
+                    ApplicationArea = Basic, Suite;
+                    Visible = false;
                 }
                 field("Payment Discount %"; Rec."Payment Discount %")
                 {

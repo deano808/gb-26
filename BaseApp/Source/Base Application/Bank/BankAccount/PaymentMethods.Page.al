@@ -4,11 +4,21 @@
 // ------------------------------------------------------------------------------------------------
 namespace Microsoft.Bank.BankAccount;
 
+/// <summary>
+/// List interface for managing payment methods and their configurations.
+/// Provides setup for payment processing options including balancing accounts and direct debit settings.
+/// </summary>
+/// <remarks>
+/// Source Table: Payment Method (289). Administrative page for payment method configuration.
+/// Features: Balancing account setup, direct debit configuration, translation management.
+/// </remarks>
 page 427 "Payment Methods"
 {
     ApplicationArea = Basic, Suite;
     Caption = 'Payment Methods';
     PageType = List;
+    AboutTitle = 'About Payment Methods';
+    AboutText = 'Define and manage payment methods such as bank, cash, check, or direct debit for customers and vendors, specifying default options and related payment terms for use in sales and purchase transactions.';
     SourceTable = "Payment Method";
     UsageCategory = Administration;
 

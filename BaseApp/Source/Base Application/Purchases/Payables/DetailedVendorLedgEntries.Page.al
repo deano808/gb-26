@@ -1,3 +1,7 @@
+// ------------------------------------------------------------------------------------------------
+// Copyright (c) Microsoft Corporation. All rights reserved.
+// Licensed under the MIT License. See License.txt in the project root for license information.
+// ------------------------------------------------------------------------------------------------
 namespace Microsoft.Purchases.Payables;
 
 using Microsoft.Finance.GeneralLedger.Setup;
@@ -13,6 +17,8 @@ page 574 "Detailed Vendor Ledg. Entries"
     Editable = false;
     InsertAllowed = false;
     PageType = List;
+    AboutTitle = 'About Detailed Vendor Ledger Entries';
+    AboutText = 'Review, analyze, and reconcile individual vendor transactions, including invoices, payments, credits, and adjustments, to ensure accurate accounts payable records and support audit and month-end closing activities.';
     SourceTable = "Detailed Vendor Ledg. Entry";
     UsageCategory = History;
 
